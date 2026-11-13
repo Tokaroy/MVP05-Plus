@@ -17,6 +17,18 @@ Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are no
 ## Budget changer (dynasty)
 Every team has a budget in dynasty mode. In a save, org record halfword s21 is the budget in $100K units (FORMAT_NOTES 3.7). In memory, no stored value turned up (it's probably computed), so editing the save may be the way. Needs the other money figures from the budget screen. tywiggins' ChangeMoney is for owner mode and goes with the owner mode work.
 
+## Draft class from MVP 06 (to look into)
+Requested by a player: the college players from an MVP 06 dynasty become the draft class of an MVP 2005 dynasty, as
+EA's NCAA Football draft classes went into Madden. In use: choose an 06 dynasty save (end of season) and one of your
+05 dynasty saves in the Launcher; the draft-eligible players (juniors and seniors, or a pick) are converted to 2005's
+player format and put in the 05 dynasty's draft pool. To work out first:
+- **06 players:** where an 06 save keeps each player's name, position, year, ratings and appearance (the saves
+  already convert between platforms, but the player records aren't decoded).
+- **05 draft pool:** where an 05 dynasty keeps its draft prospects, and whether they're made from the disc's
+  `database/rookie.big` or kept in the save. Needs 05 dynasty saves from just before and just after a draft.
+- **Translation:** 06 and 05 ratings and looks don't line up one to one; each needs a rule (and how many players
+  the pool takes).
+
 ## Also open
 - **Stamina Changer:** tywiggins' spot (data + 0x231420) holds heap headers on the Xbox, so it needs its own search.
 - **GameCube dynasty converter:** history merge by overlap rather than by year (see the save conversion notes, 4.4).
