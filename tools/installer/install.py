@@ -1590,7 +1590,7 @@ def schedule_tab(tabs, root, tk, ttk):
 
 def generated_options(parent, root, tk, ttk):
     """The generated season's choices (schedgen.py): length, interleague, rivals, All-Star host, with a preview of
-    the deal "Use this schedule" writes. Returns an object with .frame and .choices() -> (options, seed)."""
+    the season "Use this schedule" writes. Returns an object with .frame and .choices() -> (options, seed)."""
     import random
     import schedgen as G
     import schedules as SCH
@@ -1665,12 +1665,13 @@ def generated_options(parent, root, tk, ttk):
             return
         schedule_preview(f, tk, ttk, texts, opts)
 
-    def new_deal():
+    def regenerate():
         state["seed"] = random.randrange(10**9)
-        msg.configure(text="A new deal: Preview shows it, Use this schedule puts it in the game.", foreground="#555")
+        msg.configure(text="A new season made: Preview shows it, Use this schedule puts it in the game.",
+                      foreground="#555")
 
     ttk.Button(bar, text="Preview\u2026", command=preview).pack(side="left")
-    ttk.Button(bar, text="New deal", command=new_deal).pack(side="left", padx=6)
+    ttk.Button(bar, text="Regenerate", command=regenerate).pack(side="left", padx=6)
 
     class Gen:
         pass
