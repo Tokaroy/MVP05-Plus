@@ -11,6 +11,18 @@ A card across the empty bottom of the *Play* tab: a player's picture, name, team
 - **Picture:** read from the player's own installed game files at run time, like the title art. EA's art is never shipped. First, find where MVP 2005 keeps player headshots in its `.big` files and in what texture format, and whether every MLB player has one. That needs a listing of `assets\data` and a few `.big` files from a real install.
 - **Layout:** the dog easter egg uses the bottom-right corner, so leave room for it or let it sit on top of the card.
 
+## Generated seasons (built, not released yet)
+The Schedule tab's *Generated season* (tools/installer/schedgen.py): any length from 12 to 162 games; interleague
+as in 2005, chosen division matchups, a new matchup each dynasty year, or none; natural rivals every year (or not);
+the All-Star Game hosted by the AL, the NL, or each in turn; a different season for each of the three dynasty years;
+a preview by team and year before it goes in the game. Every team plays the same number of games in 2- to 4-game
+series, half at home, with the disc's proportions of division, league and interleague games, on 2005's calendar
+(opening day April 4, the All-Star Game July 12; 100+ games fill the calendar, shorter seasons play a first half
+from opening day and a second half from August 1, after the trade deadline). Our own code: nothing from Dylan
+Bradbury's Random Schedule Generator, whose readme forbids redistributing or editing it.
+**To test in the game:** a dynasty through a full generated season into year 2, at 162 and at a short length (64),
+and with interleague off; the All-Star Game hosted by the NL. Then Beta 3, or a 2.5.
+
 ## Owner mode imports
 Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are now. Owner mode is its own mode with its own save type. It needs matched pairs: a new owner mode save with the same team on each platform, saved straight away.
 

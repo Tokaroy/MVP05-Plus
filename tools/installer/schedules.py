@@ -19,6 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SEASON_FILES = ("mlb162_1.dat", "mlb162_2.dat", "mlb162_3.dat")
 ORIGINAL = "162"
 SHUFFLED = "162s"  # the game's own, its teams dealt new slates within their divisions: made here, every launch
+GENERATED = "gen"  # built here from scratch (schedgen.py) with your choices, kept in schedules/generated.json
 # 2005's divisions, as the schedules name the teams
 DIVISIONS = {"AL East": "Bal Bos NYY TB Tor", "AL Central": "CWS Cle Det KC Min", "AL West": "Ana Oak Sea Tex",
              "NL East": "Atl Fla NYM Phi Was", "NL Central": "ChC Cin Hou Mil Pit StL", "NL West": "Ari Col LA SD SF"}
@@ -36,7 +37,9 @@ def catalog(root):
             with open(p, encoding="utf-8") as f:
                 out = json.load(f)
             for s in out:
-                s["folder"] = None if s.get("shuffle") else os.path.join(base, s["id"])
+                s["folder"] = None if s.get("shuffle") or s.get("generate") else os.path.join(base, s["id"])
+                if s.get("generate"):
+                    s["games"] = generated(root)["options"]["games"]
             return out + imported(root)
     return [{"id": ORIGINAL, "name": "162 games (the original)", "games": 162, "kind": "original", "about": "",
              "folder": None}] + imported(root)
@@ -44,6 +47,36 @@ def catalog(root):
 
 # --- schedules you bring in: the season files of any MVP 2005's schedule.big (Xbox, PS2, GameCube, PC: they're the
 # same text everywhere), or the .dat files themselves. Kept in schedules/imported/, which updates never touch.
+
+def generated(root):
+    """The generated schedule's choices and deal: {options, seed}, the defaults if none was made yet."""
+    import schedgen
+    try:
+        with open(os.path.join(root, "schedules", "generated.json"), encoding="utf-8") as f:
+            g = json.load(f)
+        o = schedgen.default_options()
+        o.update(g.get("options") or {})
+        return {"options": o, "seed": g.get("seed")}
+    except (OSError, ValueError):
+        return {"options": schedgen.default_options(), "seed": None}
+
+
+def save_generated(root, options, seed):
+    p = os.path.join(root, "schedules", "generated.json")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p + ".new", "w", encoding="utf-8") as f:
+        json.dump({"options": options, "seed": seed}, f, indent=2)
+    os.replace(p + ".new", p)
+
+
+def generate(options, seed):
+    """The three season files for options and seed (ScheduleError if they can't be made)."""
+    import schedgen
+    try:
+        return schedgen.seasons(options, seed)
+    except schedgen.GenError as e:
+        raise ScheduleError(str(e))
+
 
 def _imported_dir(root):
     return os.path.join(root, "schedules", "imported")
@@ -338,7 +371,8 @@ def current(root):
     except (OSError, ValueError):
         pass
     for s in catalog(root):
-        if s["id"] != ORIGINAL and not s.get("shuffle") and s.get("folder") and os.path.isdir(s["folder"]):
+        if s["id"] != ORIGINAL and not s.get("shuffle") and not s.get("generate") and s.get("folder") and \
+                os.path.isdir(s["folder"]):
             try:
                 if _digest(season_files(s)) == d:
                     return s["id"]
@@ -355,9 +389,10 @@ def current(root):
     return ORIGINAL if set(games_per_team(texts[0]).values()) == {162} else None
 
 
-def apply(root, schedule_id, seed=None):
+def apply(root, schedule_id, seed=None, options=None):
     """The schedule swapped into the game's schedule.big; the game's own kept first. Returns its games per team.
-    The shuffled one is dealt anew each time (seed: the same deal again, for tests)."""
+    The shuffled one is dealt anew each time (seed: the same deal again, for tests). The generated one is made from
+    options and seed (or the last ones used), which are kept for next time."""
     big = find_big(root)
     if not big:
         raise ScheduleError("the game isn't installed yet (no schedule.big in assets)")
@@ -381,6 +416,12 @@ def apply(root, schedule_id, seed=None):
             have = dict(base)
             rng = random.Random(seed)
             texts = [shuffled(unpacked(have[n]), rng) for n in SEASON_FILES]
+        elif entry.get("generate"):
+            g = generated(root)
+            options = options or g["options"]
+            seed = seed if seed is not None else (g["seed"] if g["seed"] is not None else random.randrange(10**9))
+            texts = generate(options, seed)
+            entry = dict(entry, games=int(options["games"]))
         else:
             texts = season_files(entry)
         for t in texts:
@@ -395,6 +436,8 @@ def apply(root, schedule_id, seed=None):
     with open(big + ".new", "wb") as f:
         f.write(data)
     os.replace(big + ".new", big)
+    if entry.get("generate"):
+        save_generated(root, options, seed)
     try:
         if texts is None:
             os.remove(_marker(root))

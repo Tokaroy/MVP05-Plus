@@ -35,7 +35,7 @@ MANIFEST = "SHA256-MANIFEST.json"
 WORK = ".update"  # in the game folder: the download, and the files the last update replaced
 # yours, never written by an update (a release zip holding any of these is refused)
 PROTECTED = ("assets", "hdd", "save backups", "gc_icons", "ps2_icons", "shader_cache", "logs", WORK,
-             "schedules/original", "schedules/imported", "schedules/current.json")
+             "schedules/original", "schedules/imported", "schedules/current.json", "schedules/generated.json")
 # in every release zip, but nothing an update needs: checked against the manifest like the rest, then left out
 SKIP = ("assets/PUT-GAME-FILES-HERE.txt",)
 

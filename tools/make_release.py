@@ -19,7 +19,8 @@ BUILT = ["MVP05.exe", "d3dcompiler_ms.dll", "msvcp140.dll", "vcruntime140.dll", 
          "MVP05-Plus-Launcher.exe", "gcbridge"]
 FROM_REPO = ["README.md", "RELEASE-NOTES.md", "START-HERE.txt", "mvp05-settings.toml", "SDK-LICENSE.txt",
              "THIRD_PARTY.txt", "MICROSOFT-RUNTIME-NOTICE.txt", "assets/PUT-GAME-FILES-HERE.txt"]
-NEVER = ("gc_icons", "ps2_icons", "shader_cache", "save backups", "schedules/original", "schedules/imported", "schedules/current.json")
+NEVER = ("gc_icons", "ps2_icons", "shader_cache", "save backups", "schedules/original", "schedules/imported", "schedules/current.json",
+         "schedules/generated.json")
 
 
 def main():

@@ -17,6 +17,15 @@
     "short": "Default 162 games, shuffled within each division: same home and away, division and interleague games, in a new order. A new shuffle every time the Launcher starts the game."
   },
   {
+    "id": "gen",
+    "name": "Generated season",
+    "games": 162,
+    "kind": "generated",
+    "generate": true,
+    "about": "Built by the Launcher from scratch with your choices: the season's length, which divisions meet in interleague (or none), natural rivals every year and the All-Star Game's host. Every team plays the same number of games, half at home, in two- to four-game series, with division, league and interleague games in the disc's proportions and a different season for each of the three dynasty years.",
+    "short": "Built by the Launcher with your choices below: any length from 12 to 162 games, a different season each dynasty year."
+  },
+  {
     "id": "64",
     "name": "64 games",
     "games": 64,
