@@ -1213,9 +1213,62 @@ def desktop_resolution():
         return None
 
 
+# Game Tweaks, by tab: (key in mvp05-settings.toml, title, explanation, {choice: value}) for a dropdown, or
+# (key, None, text, None) for a checkbox. The first choice is the game's own (what an unset key means).
+TWEAKS = {
+    "Gameplay": [
+        ("pitcher_recovery", "Pitchers' rest",
+         "How fast pitchers get their stamina back between games. By default, a starter is ready again two days after "
+         "a full start and relievers are almost never tired.",
+         {"MVP 05 Default (100%): starters ready after about 2 days": 100,
+          "Quicker (75%): starters ready after about 3 days": 75,
+          "Five-man rotation (50%): starters ready after about 4 days": 50,
+          "Slow (35%): starters ready after about 6 days": 35}),
+        ("injury_length", "Injury length",
+         "How long injured players are out in a dynasty. How often they get hurt is the game's own Injury sliders.",
+         {"MVP 05 Default (100%)": 100, "Shorter (50%): half as long": 50,
+          "Longer (150%): half again as long": 150, "Much longer (200%): twice as long": 200}),
+        ("rain", "Weather", "EA's rain, still in the game but rarely seen.",
+         {"MVP 05 Default (the game's own weather)": 0, "Rain in every game (test)": 1}),
+        ("park_factors", "Park factors",
+         "How each park changes home runs, hits, doubles and triples (Coors helps hitters, Comerica hurts home runs).",
+         {"MVP 05 Default (EA's 2005 parks)": 0, "Neutral: every park plays the same": 1}),
+    ],
+    "Graphics": [
+        ("player_full_detail", None, "Full detail: every player's best model, not only the ones in the play", None),
+        ("daylight_parks", None, "Daylight day games at Fenway, Turner Field and the other parks EA lit as dusk",
+         None),
+        ("depth_of_field", None, "Depth of field: EA's background blur, turned off on the Xbox (test)", None),
+        ("memory_mb", "Memory",
+         "Room for what the game loads: stadiums, players, crowds. The Xbox had 64 MB, and the game keeps about 41 MB "
+         "of it for these. Double it for mods that add more than the Xbox could hold.",
+         {"MVP 05 Default (64 MB, 41 MB for the game)": 64,
+          "Doubled (128 MB, 97 MB for the game): room for mods": 128}),
+    ],
+    "Dynasty": [
+        ("dev_speed", "Player development",
+         "How often young players' ratings go up each season (EA: always at 18-19, half the time at 24).",
+         {"MVP 05 Default": 100, "Slower (70%)": 70, "Much slower (50%)": 50, "Faster (130%)": 130}),
+        ("aging", "Aging",
+         "How often players' ratings go down each season (EA: rarely before 30, nearly always after 35).",
+         {"MVP 05 Default": 100, "Gentler (70%)": 70, "Harsher (130%)": 130}),
+        ("retirement", "Retirement",
+         "How often players retire, by age and star level (EA: stars can't retire before 40 and can play to 45).",
+         {"MVP 05 Default": 100, "Later (50%)": 50, "Earlier (150%)": 150}),
+        ("contract_prices", "Contract prices", "What free agents ask for.",
+         {"MVP 05 Default": 100, "Higher (125%)": 125, "Much higher (150%)": 150, "Lower (75%)": 75}),
+        ("resign_chance", "Re-signing",
+         "The chance your players re-sign with you (EA: 30-50% for most, 95-98% for stars).",
+         {"MVP 05 Default": 100, "Easier (+15 points)": 115, "Harder (-15 points)": 85}),
+        ("rookie_quality", "Rookies", "How many generated rookies are stars (EA: 52% one-star, 4% five-star).",
+         {"MVP 05 Default": 0, "Better (more 3-5 stars)": 1, "Much better": 2}),
+    ],
+}
+
+
 def game_tweaks_window(parent, root, tk, ttk):
-    """Game Tweaks: small changes to how the game plays, made by MVP05-Plus while it runs (the game's files stay
-    stock). Saved in mvp05-settings.toml; the game reads them when it starts."""
+    """Game Tweaks: changes to how the game plays, made by MVP05-Plus while it runs (the game's files stay stock).
+    Saved in mvp05-settings.toml; the game reads them when it starts."""
     import settings as ST
     w = parent.winfo_toplevel()
     for c in w.winfo_children():  # one at a time
@@ -1229,104 +1282,53 @@ def game_tweaks_window(parent, root, tk, ttk):
     win.resizable(False, False)
     f = ttk.Frame(win, padding=14)
     f.grid()
-    ttk.Label(f, text="Game Tweaks", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
-    ttk.Label(f, foreground="#666", wraplength=480, justify="left", text=(
+    ttk.Label(f, text="Game Tweaks", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w")
+    ttk.Label(f, foreground="#666", wraplength=500, justify="left", text=(
         "Changes to how the game plays, built into MVP05-Plus. Your game files stay as they are. "
-        "Changes take effect the next time the game starts.")).grid(row=1, column=0, columnspan=2, sticky="w",
-                                                                    pady=(0, 10))
-    # pitcher_recovery: percent of the game's own daily stamina recovery (100: as the game)
-    ttk.Label(f, text="Pitchers' rest", font=("Segoe UI", 9, "bold")).grid(row=2, column=0, columnspan=2, sticky="w")
-    ttk.Label(f, wraplength=480, justify="left", text=(
-        "How fast pitchers get their stamina back between games. By default, a starter is ready again two days "
-        "after a full start and relievers are almost never tired.")).grid(row=3, column=0, columnspan=2,
-                                                                         sticky="w", pady=(0, 4))
-    rest_names = {"MVP 05 Default (100%): starters ready after about 2 days": 100,
-                  "Quicker (75%): starters ready after about 3 days": 75,
-                  "Five-man rotation (50%): starters ready after about 4 days": 50,
-                  "Slow (35%): starters ready after about 6 days": 35}
-    rest = tk.StringVar()
-    box = ttk.Combobox(f, textvariable=rest, values=list(rest_names), state="readonly", width=56)
-    box.grid(row=4, column=0, columnspan=2, sticky="w")
-    # injury_length: percent of the game's own injury lengths in a dynasty (100: as the game)
-    ttk.Label(f, text="Injury length", font=("Segoe UI", 9, "bold")).grid(row=5, column=0, columnspan=2, sticky="w",
-                                                                          pady=(10, 0))
-    ttk.Label(f, wraplength=480, justify="left", text=(
-        "How long injured players are out in a dynasty. How often they get hurt is the game's own Injury sliders."
-    )).grid(row=6, column=0, columnspan=2, sticky="w", pady=(0, 4))
-    injury_names = {"MVP 05 Default (100%)": 100,
-                    "Shorter (50%): half as long": 50,
-                    "Longer (150%): half again as long": 150,
-                    "Much longer (200%): twice as long": 200}
-    injury = tk.StringVar()
-    ibox = ttk.Combobox(f, textvariable=injury, values=list(injury_names), state="readonly", width=56)
-    ibox.grid(row=7, column=0, columnspan=2, sticky="w")
-    # memory_mb: the Xbox's RAM, 64 (as the console) or 128 with the game's heap grown to match
-    ttk.Label(f, text="Memory", font=("Segoe UI", 9, "bold")).grid(row=8, column=0, columnspan=2, sticky="w",
-                                                                   pady=(10, 0))
-    ttk.Label(f, wraplength=480, justify="left", text=(
-        "Room for what the game loads: stadiums, players, crowds. The Xbox had 64 MB, and the game keeps about 41 MB "
-        "of it for these. Double it for mods that add more than the Xbox could hold.")).grid(
-        row=9, column=0, columnspan=2, sticky="w", pady=(0, 4))
-    memory_names = {"MVP 05 Default (64 MB, 41 MB for the game)": 64,
-                    "Doubled (128 MB, 97 MB for the game): room for mods": 128}
-    memory = tk.StringVar()
-    mbox = ttk.Combobox(f, textvariable=memory, values=list(memory_names), state="readonly", width=56)
-    mbox.grid(row=10, column=0, columnspan=2, sticky="w")
-    # player_full_detail: every player drawn with his most detailed model
-    ttk.Label(f, text="Graphics", font=("Segoe UI", 9, "bold")).grid(row=11, column=0, columnspan=2,
-                                                                     sticky="w", pady=(10, 0))
-    full_detail = tk.BooleanVar()
-    ttk.Checkbutton(f, text="Full detail: every player's best model, not only the ones in the play",
-                    variable=full_detail).grid(row=12, column=0, columnspan=2, sticky="w")
-    daylight = tk.BooleanVar()
-    ttk.Checkbutton(f, text="Daylight day games at Fenway, Turner Field and the other parks EA lit as dusk",
-                    variable=daylight).grid(row=13, column=0, columnspan=2, sticky="w")
-    dof = tk.BooleanVar()
-    ttk.Checkbutton(f, text="Depth of field: EA's background blur, turned off on the Xbox (test)",
-                    variable=dof).grid(row=14, column=0, columnspan=2, sticky="w")
-    # rain: 1 rain in every game (the game's own weather otherwise)
-    ttk.Label(f, text="Weather", font=("Segoe UI", 9, "bold")).grid(row=15, column=0, columnspan=2, sticky="w",
-                                                                    pady=(10, 0))
-    rain_names = {"MVP 05 Default (the game's own weather)": 0, "Rain in every game (test)": 1}
-    rain = tk.StringVar()
-    rbox = ttk.Combobox(f, textvariable=rain, values=list(rain_names), state="readonly", width=56)
-    rbox.grid(row=16, column=0, columnspan=2, sticky="w")
-    note = ttk.Label(f, text="", wraplength=480, justify="left")
-    note.grid(row=17, column=0, columnspan=2, sticky="w", pady=(8, 0))
-
-    def pick(box, names, v):
-        v = v if isinstance(v, int) and not isinstance(v, bool) else 100
-        name = next((k for k, x in names.items() if x == v), None)
-        if name is None:  # set by hand in the file
-            name = f"Your own ({v}%)"
-            names[name] = v
-            box.configure(values=list(names))
-        return name
-
-    def load():
-        saved = ST.read(root)
-        rest.set(pick(box, rest_names, saved.get("pitcher_recovery", 100)))
-        injury.set(pick(ibox, injury_names, saved.get("injury_length", 100)))
-        memory.set(next((k for k, x in memory_names.items() if x == saved.get("memory_mb", 64)),
-                        list(memory_names)[0]))
-        full_detail.set(saved.get("player_full_detail", False) is True)
-        daylight.set(saved.get("daylight_parks", False) is True)
-        dof.set(saved.get("depth_of_field", False) is True)
-        rain.set(next((k for k, x in rain_names.items() if x == saved.get("rain", 0)), list(rain_names)[0]))
+        "Changes take effect the next time the game starts.")).grid(row=1, column=0, sticky="w", pady=(0, 8))
+    nb = ttk.Notebook(f)
+    nb.grid(row=2, column=0, sticky="nwe")
+    saved = ST.read(root)
+    controls = []  # (key, var, choices or None)
+    for tab, items in TWEAKS.items():
+        page = ttk.Frame(nb, padding=10)
+        nb.add(page, text=tab)
+        r = 0
+        for key, title, text, choices in items:
+            if choices is None:
+                var = tk.BooleanVar(value=saved.get(key, False) is True)
+                ttk.Checkbutton(page, text=text, variable=var).grid(row=r, column=0, sticky="w", pady=2)
+                r += 1
+                controls.append((key, var, None))
+                continue
+            ttk.Label(page, text=title, font=("Segoe UI", 9, "bold")).grid(row=r, column=0, sticky="w",
+                                                                           pady=(8 if r else 0, 0))
+            ttk.Label(page, wraplength=500, justify="left", text=text).grid(row=r + 1, column=0, sticky="w",
+                                                                           pady=(0, 3))
+            choices = dict(choices)
+            v = saved.get(key, list(choices.values())[0])
+            v = v if isinstance(v, int) and not isinstance(v, bool) else list(choices.values())[0]
+            name = next((k for k, x in choices.items() if x == v), None)
+            if name is None:  # set by hand in the file
+                name = f"Your own ({v})"
+                choices[name] = v
+            var = tk.StringVar(value=name)
+            ttk.Combobox(page, textvariable=var, values=list(choices), state="readonly", width=58).grid(
+                row=r + 2, column=0, sticky="w")
+            r += 3
+            controls.append((key, var, choices))
+    note = ttk.Label(f, text="", wraplength=500, justify="left")
+    note.grid(row=3, column=0, sticky="w", pady=(8, 0))
 
     def save():
-        ST.write(root, {"pitcher_recovery": rest_names.get(rest.get(), 100),
-                        "injury_length": injury_names.get(injury.get(), 100),
-                        "memory_mb": memory_names.get(memory.get(), 64),
-                        "player_full_detail": full_detail.get(), "daylight_parks": daylight.get(), "depth_of_field": dof.get(),
-                        "rain": rain_names.get(rain.get(), 0)})
+        ST.write(root, {key: (var.get() if choices is None else choices.get(var.get(), list(choices.values())[0]))
+                        for key, var, choices in controls})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
 
     bar = ttk.Frame(f)
-    bar.grid(row=18, column=0, columnspan=2, sticky="e", pady=(12, 0))
+    bar.grid(row=4, column=0, sticky="e", pady=(12, 0))
     ttk.Button(bar, text="Close", command=win.destroy).pack(side="right")
     ttk.Button(bar, text="Save", command=save).pack(side="right", padx=6)
-    load()
     win.update_idletasks()  # centred over the Launcher
     x = w.winfo_rootx() + (w.winfo_width() - win.winfo_width()) // 2
     y = w.winfo_rooty() + (w.winfo_height() - win.winfo_height()) // 3

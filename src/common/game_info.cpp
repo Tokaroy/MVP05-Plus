@@ -3,6 +3,7 @@
 #include "../game/gc_controls.h"
 #include "save_backup.h"
 #include "day_parks.h"
+#include "dynasty_data.h"
 #include "season_length.h"
 #include "tuning.h"
 #include "tools_overlay.h"
@@ -29,7 +30,14 @@ const app::GameInfo app::kGame = {
                 {"player_full_detail", &tools::g_player_full_detail, nullptr},  // every player's most detailed model
                 {"rain", nullptr, &tools::g_rain},  // 1: rain in every game
                 {"daylight_parks", &tools::g_daylight_parks, nullptr},  // day games in daylight at the dusk-lit parks
-                {"depth_of_field", &tools::g_depth_of_field, nullptr}},  // EA's depth of field, off on the Xbox
+                {"depth_of_field", &tools::g_depth_of_field, nullptr},  // EA's depth of field, off on the Xbox
+                {"dev_speed", nullptr, &tools::g_dev_speed},  // dynasty data tweaks (dynasty_data.cpp)
+                {"aging", nullptr, &tools::g_aging},
+                {"retirement", nullptr, &tools::g_retirement},
+                {"contract_prices", nullptr, &tools::g_contract_prices},
+                {"resign_chance", nullptr, &tools::g_resign_chance},
+                {"park_factors", nullptr, &tools::g_park_factors},
+                {"rookie_quality", nullptr, &tools::g_rookie_quality}},
     .load = nullptr,                      // reads more from the settings file's toml::table
     .save = nullptr,                      // writes more into it
     .init = [] {                           // after the settings load, before the window and boot
@@ -38,6 +46,7 @@ const app::GameInfo app::kGame = {
         season::FromSchedule();            // the season's length: the games in the installed schedule
         dayparks::Apply();                 // day games in daylight at the parks EA lit as dusk, if asked
         tuning::Apply();                   // the game's tuning (datafile.big) as the Game Tweaks ask
+        dynastydata::Apply();              // the dynasty's data tables (development, contracts, ...) as they ask
         gc::Init();
     },
     .loaded = nullptr,                    // image in memory, before its entry point runs

@@ -12,6 +12,7 @@
 #include "app/app.h"
 #include "core/log.h"
 #include "kernel/kernel.h"
+#include "bigfile.h"
 #include "tools_overlay.h"
 
 namespace dayparks {
@@ -78,7 +79,7 @@ void Apply() {
     std::error_code ec;
     fs::create_directories(dir, ec);
     std::ofstream(dir / "lighting.csv", std::ios::binary) << out.str();
-    kernel::SetDiscOverlay(app::ExeDir() / "tweaks");
+    bigfile::UseTweaks();
     LOGR("daylight: day games in daylight at %s", changed.empty() ? "(none to change)" : changed.c_str());
 }
 
