@@ -24,7 +24,7 @@ uint32_t g_season_games = standings::kFullSeason;
 
 namespace {
 
-constexpr uint32_t kVkF10 = 0x79, kVkF12 = 0x7B, kVkEscape = 0x1B, kWmKeyDown = 0x0100, kWmSysKeyDown = 0x0104;
+constexpr uint32_t kVkF10 = 0x79, kVkF9 = 0x78, kVkEscape = 0x1B, kWmKeyDown = 0x0100, kWmSysKeyDown = 0x0104;
 constexpr int kVkShift = 0x10, kVkControl = 0x11;
 constexpr uint16_t kStart = 1u << 4, kBack = 1u << 5;
 constexpr auto kHold = std::chrono::milliseconds(1000);
@@ -312,7 +312,7 @@ void PlayoffsCreator() {
     }
 }
 
-// a memory capture for working out the game (Ctrl+Shift+F12, any time): the whole of the game's memory to
+// a memory capture for working out the game (Ctrl+Shift+F9, any time; F12 is the screenshot key): the whole of the game's memory to
 // logs/memory-<date>-<time>.bin, written on its own thread; what happened is logged and shown in the Tools menu
 std::atomic<bool> g_capturing{false};
 std::mutex g_capture_lock;
@@ -358,7 +358,7 @@ bool Message(void*, uint32_t msg, uintptr_t wp, intptr_t lp, intptr_t* result) {
         *result = 0;
         return true;
     }
-    if (wp == kVkF12 && Held(kVkControl) && Held(kVkShift)) {
+    if (wp == kVkF9 && Held(kVkControl) && Held(kVkShift)) {
         if (!repeated) StartCapture();
         *result = 0;
         return true;
