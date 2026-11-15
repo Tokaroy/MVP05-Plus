@@ -28,3 +28,5 @@ season_games = 162
 # The game gives a pitcher back about a quarter of his stamina every day, so a starter is ready again two days after
 # a full start and relievers are almost never tired. At 50 a starter needs about four days, like a five-man rotation.
 pitcher_recovery = 100
+# How long injured players are out in a dynasty, as a percent of the game's own lengths (100: as the game).
+injury_length = 100

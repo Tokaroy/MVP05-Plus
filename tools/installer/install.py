@@ -1247,25 +1247,43 @@ def game_tweaks_window(parent, root, tk, ttk):
     rest = tk.StringVar()
     box = ttk.Combobox(f, textvariable=rest, values=list(rest_names), state="readonly", width=56)
     box.grid(row=4, column=0, columnspan=2, sticky="w")
+    # injury_length: percent of the game's own injury lengths in a dynasty (100: as the game)
+    ttk.Label(f, text="Injury length", font=("Segoe UI", 9, "bold")).grid(row=5, column=0, columnspan=2, sticky="w",
+                                                                          pady=(10, 0))
+    ttk.Label(f, wraplength=480, justify="left", text=(
+        "How long injured players are out in a dynasty. How often they get hurt is the game's own Injury sliders."
+    )).grid(row=6, column=0, columnspan=2, sticky="w", pady=(0, 4))
+    injury_names = {"MVP 05 Default (100%)": 100,
+                    "Shorter (50%): half as long": 50,
+                    "Longer (150%): half again as long": 150,
+                    "Much longer (200%): twice as long": 200}
+    injury = tk.StringVar()
+    ibox = ttk.Combobox(f, textvariable=injury, values=list(injury_names), state="readonly", width=56)
+    ibox.grid(row=7, column=0, columnspan=2, sticky="w")
     note = ttk.Label(f, text="", wraplength=480, justify="left")
-    note.grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
+    note.grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
-    def load():
-        v = ST.read(root).get("pitcher_recovery", 100)
+    def pick(box, names, v):
         v = v if isinstance(v, int) and not isinstance(v, bool) else 100
-        name = next((k for k, x in rest_names.items() if x == v), None)
+        name = next((k for k, x in names.items() if x == v), None)
         if name is None:  # set by hand in the file
             name = f"Your own ({v}%)"
-            box.configure(values=list(rest_names) + [name])
-            rest_names[name] = v
-        rest.set(name)
+            names[name] = v
+            box.configure(values=list(names))
+        return name
+
+    def load():
+        saved = ST.read(root)
+        rest.set(pick(box, rest_names, saved.get("pitcher_recovery", 100)))
+        injury.set(pick(ibox, injury_names, saved.get("injury_length", 100)))
 
     def save():
-        ST.write(root, {"pitcher_recovery": rest_names.get(rest.get(), 100)})
+        ST.write(root, {"pitcher_recovery": rest_names.get(rest.get(), 100),
+                        "injury_length": injury_names.get(injury.get(), 100)})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
 
     bar = ttk.Frame(f)
-    bar.grid(row=6, column=0, columnspan=2, sticky="e", pady=(12, 0))
+    bar.grid(row=9, column=0, columnspan=2, sticky="e", pady=(12, 0))
     ttk.Button(bar, text="Close", command=win.destroy).pack(side="right")
     ttk.Button(bar, text="Save", command=save).pack(side="right", padx=6)
     load()

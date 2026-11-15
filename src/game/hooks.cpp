@@ -196,3 +196,36 @@ X86_FUNC(sub_0019FB30) {
     }
     __imp__sub_0019FB30(ctx, base);
 }
+
+// Injury length. The dynasty keeps every player's injury in "attrib.dat" (vtable 0x5ADCC4, records of 60 bytes at
+// [this+0x24], count at [this+0x20]): field 30 is the injury's kind and field 31 (the record's byte at +0x14) the days
+// left. A new injury's days are written through SetField (0x1A1CA0, thiscall: field, record, value), from the game
+// just played (0x1BE8EA) or the dynasty's own (0x1CDC55), and the days count down from there. A rise of field 31 in
+// attrib.dat (the in-game teams' copies are far smaller) is made injury_length percent of itself.
+namespace {
+constexpr uint32_t kAttribTable = 0x5ADCC4, kInjuryDays = 31;
+}  // namespace
+X86_EXTERN_FUNC(__imp__sub_001A1CA0);
+X86_FUNC(sub_001A1CA0) {
+    uint32_t self = ctx.ecx, ret = kernel::R32(ctx.esp), field = kernel::R32(ctx.esp + 4),
+             rec = kernel::R32(ctx.esp + 8), value = kernel::R32(ctx.esp + 12);
+    uint32_t pct = std::min<uint32_t>(tools::g_injury_length, 400);
+    if (field == kInjuryDays && kernel::R32(self) == kAttribTable) {
+        uint32_t count = kernel::R32(self + 0x20);
+        if (rec < count && count >= 1000) {
+            int old = int(kernel::G<uint8_t>(kernel::R32(self + 0x24) + rec * 60 + 0x14)), now = std::clamp(int(value), 0, 255);
+            int scaled = now;
+            if (pct != 100 && pct > 0 && now > old) scaled = std::clamp(old + ((now - old) * int(pct) + 50) / 100, old + 1, 255);
+            static std::mutex m;
+            static std::map<uint32_t, int> seen;
+            {
+                std::lock_guard<std::mutex> lock(m);
+                if (seen[ret]++ < 6)
+                    LOGR("injury: days set from %08X (record %u): %d -> %d%s", ret, rec, old, now,
+                         scaled != now ? " (length changed)" : "");
+            }
+            if (scaled != now) kernel::W32(ctx.esp + 12, uint32_t(scaled));
+        }
+    }
+    __imp__sub_001A1CA0(ctx, base);
+}
