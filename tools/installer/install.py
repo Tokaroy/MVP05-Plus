@@ -1237,10 +1237,10 @@ def game_tweaks_window(parent, root, tk, ttk):
     # pitcher_recovery: percent of the game's own daily stamina recovery (100: as the game)
     ttk.Label(f, text="Pitchers' rest", font=("Segoe UI", 9, "bold")).grid(row=2, column=0, columnspan=2, sticky="w")
     ttk.Label(f, wraplength=480, justify="left", text=(
-        "How fast pitchers get their stamina back between games. As the game, a starter is ready again two days "
+        "How fast pitchers get their stamina back between games. By default, a starter is ready again two days "
         "after a full start and relievers are almost never tired.")).grid(row=3, column=0, columnspan=2,
                                                                          sticky="w", pady=(0, 4))
-    rest_names = {"As the game (100%): starters ready after about 2 days": 100,
+    rest_names = {"MVP 05 Default (100%): starters ready after about 2 days": 100,
                   "Quicker (75%): starters ready after about 3 days": 75,
                   "Five-man rotation (50%): starters ready after about 4 days": 50,
                   "Slow (35%): starters ready after about 6 days": 35}
