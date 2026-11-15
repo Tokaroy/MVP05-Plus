@@ -12,8 +12,7 @@ import settings as ST
 # what's the player's: the game installed from the disc, saves, backups, button art, the shader cache, the
 # Schedule tab's original and imported schedules, the icon from the disc, the Launcher's own choices
 CARRY = ("assets", "hdd", "save backups", "gc_icons", "ps2_icons", "shader_cache", "schedules/original",
-         "schedules/imported", "schedules/current.json", "schedules/generated.json", "mvp05.ico",
-         "mvp05-plus-launcher.json")
+         "schedules/imported", "schedules/current.json", "mvp05.ico", "mvp05-plus-launcher.json")
 
 
 class CarryError(Exception):

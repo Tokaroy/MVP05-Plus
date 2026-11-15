@@ -1445,7 +1445,7 @@ def schedule_tab(tabs, root, tk, ttk):
     have = ttk.Label(frm, font=("Segoe UI", 9, "bold"))
     have.grid(row=2, column=0, sticky="w", pady=(0, 6))
     kinds = {"original": "default, MVP 2005 disc", "mvp2004": "from the MVP 2004 disc", "custom": "made for MVP05-Plus",
-             "shuffled": "MVP 2005 disc", "imported": "imported by you", "generated": "your choices"}
+             "shuffled": "MVP 2005 disc", "imported": "imported by you", "made": "made by you"}
     cat, label, by_label = [], {}, {}
     pick = tk.StringVar()
     box = ttk.Combobox(frm, state="readonly", width=58)
@@ -1454,17 +1454,13 @@ def schedule_tab(tabs, root, tk, ttk):
     def load_catalog():
         cat[:] = SCH.catalog(root)
         label.clear()
-        label.update({e["id"]: f"{e['name']}  ({kinds.get(e['kind'], e['kind'])})" if e["kind"] != "generated" else
-                      f"{e['name']}  ({kinds['generated']})" for e in cat})
+        label.update({e["id"]: f"{e['name']}  ({kinds.get(e['kind'], e['kind'])})" for e in cat})
         by_label.clear()
         by_label.update({v: k for k, v in label.items()})
         box.configure(values=[label[e["id"]] for e in cat])
     load_catalog()
-    mid = ttk.Frame(frm)
-    mid.grid(row=4, column=0, sticky="we")
-    blurb = ttk.Label(mid, foreground="#555", wraplength=560, justify="left")
-    blurb.grid(row=0, column=0, sticky="w", pady=(4, 0))
-    gen = generated_options(mid, root, tk, ttk)  # the generated season's choices: shown when it's picked
+    blurb = ttk.Label(frm, foreground="#555", wraplength=560, justify="left")
+    blurb.grid(row=4, column=0, sticky="w", pady=(4, 0))
 
     def shown(*_):
         sid = by_label.get(box.get())
@@ -1472,11 +1468,7 @@ def schedule_tab(tabs, root, tk, ttk):
         pick.set(sid or "")
         # an imported schedule has no blurb: its name and "(imported by you)" say what it is
         blurb.configure(text=(e.get("short") or e.get("about", "")) if e and e.get("kind") != "imported" else "")
-        remove.configure(state="normal" if e and e.get("kind") == "imported" else "disabled")
-        if sid == SCH.GENERATED:
-            gen.frame.grid(row=1, column=0, sticky="w", pady=(8, 0))
-        else:
-            gen.frame.grid_remove()
+        remove.configure(state="normal" if e and e.get("kind") in ("imported", "made") else "disabled")
     box.bind("<<ComboboxSelected>>", shown)
     buttons = ttk.Frame(frm)
     buttons.grid(row=5, column=0, sticky="we", pady=(10, 0))
@@ -1486,9 +1478,13 @@ def schedule_tab(tabs, root, tk, ttk):
     remove.pack(side="right")
     add = ttk.Button(buttons, text="Import a schedule\u2026")
     add.pack(side="right", padx=6)
+    make = ttk.Button(buttons, text="Make a schedule\u2026")
+    make.pack(side="right")
     ttk.Label(frm, foreground="#777", wraplength=560, justify="left", text=(
-        "Import a schedule: a schedule.big, or its mlb162_1/2/3.dat files, from any version of MVP 2005 (Xbox, PS2, "
-        "GameCube or PC: the schedules are the same everywhere).")).grid(row=7, column=0, sticky="w", pady=(14, 0))
+        "Make a schedule: any length, with your choice of interleague and All-Star host, a different season each "
+        "dynasty year. Import a schedule: a schedule.big, or its mlb162_1/2/3.dat files, from any version of MVP 2005 "
+        "(Xbox, PS2, GameCube or PC: the schedules are the same everywhere).")).grid(
+        row=7, column=0, sticky="w", pady=(14, 0))
     note = ttk.Label(frm, wraplength=560, justify="left")
     note.grid(row=6, column=0, sticky="w", pady=(6, 0))
 
@@ -1497,9 +1493,7 @@ def schedule_tab(tabs, root, tk, ttk):
         names = {e["id"]: e["name"] for e in cat}
         if now:
             have.configure(text=f"Your game has: {names.get(now, now)}" +
-                                (" (the original)" if now == SCH.ORIGINAL else "") +
-                                (f", {SCH.generated(root)['options']['games']} games" if now == SCH.GENERATED
-                                 else ""))
+                                (" (the original)" if now == SCH.ORIGINAL else ""))
             if not pick.get() and now in label:
                 box.set(label[now])
                 shown()
@@ -1522,12 +1516,8 @@ def schedule_tab(tabs, root, tk, ttk):
             note.configure(text="Quit MVP05 first: the game reads the schedule while it runs.", foreground="#a33")
             return
         try:
-            if sid == SCH.GENERATED:
-                o, seed = gen.choices()
-                games = SCH.apply(root, sid, seed=seed, options=o)
-            else:
-                games = SCH.apply(root, sid)
-        except (SCH.ScheduleError, OSError, ValueError) as e:
+            games = SCH.apply(root, sid)
+        except (SCH.ScheduleError, OSError) as e:
             note.configure(text=f"Not changed: {e}", foreground="#a33")
             return
         ST.write(root, {"season_games": games})  # the Short Season Advancer's season length
@@ -1535,9 +1525,6 @@ def schedule_tab(tabs, root, tk, ttk):
             f"Done: new seasons play {games} games." + (" The Launcher deals a new shuffle every time it starts "
             "the game." if sid == SCH.SHUFFLED else "" if games == 162 else
             " At the end of each regular season, run the Short Season Advancer (Tools tab, or F10 in the game).")))
-        if sid == SCH.GENERATED:
-            load_catalog()
-            box.set(label[sid])
         refresh()
     use.configure(command=go)
 
@@ -1570,7 +1557,7 @@ def schedule_tab(tabs, root, tk, ttk):
     def do_remove():
         sid = pick.get()
         e = next((x for x in cat if x["id"] == sid), None)
-        if not e or e.get("kind") != "imported":
+        if not e or e.get("kind") not in ("imported", "made"):
             return
         if SCH.current(root) == sid:
             note.configure(text="That's the schedule your game has: use another one first, then remove it.",
@@ -1587,137 +1574,137 @@ def schedule_tab(tabs, root, tk, ttk):
     add.configure(command=do_import)
     remove.configure(command=do_remove)
 
+    def saved(e):
+        load_catalog()
+        box.set(label[e["id"]])
+        shown()
+        note.configure(text=f"Saved \"{e['name']}\". Use this schedule to put it in the game.", foreground="#1a7f37")
+    make.configure(command=lambda: make_schedule(frm, root, tk, ttk, saved))
 
-def generated_options(parent, root, tk, ttk):
-    """The generated season's choices (schedgen.py): length, interleague, rivals, All-Star host, with a preview of
-    the season "Use this schedule" writes. Returns an object with .frame and .choices() -> (options, seed)."""
+
+def make_schedule(parent, root, tk, ttk, on_saved):
+    """Make a schedule (schedgen.py): the choices, the season it makes (team by team, year by year), and Save, which
+    adds it to the Schedule tab's list as one of yours."""
     import random
     import schedgen as G
     import schedules as SCH
 
-    g = SCH.generated(root)
-    o = g["options"]
-    state = {"seed": g["seed"] if g["seed"] is not None else random.randrange(10**9), "cache": None}
-    f = ttk.Frame(parent)
+    win = tk.Toplevel(parent)
+    win.title("Make a schedule")
+    win.transient(parent.winfo_toplevel())
+    win.resizable(False, False)
+    f = ttk.Frame(win, padding=14)
+    f.grid()
+    o = G.default_options()
+    state = {"seed": random.randrange(10**9), "texts": None, "opts": None, "job": None, "busy": 0}
     games = tk.StringVar(value=str(o["games"]))
     modes = {"real": "2005's matchups", "choose": "Choose the matchups", "rotate": "A new matchup each year",
              "off": "None"}
-    hosts = {"AL": "AL hosts", "NL": "NL hosts", "alternate": "AL and NL take turns"}
-    mode = tk.StringVar(value=modes.get(o["interleague"], modes["real"]))
-    host = tk.StringVar(value=hosts.get(o["all_star"], hosts["alternate"]))
-    rivals = tk.BooleanVar(value=bool(o.get("rivals", True)))
+    hosts = {"alternate": "AL and NL take turns", "AL": "AL hosts", "NL": "NL hosts"}
+    mode = tk.StringVar(value=modes["real"])
+    host = tk.StringVar(value=hosts["alternate"])
+    rivals = tk.BooleanVar(value=True)
 
-    ttk.Label(f, text="Games a team").grid(row=0, column=0, sticky="w")
-    spin = ttk.Spinbox(f, from_=G.MIN_GAMES, to=G.MAX_GAMES, textvariable=games, width=6)
-    spin.grid(row=0, column=1, sticky="w", padx=(6, 18))
-    ttk.Label(f, text="All-Star Game").grid(row=0, column=2, sticky="w")
-    ttk.Combobox(f, state="readonly", width=20, textvariable=host, values=list(hosts.values())).grid(
+    ttk.Label(f, text="Make a schedule", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=4,
+                                                                             sticky="w")
+    ttk.Label(f, foreground="#666", wraplength=520, justify="left", text=(
+        "Every team plays the same number of games, half at home, in 2 to 4-game series, with a different season "
+        "for each of the three dynasty years. Regenerate for another season with the same choices.")).grid(
+        row=1, column=0, columnspan=4, sticky="w", pady=(0, 10))
+    opts = ttk.Frame(f)
+    opts.grid(row=2, column=0, columnspan=4, sticky="w")
+    ttk.Label(opts, text="Games a team").grid(row=0, column=0, sticky="w")
+    ttk.Spinbox(opts, from_=G.MIN_GAMES, to=G.MAX_GAMES, textvariable=games, width=6).grid(
+        row=0, column=1, sticky="w", padx=(6, 18))
+    ttk.Label(opts, text="All-Star Game").grid(row=0, column=2, sticky="w")
+    ttk.Combobox(opts, state="readonly", width=20, textvariable=host, values=list(hosts.values())).grid(
         row=0, column=3, sticky="w", padx=(6, 0))
-    ttk.Label(f, text="Interleague").grid(row=1, column=0, sticky="w", pady=(6, 0))
-    mbox = ttk.Combobox(f, state="readonly", width=24, textvariable=mode, values=list(modes.values()))
-    mbox.grid(row=1, column=1, columnspan=2, sticky="w", padx=(6, 0), pady=(6, 0))
-    ttk.Checkbutton(f, text="Natural rivals every year", variable=rivals).grid(
+    ttk.Label(opts, text="Interleague").grid(row=1, column=0, sticky="w", pady=(6, 0))
+    ttk.Combobox(opts, state="readonly", width=24, textvariable=mode, values=list(modes.values())).grid(
+        row=1, column=1, columnspan=2, sticky="w", padx=(6, 0), pady=(6, 0))
+    ttk.Checkbutton(opts, text="Natural rivals every year", variable=rivals).grid(
         row=1, column=3, sticky="w", padx=(6, 0), pady=(6, 0))
-    pair_row = ttk.Frame(f)
+    pair_row = ttk.Frame(opts)
     pv = {}
     for i, al in enumerate(G.AL):
         ttk.Label(pair_row, text=al + " vs").pack(side="left", padx=(0 if i == 0 else 10, 4))
-        pv[al] = tk.StringVar(value=o.get("pairing", G.REAL_PAIRING).get(al, G.REAL_PAIRING[al]))
+        pv[al] = tk.StringVar(value=G.REAL_PAIRING[al])
         ttk.Combobox(pair_row, state="readonly", width=10, textvariable=pv[al], values=list(G.NL)).pack(side="left")
-    bar = ttk.Frame(f)
-    bar.grid(row=3, column=0, columnspan=4, sticky="w", pady=(8, 0))
-    msg = ttk.Label(f, foreground="#a33", wraplength=540, justify="left")
-    msg.grid(row=4, column=0, columnspan=4, sticky="w")
 
-    def show_pairs(*_):
-        if mode.get() == modes["choose"]:
-            pair_row.grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
-        else:
-            pair_row.grid_remove()
-    mode.trace_add("write", show_pairs)
-    show_pairs()
+    # the season it makes
+    view = ttk.Frame(f)
+    view.grid(row=3, column=0, columnspan=4, sticky="we", pady=(12, 0))
+    top = ttk.Frame(view)
+    top.grid(row=0, column=0, sticky="w")
+    team = tk.StringVar(value="NYY")
+    year = tk.StringVar(value="Year 1")
+    ttk.Label(top, text="Team").pack(side="left")
+    ttk.Combobox(top, state="readonly", width=6, values=sorted(G.TEAMS), textvariable=team).pack(
+        side="left", padx=(6, 14))
+    ttk.Label(top, text="Dynasty year").pack(side="left")
+    ttk.Combobox(top, state="readonly", width=8, values=["Year 1", "Year 2", "Year 3"], textvariable=year).pack(
+        side="left", padx=(6, 14))
+    regen = ttk.Button(top, text="Regenerate")
+    regen.pack(side="left")
+    summary = ttk.Label(view, wraplength=520, justify="left")
+    summary.grid(row=1, column=0, sticky="w", pady=(8, 6))
+    tree = ttk.Treeview(view, columns=("date", "game", "half"), show="headings", height=11)
+    for c, t, w in (("date", "Date", 120), ("game", "Game", 230), ("half", "Half", 150)):
+        tree.heading(c, text=t)
+        tree.column(c, width=w, anchor="w")
+    tree.grid(row=2, column=0, sticky="we")
+    sb = ttk.Scrollbar(view, orient="vertical", command=tree.yview)
+    sb.grid(row=2, column=1, sticky="ns")
+    tree.configure(yscrollcommand=sb.set)
+
+    # name and save
+    bottom = ttk.Frame(f)
+    bottom.grid(row=4, column=0, columnspan=4, sticky="we", pady=(12, 0))
+    ttk.Label(bottom, text="Name").pack(side="left")
+    name = tk.StringVar()
+    ttk.Entry(bottom, textvariable=name, width=34).pack(side="left", padx=(6, 10))
+    save = ttk.Button(bottom, text="Save", state="disabled")
+    save.pack(side="left")
+    ttk.Button(bottom, text="Close", command=win.destroy).pack(side="right")
+    msg = ttk.Label(f, wraplength=520, justify="left")
+    msg.grid(row=5, column=0, columnspan=4, sticky="w", pady=(8, 0))
 
     def choices():
         try:
             n = int(games.get())
         except ValueError:
-            raise ValueError(f"games a team: a number from {G.MIN_GAMES} to {G.MAX_GAMES}")
+            n = 0
         if not G.MIN_GAMES <= n <= G.MAX_GAMES:
             raise ValueError(f"games a team: a number from {G.MIN_GAMES} to {G.MAX_GAMES}")
         m = next(k for k, v in modes.items() if v == mode.get())
         pairing = {al: pv[al].get() for al in G.AL}
         if m == "choose" and sorted(pairing.values()) != sorted(G.NL):
-            raise ValueError("interleague: give each AL division a different NL division")
-        return ({"games": n, "interleague": m, "pairing": pairing, "rivals": bool(rivals.get()),
-                 "all_star": next(k for k, v in hosts.items() if v == host.get())}, state["seed"])
+            raise ValueError("give each AL division a different NL division")
+        return {"games": n, "interleague": m, "pairing": pairing, "rivals": bool(rivals.get()),
+                "all_star": next(k for k, v in hosts.items() if v == host.get())}
 
-    def preview():
-        try:
-            opts, seed = choices()
-        except ValueError as e:
-            msg.configure(text=str(e), foreground="#a33")
-            return
-        msg.configure(text="")
-        try:
-            texts = SCH.generate(opts, seed)
-        except SCH.ScheduleError as e:
-            msg.configure(text=f"Couldn't make that season: {e}", foreground="#a33")
-            return
-        schedule_preview(f, tk, ttk, texts, opts)
+    def describe(op):
+        il = {"real": "2005's interleague matchups", "choose": "interleague " + ", ".join(
+            f"{a} vs {op['pairing'][a]}" for a in G.AL), "rotate": "a new interleague matchup each year",
+            "off": "no interleague"}[op["interleague"]]
+        riv = ", natural rivals every year" if op["rivals"] and op["interleague"] != "off" else ""
+        star = {"AL": "the AL hosts", "NL": "the NL hosts", "alternate": "the AL and NL take turns"}[op["all_star"]]
+        return f"Made by you: {op['games']} games a team, {il}{riv}; at the All-Star Game {star}."
 
-    def regenerate():
-        state["seed"] = random.randrange(10**9)
-        msg.configure(text="A new season made: Preview shows it, Use this schedule puts it in the game.",
-                      foreground="#555")
-
-    ttk.Button(bar, text="Preview\u2026", command=preview).pack(side="left")
-    ttk.Button(bar, text="Regenerate", command=regenerate).pack(side="left", padx=6)
-
-    class Gen:
-        pass
-    gobj = Gen()
-    gobj.frame, gobj.choices = f, choices
-    return gobj
-
-
-def schedule_preview(parent, tk, ttk, texts, opts):
-    """A generated season, team by team and year by year, before it goes in the game."""
-    import schedgen as G
-    win = tk.Toplevel(parent)
-    win.title("Generated season")
-    win.transient(parent.winfo_toplevel())
-    f = ttk.Frame(win, padding=12)
-    f.grid(sticky="nsew")
-    win.columnconfigure(0, weight=1)
-    win.rowconfigure(0, weight=1)
-    top = ttk.Frame(f)
-    top.grid(row=0, column=0, sticky="w")
-    team = tk.StringVar(value="NYY")
-    year = tk.StringVar(value="Year 1")
-    names = sorted(G.TEAMS)
-    ttk.Label(top, text="Team").pack(side="left")
-    ttk.Combobox(top, state="readonly", width=6, values=names, textvariable=team).pack(side="left", padx=(6, 14))
-    ttk.Label(top, text="Dynasty year").pack(side="left")
-    ttk.Combobox(top, state="readonly", width=8, values=["Year 1", "Year 2", "Year 3"], textvariable=year).pack(
-        side="left", padx=(6, 0))
-    summary = ttk.Label(f, wraplength=480, justify="left")
-    summary.grid(row=1, column=0, sticky="w", pady=(8, 6))
-    tree = ttk.Treeview(f, columns=("date", "game", "half"), show="headings", height=16)
-    for c, t, w in (("date", "Date", 110), ("game", "Game", 220), ("half", "Half", 120)):
-        tree.heading(c, text=t)
-        tree.column(c, width=w, anchor="w")
-    tree.grid(row=2, column=0, sticky="nsew")
-    sb = ttk.Scrollbar(f, orient="vertical", command=tree.yview)
-    sb.grid(row=2, column=1, sticky="ns")
-    tree.configure(yscrollcommand=sb.set)
-    f.columnconfigure(0, weight=1)
-    f.rowconfigure(2, weight=1)
+    def default_name(op):
+        il = {"real": "", "choose": ", chosen interleague", "rotate": ", rotating interleague",
+              "off": ", no interleague"}[op["interleague"]]
+        return f"{op['games']} games{il}"
 
     def show(*_):
+        texts, op = state["texts"], state["opts"]
+        tree.delete(*tree.get_children())
+        if not texts:
+            return
         y = int(year.get().split()[-1])
         rows, c = G.team_view(texts[y - 1], team.get())
-        pairing = G.pairing_for(opts, y)
         div = G.DIV[team.get()]
+        pairing = G.pairing_for(op, y)
         il = ""
         if pairing:
             other = pairing.get(div) or next((a for a, n in pairing.items() if n == div), "")
@@ -1725,25 +1712,92 @@ def schedule_preview(parent, tk, ttk, texts, opts):
         summary.configure(text=(
             f"{len(rows)} games: {c['home']} at home, {c['away']} away. {c['division']} against the {div}, "
             f"{c['league']} against the rest of the league, {c['interleague']} interleague{il}. "
-            f"The All-Star Game: {G.host_for(opts, y)} hosts."))
-        tree.delete(*tree.get_children())
+            f"The All-Star Game: {G.host_for(op, y)} hosts."))
         star = [ln.split(",") for ln in texts[y - 1].decode("latin-1").splitlines() if ",-," in ln]
         if star:
             m, dd, yy = map(int, star[0][0].split("/"))
             rows = sorted(rows + [(datetime.date(yy, m, dd), "AL", True, "-")], key=lambda x: x[0])
         for d, opp, hm, half in rows:
             when = d.strftime("%a %b ") + str(d.day)
-            if opp in ("AL", "NL"):
+            if half == "-":
                 tree.insert("", "end", values=(when, "All-Star Game", "break"))
-                continue
-            tree.insert("", "end", values=(when, ("vs " if hm else "at ") + opp,
-                                           "first half" if half == "0" else "second half"))
+            else:
+                tree.insert("", "end", values=(when, ("vs " if hm else "at ") + opp,
+                                               "first half" if half == "0" else "second half"))
+
+    def make(*_):
+        """The season for the choices now (in the background: a long one takes a moment)."""
+        state["job"] = None
+        try:
+            op = choices()
+        except ValueError as e:
+            state["texts"] = None
+            save.configure(state="disabled")
+            summary.configure(text="")
+            tree.delete(*tree.get_children())
+            msg.configure(text=str(e), foreground="#a33")
+            return
+        state["busy"] += 1
+        ticket = state["busy"]
+        seed = state["seed"]
+        msg.configure(text="Making the season\u2026", foreground="#555")
+        save.configure(state="disabled")
+
+        def work():
+            try:
+                texts, err = SCH.generate(op, seed), None
+            except SCH.ScheduleError as e:
+                texts, err = None, str(e)
+            win.after(0, lambda: done(ticket, op, texts, err))
+        threading.Thread(target=work, daemon=True).start()
+
+    def done(ticket, op, texts, err):
+        if ticket != state["busy"] or not win.winfo_exists():
+            return  # the choices changed meanwhile: a newer one is on its way
+        if err:
+            state["texts"] = None
+            msg.configure(text=f"Couldn't make that season: {err}", foreground="#a33")
+            return
+        old = state["opts"]
+        state["texts"], state["opts"] = texts, op
+        if not name.get().strip() or (old and name.get().strip() == default_name(old)):
+            name.set(default_name(op))
+        save.configure(state="normal")
+        msg.configure(text="")
+        show()
+
+    def changed(*_):
+        if mode.get() == modes["choose"]:
+            pair_row.grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        else:
+            pair_row.grid_remove()
+        if state["job"]:
+            win.after_cancel(state["job"])
+        state["job"] = win.after(400, make)
+
+    def regenerate():
+        state["seed"] = random.randrange(10**9)
+        make()
+
+    def do_save():
+        if not state["texts"]:
+            return
+        try:
+            e = SCH.save_made(root, state["texts"], name.get(), state["opts"], state["seed"],
+                              describe(state["opts"]))
+        except (SCH.ScheduleError, OSError) as e:
+            msg.configure(text=f"Not saved: {e}", foreground="#a33")
+            return
+        win.destroy()
+        on_saved(e)
+
+    for v in (games, mode, host, rivals, *pv.values()):
+        v.trace_add("write", changed)
     team.trace_add("write", show)
     year.trace_add("write", show)
-    show()
-    ttk.Label(f, foreground="#777", wraplength=480, justify="left", text=(
-        "Shown with 2005's calendar, as the game's own schedule files have it for every dynasty year.")).grid(
-        row=3, column=0, sticky="w", pady=(6, 0))
+    regen.configure(command=regenerate)
+    save.configure(command=do_save)
+    make()
 
 
 def tools_tab(tabs, root, tk, ttk):
