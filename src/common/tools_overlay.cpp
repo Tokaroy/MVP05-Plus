@@ -410,6 +410,13 @@ void Ui(double) {
             }
             ImGui::EndTabBar();
         }
+        // for working out the game: the same capture as Ctrl+Shift+F9
+        ImGui::Separator();
+        ImGui::BeginDisabled(g_capturing);
+        if (ImGui::Button("Save a memory capture")) StartCapture();
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::TextDisabled("(for testing: saved in logs, also Ctrl+Shift+F9)");
     }
     ImGui::End();
     ImGui::PopStyleVar(5);
