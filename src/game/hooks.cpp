@@ -116,3 +116,26 @@ X86_FUNC(sub_001F6650) {
     ScaledGoals s(ctx.ecx, false);
     __imp__sub_001F6650(ctx, base);
 }
+
+// The 40/40 goal (FortyForty) has no X: the goal tracker (db_sec, 0x499987/0x499996) reads a player's season
+// home runs and stolen bases (0x1C9A00, 0x1C98E0) and compares each with a fixed 40. For those two reads only, a
+// short season's totals are given as if over 162 games, so 40/40 means about 11/11 in a 46-game season.
+namespace {
+uint32_t As162(uint32_t v) {
+    uint32_t games = tools::g_season_games;
+    if (games < 12 || games >= 162 || v > 1000) return v;
+    return uint32_t(uint64_t(v) * 162 / games);
+}
+}  // namespace
+X86_EXTERN_FUNC(__imp__sub_001C9A00);
+X86_FUNC(sub_001C9A00) {
+    uint32_t ret = kernel::R32(ctx.esp);
+    __imp__sub_001C9A00(ctx, base);
+    if (ret == 0x499987) ctx.eax = As162(ctx.eax);
+}
+X86_EXTERN_FUNC(__imp__sub_001C98E0);
+X86_FUNC(sub_001C98E0) {
+    uint32_t ret = kernel::R32(ctx.esp);
+    __imp__sub_001C98E0(ctx, base);
+    if (ret == 0x499996) ctx.eax = As162(ctx.eax);
+}
