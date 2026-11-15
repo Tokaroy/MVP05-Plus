@@ -28,6 +28,11 @@ static bool InPhysical(uint32_t va) {
            (va >= kWriteCombineBase && va < kWriteCombineBase + kPhysicalSize);
 }
 
+void SetPhysicalSize(uint32_t megabytes) {
+    if (g_base) return;  // too late: the guest space is mapped
+    kPhysicalSize = megabytes >= 128 ? 128u << 20 : 64u << 20;
+}
+
 bool Init() {
     const uint64_t size = 1ull << 32;
 #ifdef _WIN32
@@ -67,7 +72,7 @@ bool Init() {
         LOGE("memory: could not reserve the 4 GB guest space");
         return false;
     }
-    LOGI("memory: guest space at %p", static_cast<void*>(g_base));
+    LOGI("memory: guest space at %p, %u MB of Xbox RAM", static_cast<void*>(g_base), kPhysicalSize >> 20);
     return true;
 }
 

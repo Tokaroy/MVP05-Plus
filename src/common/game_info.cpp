@@ -1,4 +1,5 @@
 #include "app/app.h"
+#include "kernel/memory.h"
 #include "../game/gc_controls.h"
 #include "save_backup.h"
 #include "season_length.h"
@@ -21,10 +22,12 @@ const app::GameInfo app::kGame = {
                 {"save_backups", nullptr, &saves::g_keep},  // the newest saves backups kept in "save backups" (0: off)
                 {"season_games", nullptr, &tools::g_season_games},  // the schedule's length, used if schedule.big can't be counted
                 {"pitcher_recovery", nullptr, &tools::g_pitcher_recovery},  // % of the game's daily stamina recovery
-                {"injury_length", nullptr, &tools::g_injury_length}},  // % of the game's injury lengths
+                {"injury_length", nullptr, &tools::g_injury_length},  // % of the game's injury lengths
+                {"memory_mb", nullptr, &tools::g_memory_mb}},  // the Xbox's RAM: 64 or 128 MB
     .load = nullptr,                      // reads more from the settings file's toml::table
     .save = nullptr,                      // writes more into it
     .init = [] {                           // after the settings load, before the window and boot
+        mem::SetPhysicalSize(tools::g_memory_mb);  // the Xbox's RAM, before boot maps it
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
         gc::Init();

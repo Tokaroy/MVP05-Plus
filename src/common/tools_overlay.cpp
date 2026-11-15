@@ -23,6 +23,7 @@ namespace tools {
 uint32_t g_season_games = standings::kFullSeason;
 uint32_t g_pitcher_recovery = 100;
 uint32_t g_injury_length = 100;
+uint32_t g_memory_mb = 64;
 
 namespace {
 

@@ -15,6 +15,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "kernel/memory.h"
 #include "xdk/hle.h"
 #include "../common/tools_overlay.h"
 
@@ -228,4 +229,26 @@ X86_FUNC(sub_001A1CA0) {
         }
     }
     __imp__sub_001A1CA0(ctx, base);
+}
+
+// More memory. The game puts nearly all it loads (stadiums, players, crowds) in one heap it makes at start (0x2C3BD0):
+// XPhysicalAlloc (0x2D31E0) of 41 MB (40.75 MB with HD video modes), cleared and handed to the heap (0x2DB06A) with
+// the size still in esi. With memory_mb = 128 the Xbox's RAM is doubled (src/common/game_info.cpp) and the heap grows
+// by 56 MB of the extra 64, the rest left for what the game allocates outside it; esi is given the new size when the
+// call returns, so the clearing and the heap use it too.
+X86_EXTERN_FUNC(__imp__sub_002D31E0);
+X86_FUNC(sub_002D31E0) {
+    uint32_t ret = kernel::R32(ctx.esp), size = kernel::R32(ctx.esp + 4);
+    bool heap = ret == 0x2C3BFA && mem::kPhysicalSize >= (128u << 20) && (size == 0x2900000 || size == 0x28C0000);
+    uint32_t grown = size + (56u << 20);
+    if (heap) kernel::W32(ctx.esp + 4, grown);
+    __imp__sub_002D31E0(ctx, base);
+    if (heap) {
+        if (ctx.eax) {
+            ctx.esi = grown;
+            LOGR("memory: the game's heap is %u MB (Xbox RAM %u MB)", grown >> 20, mem::kPhysicalSize >> 20);
+        } else {
+            LOGE("memory: couldn't make the game's heap %u MB", grown >> 20);
+        }
+    }
 }

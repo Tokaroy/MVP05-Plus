@@ -1260,8 +1260,20 @@ def game_tweaks_window(parent, root, tk, ttk):
     injury = tk.StringVar()
     ibox = ttk.Combobox(f, textvariable=injury, values=list(injury_names), state="readonly", width=56)
     ibox.grid(row=7, column=0, columnspan=2, sticky="w")
+    # memory_mb: the Xbox's RAM, 64 (as the console) or 128 with the game's heap grown to match
+    ttk.Label(f, text="Memory", font=("Segoe UI", 9, "bold")).grid(row=8, column=0, columnspan=2, sticky="w",
+                                                                   pady=(10, 0))
+    ttk.Label(f, wraplength=480, justify="left", text=(
+        "Room for what the game loads: stadiums, players, crowds. The Xbox had 64 MB, and the game keeps about 41 MB "
+        "of it for these. Double it for mods that add more than the Xbox could hold.")).grid(
+        row=9, column=0, columnspan=2, sticky="w", pady=(0, 4))
+    memory_names = {"MVP 05 Default (64 MB, 41 MB for the game)": 64,
+                    "Doubled (128 MB, 97 MB for the game): room for mods": 128}
+    memory = tk.StringVar()
+    mbox = ttk.Combobox(f, textvariable=memory, values=list(memory_names), state="readonly", width=56)
+    mbox.grid(row=10, column=0, columnspan=2, sticky="w")
     note = ttk.Label(f, text="", wraplength=480, justify="left")
-    note.grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
+    note.grid(row=11, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
     def pick(box, names, v):
         v = v if isinstance(v, int) and not isinstance(v, bool) else 100
@@ -1276,14 +1288,17 @@ def game_tweaks_window(parent, root, tk, ttk):
         saved = ST.read(root)
         rest.set(pick(box, rest_names, saved.get("pitcher_recovery", 100)))
         injury.set(pick(ibox, injury_names, saved.get("injury_length", 100)))
+        memory.set(next((k for k, x in memory_names.items() if x == saved.get("memory_mb", 64)),
+                        list(memory_names)[0]))
 
     def save():
         ST.write(root, {"pitcher_recovery": rest_names.get(rest.get(), 100),
-                        "injury_length": injury_names.get(injury.get(), 100)})
+                        "injury_length": injury_names.get(injury.get(), 100),
+                        "memory_mb": memory_names.get(memory.get(), 64)})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
 
     bar = ttk.Frame(f)
-    bar.grid(row=9, column=0, columnspan=2, sticky="e", pady=(12, 0))
+    bar.grid(row=12, column=0, columnspan=2, sticky="e", pady=(12, 0))
     ttk.Button(bar, text="Close", command=win.destroy).pack(side="right")
     ttk.Button(bar, text="Save", command=save).pack(side="right", padx=6)
     load()

@@ -7,7 +7,10 @@ constexpr uint32_t kPage = 0x1000;
 constexpr uint32_t kUserLow = 0x00010000;
 constexpr uint32_t kUserHigh = 0x7FFE0000;
 constexpr uint32_t kContiguousBase = 0x80000000;  // guest VA = kContiguousBase | physical
-constexpr uint32_t kPhysicalSize = 64u << 20;
+// the Xbox's RAM: 64 MB as a retail console, or 128 MB (a debug kit's) when the game asks for more before boot.
+// A power of two (physical addresses are masked with it), at most 128 MB (the 0xF0000000 view must fit below 4 GB).
+inline uint32_t kPhysicalSize = 64u << 20;
+void SetPhysicalSize(uint32_t megabytes);  // 64 or 128; before Init
 constexpr uint32_t kWriteCombineBase = 0xF0000000;
 constexpr uint32_t kKernelDataBase = 0x80000000;   // first physical megabyte holds kernel variables
 constexpr uint32_t kKernelDataSize = 0x00100000;
