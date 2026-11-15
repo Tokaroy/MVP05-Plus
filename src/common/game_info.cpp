@@ -1,6 +1,7 @@
 #include "app/app.h"
 #include "../game/gc_controls.h"
 #include "save_backup.h"
+#include "season_length.h"
 #include "tools_overlay.h"
 
 // what the runtime asks of the game; strings must be set, hooks may stay null
@@ -18,11 +19,12 @@ const app::GameInfo app::kGame = {
     .options = {{"gamecube_layout", &gc::g_enabled, nullptr}, {"gamecube_icons", &gc::g_icons, nullptr},  // GameCube controllers play as on GameCube
                 {"playstation_layout", &gc::g_ps_enabled, nullptr}, {"playstation_icons", &gc::g_ps_icons, nullptr},  // and PlayStation pads as on PS2
                 {"save_backups", nullptr, &saves::g_keep},  // the newest saves backups kept in "save backups" (0: off)
-                {"season_games", nullptr, &tools::g_season_games}},  // the schedule's length: short seasons end by it (hooks.cpp)
+                {"season_games", nullptr, &tools::g_season_games}},  // the schedule's length, used if schedule.big can't be counted
     .load = nullptr,                      // reads more from the settings file's toml::table
     .save = nullptr,                      // writes more into it
     .init = [] {                           // after the settings load, before the window and boot
         saves::Backup();                   // the saves as they were, before this session touches them
+        season::FromSchedule();            // the season's length: the games in the installed schedule
         gc::Init();
     },
     .loaded = nullptr,                    // image in memory, before its entry point runs

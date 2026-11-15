@@ -7,7 +7,7 @@
 
 namespace tools {
 
-extern uint32_t g_season_games;  // mvp05-settings.toml season_games: the schedule's length, set by the Launcher
+extern uint32_t g_season_games;  // the schedule's length: counted from schedule.big at start, else season_games
 
 bool Open();
 // window messages: F10, and Esc closing the menu instead of asking to quit

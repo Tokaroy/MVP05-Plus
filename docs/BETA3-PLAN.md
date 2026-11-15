@@ -30,10 +30,11 @@ with interleague off; the All-Star Game hosted by the NL. Then Beta 3, or a 2.5.
 ## Short seasons end on their own (built, tested by spy_jam)
 The game measures a season against its league's length (0x19D190: 162 for the majors, 144 AAA, 142 AA, 140 A;
 asked from db_sec at 0x466692, 0x467008, 0x49174D and through 0x1AEC10). src/game/hooks.cpp gives the majors
-the schedule's season_games, so a short season goes on to the playoffs by itself. The Short Season Advancer is now
+the schedule's length, counted from the installed schedule.big when the game starts (src/common/season_length.cpp;
+season_games from the Launcher only if it can't be counted), so a short season goes on to the playoffs by itself. The Short Season Advancer is now
 the Standings Projector (not needed; for dynasties stuck from an older version). Ctrl+Shift+F9 in the game saves a
-memory capture to logs (the menu button is gone). **Still open:** read the length from the schedule the season
-loaded rather than the setting (a schedule switched mid-season would end that season early); the team goals' win
+memory capture to logs (the menu button is gone). **Still open:** a schedule switched mid-season is counted at the next start
+while the old season is still played (switch between seasons, as the Schedule tab says); the team goals' win
 targets are still for 162 games (needs a screenshot of the goals and a capture there).
 
 ## Owner mode imports

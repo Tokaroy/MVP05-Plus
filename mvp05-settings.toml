@@ -20,5 +20,6 @@ playstation_layout = true
 playstation_icons = true
 # How many save backups to keep in "save backups" (0: off).
 save_backups = 30
-# Games in a season's schedule: a shorter season ends at this length on its own. The Launcher's Schedule tab sets it.
+# Games in a season's schedule. The game counts them in schedule.big when it starts; this is only used if it can't.
+# The Launcher's Schedule tab sets it.
 season_games = 162
