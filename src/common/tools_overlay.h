@@ -12,7 +12,7 @@ extern uint32_t g_pitcher_recovery;  // percent of the game's own between-games 
 extern uint32_t g_injury_length;  // percent of the game's own injury lengths in a dynasty (100: as the game)
 extern uint32_t g_memory_mb;  // the Xbox's RAM: 64 (as the console) or 128, with the game's heap grown to match
 extern bool g_player_full_detail;  // every player drawn with his most detailed model (the game drops distant ones to lower ones)
-extern bool g_live_jumbotron;  // the jumbotrons' live video in every scene
+extern bool g_daylight_parks;  // day games in daylight at the parks EA lit as dusk (Fenway, ...)
 extern uint32_t g_rain;  // 0: the game's own weather, 1: rain in every game
 // asked for from the Tools menu, done by the game's own thread at the end of a frame (src/game/hooks.cpp)
 extern std::atomic<int> g_unlock_request;  // 1: asked, 2: done, 3: no profile signed in

@@ -2,6 +2,7 @@
 #include "kernel/memory.h"
 #include "../game/gc_controls.h"
 #include "save_backup.h"
+#include "day_parks.h"
 #include "season_length.h"
 #include "tools_overlay.h"
 
@@ -24,15 +25,16 @@ const app::GameInfo app::kGame = {
                 {"pitcher_recovery", nullptr, &tools::g_pitcher_recovery},  // % of the game's daily stamina recovery
                 {"injury_length", nullptr, &tools::g_injury_length},  // % of the game's injury lengths
                 {"memory_mb", nullptr, &tools::g_memory_mb},  // the Xbox's RAM: 64 or 128 MB
-                {"player_full_detail", &tools::g_player_full_detail, nullptr},  // best player models, shadows and dust
-                {"live_jumbotron", &tools::g_live_jumbotron, nullptr},  // the jumbotrons' live video everywhere
-                {"rain", nullptr, &tools::g_rain}},  // 1: rain in every game
+                {"player_full_detail", &tools::g_player_full_detail, nullptr},  // every player's most detailed model
+                {"rain", nullptr, &tools::g_rain},  // 1: rain in every game
+                {"daylight_parks", &tools::g_daylight_parks, nullptr}},  // day games in daylight at the dusk-lit parks
     .load = nullptr,                      // reads more from the settings file's toml::table
     .save = nullptr,                      // writes more into it
     .init = [] {                           // after the settings load, before the window and boot
         mem::SetPhysicalSize(tools::g_memory_mb);  // the Xbox's RAM, before boot maps it
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
+        dayparks::Apply();                 // day games in daylight at the parks EA lit as dusk, if asked
         gc::Init();
     },
     .loaded = nullptr,                    // image in memory, before its entry point runs

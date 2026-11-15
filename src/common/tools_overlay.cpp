@@ -25,8 +25,8 @@ uint32_t g_pitcher_recovery = 100;
 uint32_t g_injury_length = 100;
 uint32_t g_memory_mb = 64;
 bool g_player_full_detail = false;
-bool g_live_jumbotron = false;
 uint32_t g_rain = 0;
+bool g_daylight_parks = false;
 std::atomic<int> g_unlock_request{0};
 
 namespace {

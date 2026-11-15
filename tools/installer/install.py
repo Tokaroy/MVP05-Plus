@@ -1276,11 +1276,11 @@ def game_tweaks_window(parent, root, tk, ttk):
     ttk.Label(f, text="Graphics", font=("Segoe UI", 9, "bold")).grid(row=11, column=0, columnspan=2,
                                                                      sticky="w", pady=(10, 0))
     full_detail = tk.BooleanVar()
-    ttk.Checkbutton(f, text="Full detail: every player's best model, with shadows and dust in every scene",
+    ttk.Checkbutton(f, text="Full detail: every player's best model, not only the ones in the play",
                     variable=full_detail).grid(row=12, column=0, columnspan=2, sticky="w")
-    jumbotron = tk.BooleanVar()
-    ttk.Checkbutton(f, text="Live jumbotrons: the game on the big screen in every scene",
-                    variable=jumbotron).grid(row=13, column=0, columnspan=2, sticky="w")
+    daylight = tk.BooleanVar()
+    ttk.Checkbutton(f, text="Daylight day games at Fenway, Turner Field and the other parks EA lit as dusk",
+                    variable=daylight).grid(row=13, column=0, columnspan=2, sticky="w")
     # rain: 1 rain in every game (the game's own weather otherwise)
     ttk.Label(f, text="Weather", font=("Segoe UI", 9, "bold")).grid(row=14, column=0, columnspan=2, sticky="w",
                                                                     pady=(10, 0))
@@ -1307,14 +1307,14 @@ def game_tweaks_window(parent, root, tk, ttk):
         memory.set(next((k for k, x in memory_names.items() if x == saved.get("memory_mb", 64)),
                         list(memory_names)[0]))
         full_detail.set(saved.get("player_full_detail", False) is True)
-        jumbotron.set(saved.get("live_jumbotron", False) is True)
+        daylight.set(saved.get("daylight_parks", False) is True)
         rain.set(next((k for k, x in rain_names.items() if x == saved.get("rain", 0)), list(rain_names)[0]))
 
     def save():
         ST.write(root, {"pitcher_recovery": rest_names.get(rest.get(), 100),
                         "injury_length": injury_names.get(injury.get(), 100),
                         "memory_mb": memory_names.get(memory.get(), 64),
-                        "player_full_detail": full_detail.get(), "live_jumbotron": jumbotron.get(),
+                        "player_full_detail": full_detail.get(), "daylight_parks": daylight.get(),
                         "rain": rain_names.get(rain.get(), 0)})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
 

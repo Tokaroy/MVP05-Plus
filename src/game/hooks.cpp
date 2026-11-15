@@ -256,28 +256,13 @@ X86_FUNC(sub_002D31E0) {
 
 // Player detail. Each player model has levels of detail 0 (the most detailed) to 2, and 3 for the least. Which one a
 // player gets comes from his "importance" (how close and how central to the play he is) against thresholds in the
-// game's "lod" tuning (PLAYER_LOD_0..2_INGAME/OUTOFGAME/HRD/JUMBOTRON_MIN_IMPORTANCE): 0x274D90 (lod tuning,
-// importance, out of game, home run derby, jumbotron) returns the first level whose threshold the importance beats,
-// else 3. The game has several of these tunings for its kinds of scene (objects of vtable 0x5DF8E8); in play they're
-// 40/20/10, but some (with SCREEN_RES_INDEX 1, the HD ones) never allow level 0 (999999). With player_full_detail,
-// levels 1 and 2 become 0 (3, the game's least for the least important players, is kept in case it hides as well).
-// The same tunings switch effects (bytes from +0x38: helmet environment maps, dust clouds, front-end movies, live
-// jumbotrons, player shadows, crowds, umpires, PIP windows, the catcher in the batter/pitcher view); some scenes turn
-// player shadows, dust and live jumbotrons off. player_full_detail turns shadows and dust on in every one, and
-// live_jumbotron the jumbotrons' live video.
-namespace {
-constexpr uint32_t kLodTuning = 0x5DF8E8;
-}  // namespace
+// game's "lod" tuning (datafile.big's datafile.txt: PLAYER_LOD_0..2_INGAME/OUTOFGAME/HRD/JUMBOTRON_MIN_IMPORTANCE):
+// 0x274D90 (lod tuning, importance, out of game, home run derby, jumbotron) returns the first level whose threshold
+// the importance beats, else 3. The Xbox uses the "xboxlod" set (in play 40/20/10: level 0 above 40, 1 above 20, 2
+// above 10); the file also has the GameCube's, the PS2's and three PC detail levels. With player_full_detail, levels
+// 1 and 2 become 0 (3, the game's least for the least important players, is kept in case it hides as well).
 X86_EXTERN_FUNC(__imp__sub_00274D90);
 X86_FUNC(sub_00274D90) {
-    uint32_t lod = kernel::R32(ctx.esp + 4);
-    if ((tools::g_player_full_detail || tools::g_live_jumbotron) && lod && kernel::R32(lod) == kLodTuning) {
-        if (tools::g_player_full_detail) {
-            kernel::G<uint8_t>(lod + 0x39) = 1;  // ENABLE_DUST_CLOUD_EFFECT
-            kernel::G<uint8_t>(lod + 0x3C) = 1;  // ENABLE_PLAYER_SHADOWS
-        }
-        if (tools::g_live_jumbotron) kernel::G<uint8_t>(lod + 0x3B) = 1;  // ENABLE_LIVE_JUMBOTRONS
-    }
     __imp__sub_00274D90(ctx, base);
     if (tools::g_player_full_detail && (ctx.eax == 1 || ctx.eax == 2)) ctx.eax = 0;
 }
