@@ -1988,97 +1988,97 @@ def make_schedule(parent, root, tk, ttk, on_saved):
 
 
 def mods_tab(tabs, root, tk, ttk):
-    """Mods: one checkbox each, added from a zip or the files themselves (mods.py)."""
+    """Mods: replacement game files, imported from files, a folder or a zip; one checkbox each (mods.py)."""
     import mods as MD
     from tkinter import filedialog
 
     frm = ttk.Frame(tabs, padding=12)
     tabs.add(frm, text="Mods")
     frm.columnconfigure(0, weight=1)
-    top = ttk.Frame(frm)
-    top.grid(row=0, column=0, sticky="we")
-    ttk.Label(top, text="Mods", font=("Segoe UI", 10, "bold")).pack(side="left")
-    ttk.Button(top, text="Open mods folder", command=lambda: (os.makedirs(MD.mods_dir(root), exist_ok=True),
-                                                              os.startfile(MD.mods_dir(root))
-                                                              if os.name == "nt" else None)).pack(side="right")
-    ttk.Button(top, text="Add a mod...", command=lambda: add(pick_source)).pack(side="right", padx=6)
+    ttk.Label(frm, text="Mods", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
     ttk.Label(frm, foreground="#666", wraplength=600, justify="left", text=(
-        "Tick a mod to use it. Your game files stay as they are. Changes take effect the next time the game "
-        "starts.")).grid(row=1, column=0, sticky="w", pady=(2, 8))
-
-    # the list: a checkbox a mod, scrolling when there are many
-    box = ttk.Frame(frm, relief="solid", borderwidth=1)
-    box.grid(row=2, column=0, sticky="nsew")
-    box.columnconfigure(0, weight=1)
-    canvas = tk.Canvas(box, height=300, highlightthickness=0, borderwidth=0)
-    bar = ttk.Scrollbar(box, orient="vertical", command=canvas.yview)
-    canvas.configure(yscrollcommand=bar.set)
-    canvas.grid(row=0, column=0, sticky="nsew")
-    bar.grid(row=0, column=1, sticky="ns")
-    rows = ttk.Frame(canvas, padding=(8, 6))
-    rows.columnconfigure(0, weight=1)
-    win_id = canvas.create_window(0, 0, window=rows, anchor="nw")
-    rows.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-    canvas.bind("<Configure>", lambda e: canvas.itemconfigure(win_id, width=e.width))
-    canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units")
-                    if str(e.widget).startswith(str(canvas)) else None)
+        "Add a mod's files, folder or zip: each of its files goes in place of the game's file of the same name or "
+        "path. Your game files stay as they are, and a mod that's off isn't used. When two mods have the same file, "
+        "the higher one in the list wins. Changes take effect the next time the game starts.")).grid(
+        row=1, column=0, columnspan=2, sticky="w", pady=(0, 8))
+    tree = ttk.Treeview(frm, columns=("on", "files", "notes"), show="headings", height=11, selectmode="browse")
+    for col, text, width in (("on", "On", 46), ("files", "Files", 60), ("notes", "", 330)):
+        tree.heading(col, text=text, anchor="w")
+        tree.column(col, width=width, anchor="w", stretch=col == "notes")
+    tree.heading("#0", text="Mod")
+    tree.configure(show="tree headings")
+    tree.column("#0", width=200, anchor="w")
+    tree.grid(row=2, column=0, sticky="nsew")
+    side = ttk.Frame(frm)
+    side.grid(row=2, column=1, sticky="n", padx=(8, 0))
     note = ttk.Label(frm, text="", wraplength=600, justify="left")
-    note.grid(row=3, column=0, sticky="w", pady=(6, 0))
+    note.grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
     items = []
 
     def say(text, colour="#1a7f37"):
         note.configure(text=text, foreground=colour)
 
-    def refresh():
+    def refresh(select=None):
         items[:] = MD.read_list(root)
         clash = MD.clashes(root, items)
-        for w_ in rows.winfo_children():
-            w_.destroy()
-        if not items:
-            ttk.Label(rows, foreground="#777", text="No mods yet. Add a mod's zip or files with Add a mod.").grid(
-                row=0, column=0, sticky="w", pady=4)
-        for i, (name, on) in enumerate(items):
-            var = tk.BooleanVar(value=on)
-            n = len(MD.mod_files(root, name))
-            ttk.Checkbutton(rows, text=name, variable=var, command=lambda i=i, v=var: set_on(i, v.get())).grid(
-                row=2 * i, column=0, sticky="w", pady=(4, 0))
-            ttk.Label(rows, foreground="#777", text=f"{n} file{'s' if n != 1 else ''}").grid(
-                row=2 * i, column=1, sticky="e", padx=8, pady=(4, 0))
-            if len(items) > 1:
-                ttk.Button(rows, text="\u25b2", width=2, command=lambda i=i: move(i, -1),
-                           state="normal" if i else "disabled").grid(row=2 * i, column=2, pady=(4, 0))
-                ttk.Button(rows, text="\u25bc", width=2, command=lambda i=i: move(i, 1),
-                           state="normal" if i < len(items) - 1 else "disabled").grid(row=2 * i, column=3,
-                                                                                       pady=(4, 0))
-            ttk.Button(rows, text="Remove", width=8, command=lambda i=i: remove(i)).grid(
-                row=2 * i, column=4, padx=(6, 0), pady=(4, 0))
-            lost = [(o, c) for o, c, wins in clash.get(name, []) if not wins]
-            if lost:  # only what matters: the files this one doesn't get
-                ttk.Label(rows, foreground="#8a5a00", text="  " + "; ".join(
-                    f"{c} file{'s' if c != 1 else ''} used from {o} instead (it's higher in the list)"
-                    for o, c in lost)).grid(row=2 * i + 1, column=0, columnspan=5, sticky="w")
+        tree.delete(*tree.get_children())
+        for name, on in items:
+            notes = []
+            for other, n, wins in clash.get(name, []):
+                files = f"{n} file{'s' if n != 1 else ''}"
+                notes.append(f"wins {files} over {other}" if wins else f"{files} lost to {other}")
+            iid = tree.insert("", "end", text=name, values=(
+                "\u2611" if on else "\u2610", len(MD.mod_files(root, name)), (lambda t: t[:1].upper() + t[1:])("; ".join(notes))))
+            if name == select:
+                tree.selection_set(iid)
+                tree.see(iid)
 
-    def save():
+    def selected():
+        sel = tree.selection()
+        return tree.index(sel[0]) if sel else None
+
+    def save(select=None):
         try:
             MD.write_list(root, items)
         except OSError as e:
             say(f"Couldn't save the mod list: {e}", "#a33")
-        refresh()
+        refresh(select)
 
-    def set_on(i, on):
-        items[i] = (items[i][0], on)
-        save()
-        say(f"{items[i][0]} {'on' if on else 'off'}. Restart the game if it's running.")
+    def toggle(i):
+        name, on = items[i]
+        items[i] = (name, not on)
+        save(name)
+        say(f"{name} is {'on' if not on else 'off'}. Restart the game if it's running.")
 
-    def move(i, d):
-        if 0 <= i + d < len(items):
-            items[i], items[i + d] = items[i + d], items[i]
-            save()
+    def click(event):
+        row = tree.identify_row(event.y)
+        if row and tree.identify_column(event.x) == "#1":
+            toggle(tree.index(row))
+            return "break"
 
-    def remove(i):
+    tree.bind("<Button-1>", click)
+    def space(_):
+        if selected() is not None:
+            toggle(selected())
+        return "break"
+
+    tree.bind("<space>", space)
+
+    def move(d):
+        i = selected()
+        if i is None or not 0 <= i + d < len(items):
+            return
+        items[i], items[i + d] = items[i + d], items[i]
+        save(items[i + d][0])
+
+    def remove():
+        i = selected()
+        if i is None:
+            return
         name = items[i][0]
         from tkinter import messagebox
-        if messagebox.askyesno("Remove the mod?", f"Remove {name}? Your game files aren't touched.", parent=frm):
+        if messagebox.askyesno("Remove the mod?", f"Remove {name} and its files from the mods folder? Your game "
+                                                  "files aren't touched.", parent=frm):
             MD.remove(root, name)
             refresh()
             say(f"Removed {name}.")
@@ -2164,19 +2164,35 @@ def mods_tab(tabs, root, tk, ttk):
         if not name:
             say("None of those are game files, so no mod was added." + extra, "#a33")
             return
-        refresh()
+        refresh(name)
         say(f"Added {name} ({n} file{'s' if n != 1 else ''}), on.{extra} Restart the game if it's running.",
             "#8a5a00" if left or new else "#1a7f37")
 
-    def pick_source():
-        ps = filedialog.askopenfilenames(title="The mod: its zip, or its files", parent=frm,
-                                         filetypes=[("Zip or game files", "*.*"), ("Zip", "*.zip")])
-        if not ps:
-            return None
-        if len(ps) == 1 and ps[0].lower().endswith(".zip"):
-            return MD.from_zip(ps[0])
-        return MD.from_files(list(ps))
+    def add_files():
+        ps = filedialog.askopenfilenames(title="The mod's files", parent=frm)
+        return MD.from_files(list(ps)) if ps else None
 
+    def add_zip():
+        p = filedialog.askopenfilename(title="The mod's zip", parent=frm, filetypes=[("Zip", "*.zip"),
+                                                                                    ("All files", "*.*")])
+        return MD.from_zip(p) if p else None
+
+    def add_folder():
+        p = filedialog.askdirectory(title="The mod's folder", parent=frm)
+        return MD.from_folder(p) if p else None
+
+    for text, cmd in (("Add a zip...", lambda: add(add_zip)), ("Add files...", lambda: add(add_files)),
+                      ("Add a folder...", lambda: add(add_folder)), (None, None),
+                      ("Turn on/off", lambda: toggle(selected()) if selected() is not None else None),
+                      ("Move up", lambda: move(-1)), ("Move down", lambda: move(1)), ("Remove...", remove),
+                      (None, None), ("Open mods folder", lambda: (os.makedirs(MD.mods_dir(root), exist_ok=True),
+                                                                  os.startfile(MD.mods_dir(root))
+                                                                  if os.name == "nt" else None)),
+                      ("Refresh", lambda: refresh())):
+        if text is None:
+            ttk.Separator(side).pack(fill="x", pady=6)
+        else:
+            ttk.Button(side, text=text, width=16, command=cmd).pack(fill="x", pady=1)
     refresh()
 
 
