@@ -4,6 +4,7 @@
 #include "save_backup.h"
 #include "day_parks.h"
 #include "season_length.h"
+#include "tuning.h"
 #include "tools_overlay.h"
 
 // what the runtime asks of the game; strings must be set, hooks may stay null
@@ -27,7 +28,8 @@ const app::GameInfo app::kGame = {
                 {"memory_mb", nullptr, &tools::g_memory_mb},  // the Xbox's RAM: 64 or 128 MB
                 {"player_full_detail", &tools::g_player_full_detail, nullptr},  // every player's most detailed model
                 {"rain", nullptr, &tools::g_rain},  // 1: rain in every game
-                {"daylight_parks", &tools::g_daylight_parks, nullptr}},  // day games in daylight at the dusk-lit parks
+                {"daylight_parks", &tools::g_daylight_parks, nullptr},  // day games in daylight at the dusk-lit parks
+                {"depth_of_field", &tools::g_depth_of_field, nullptr}},  // EA's depth of field, off on the Xbox
     .load = nullptr,                      // reads more from the settings file's toml::table
     .save = nullptr,                      // writes more into it
     .init = [] {                           // after the settings load, before the window and boot
@@ -35,6 +37,7 @@ const app::GameInfo app::kGame = {
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
         dayparks::Apply();                 // day games in daylight at the parks EA lit as dusk, if asked
+        tuning::Apply();                   // the game's tuning (datafile.big) as the Game Tweaks ask
         gc::Init();
     },
     .loaded = nullptr,                    // image in memory, before its entry point runs

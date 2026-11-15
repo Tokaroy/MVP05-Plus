@@ -302,6 +302,22 @@ void RunToolRequests(X86Context& ctx) {
             LOGR("extras: unlocked everything for profile %u", who);
         }
     }
+    if (tools::g_points_request.load() == 1) {
+        // EA's "Add Points" (debug menu button, 0x4C9D80): 0x1AD690 (thiscall on the profile manager: profile,
+        // points) adds MVP points to the profile (capped by the game)
+        uint32_t profiles = kernel::R32(0x657288), saved_ecx = ctx.ecx;
+        ctx.ecx = profiles;
+        uint32_t who = profiles ? kernel::CallGuest(ctx, 0x311650, {}) : 0xFFFFFFFFu;
+        if (who == 0xFFFFFFFFu) {
+            tools::g_points_request = 3;
+        } else {
+            ctx.ecx = profiles;
+            kernel::CallGuest(ctx, 0x1AD690, {who, tools::g_points_amount.load()});
+            tools::g_points_request = 2;
+            LOGR("extras: added %u MVP points to profile %u", tools::g_points_amount.load(), who);
+        }
+        ctx.ecx = saved_ecx;
+    }
 }
 }  // namespace
 X86_EXTERN_FUNC(__imp__sub_002F9320);

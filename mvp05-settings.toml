@@ -37,5 +37,7 @@ memory_mb = 64
 player_full_detail = false
 # Day games in daylight at the parks EA lit as dusk (Fenway, Turner Field, Crosley, Forbes, Polo Grounds, ...).
 daylight_parks = false
+# EA's depth of field (background blur), which the Xbox version has turned off (being tested).
+depth_of_field = false
 # Weather: 0 the game's own, 1 rain in every game (the game's rain, left in by EA; being tested).
 rain = 0

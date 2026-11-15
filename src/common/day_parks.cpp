@@ -49,6 +49,8 @@ std::string DayFor(const std::string& set) {
 }  // namespace
 
 void Apply() {
+    std::error_code rm;
+    fs::remove(app::ExeDir() / "tweaks" / "data" / "stadium" / "lighting.csv", rm);  // last time's, if any
     if (!tools::g_daylight_parks) return;
     fs::path src = FindCi(app::ExeDir() / "assets", {"data", "stadium", "lighting.csv"});
     if (src.empty()) {

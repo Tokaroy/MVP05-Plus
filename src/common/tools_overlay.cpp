@@ -14,6 +14,7 @@
 extern "C" __declspec(dllimport) short __stdcall GetAsyncKeyState(int);
 #endif
 #include "core/log.h"
+#include "kernel/kernel.h"
 #include "imgui.h"
 #include "dbtools.h"
 #include "standings.h"
@@ -27,7 +28,10 @@ uint32_t g_memory_mb = 64;
 bool g_player_full_detail = false;
 uint32_t g_rain = 0;
 bool g_daylight_parks = false;
+bool g_depth_of_field = false;
 std::atomic<int> g_unlock_request{0};
+std::atomic<int> g_points_request{0};
+std::atomic<uint32_t> g_points_amount{10000};
 
 namespace {
 
@@ -326,7 +330,22 @@ std::atomic<bool> g_capturing{false};
 std::mutex g_capture_lock;
 std::string g_capture_note;
 
-// Extras: EA's own "Unlock All Unlockables" (0x204600, from their debug menu), for the profile signed in
+// guest memory, read and written with care: the pointers may be stale or unset outside a dynasty
+bool Guest(uint32_t va) { return va >= 0x10000 && va < 0xF0000000u; }
+uint32_t Ptr(uint32_t va) { return Guest(va) ? kernel::R32(va) : 0; }
+float GetF(uint32_t va) {
+    float f;
+    uint32_t b = kernel::R32(va);
+    std::memcpy(&f, &b, 4);
+    return f;
+}
+void SetF(uint32_t va, float f) {
+    uint32_t b;
+    std::memcpy(&b, &f, 4);
+    kernel::W32(va, b);
+}
+
+// Extras: EA's own "Unlock All Unlockables" and "Add Points" (from their debug menu), for the profile signed in
 void Extras() {
     Help("Unlock everything: every stadium, team, player, jersey and Legend the game hides behind MVP points, for the "
          "profile you're signed in with. Save your profile afterwards to keep it.");
@@ -338,6 +357,59 @@ void Extras() {
     }
     if (st == 2) ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1), "Done. Save your profile to keep it.");
     if (st == 3) ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "Sign in with a profile first, then try again.");
+    ImGui::Separator();
+    Help("MVP points for the profile you're signed in with (spent on unlockables in the MVP Store).");
+    static int amount = 10000;
+    ImGui::SetNextItemWidth(160 * g_scale);
+    ImGui::InputInt("points", &amount, 1000, 10000);
+    amount = std::clamp(amount, 0, 1000000);
+    ImGui::SameLine();
+    int pt = g_points_request.load();
+    if (pt == 1) {
+        ImGui::TextUnformatted("Adding...");
+    } else if (ImGui::Button("Add MVP points")) {
+        g_points_amount = uint32_t(amount);
+        g_points_request = 1;
+    }
+    if (pt == 2) ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1), "Added. Save your profile to keep them.");
+    if (pt == 3) ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "Sign in with a profile first, then try again.");
+}
+
+// Dynasty: EA's debug menu's Owner Bank Balance and Override Manager Rating, on the dynasty loaded
+void Dynasty() {
+    // the Owner Mode bank balance: [[[profiles 0x657288] + 0x34] + 4] + 0x12B7C, a float of dollars (the game adds
+    // each game's revenue to it, db_sec 0x450766)
+    uint32_t a = Ptr(0x657288), b = a ? Ptr(a + 0x34) : 0, c = b ? Ptr(b + 4) : 0;
+    Help("Owner Mode bank balance: your team's money in an Owner Mode dynasty.");
+    if (!c) {
+        ImGui::TextDisabled("Load an Owner Mode dynasty first.");
+    } else {
+        float bal = GetF(c + 0x12B7C);
+        ImGui::Text("Now: $%.1f million", bal / 1e6f);
+        static float want = 100.0f;
+        ImGui::SetNextItemWidth(160 * g_scale);
+        ImGui::InputFloat("million", &want, 10.0f, 100.0f, "%.1f");
+        want = std::clamp(want, -1000.0f, 10000.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Set the balance")) SetF(c + 0x12B7C, want * 1e6f);
+    }
+    ImGui::Separator();
+    // the manager rating (job security): the dynasty object at 0x658250, +0x718 its override switch and +0x714 the
+    // rating it then reports (0..1; the game's own, db_sec 0x49B870, otherwise)
+    uint32_t d = Ptr(0x658250);
+    Help("Manager rating: how the owner rates you as manager, which decides whether you keep your job. Hold it at a "
+         "value of your choice.");
+    if (!d) {
+        ImGui::TextDisabled("Load a dynasty first.");
+    } else {
+        bool hold = kernel::G<uint8_t>(d + 0x718) != 0;
+        float r = GetF(d + 0x714) * 100.0f;
+        if (ImGui::Checkbox("Hold my manager rating at", &hold)) kernel::G<uint8_t>(d + 0x718) = hold ? 1 : 0;
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(200 * g_scale);
+        if (ImGui::SliderFloat("##rating", &r, 5.0f, 100.0f, "%.0f%%")) SetF(d + 0x714, r / 100.0f);
+        Help("It lasts until the game is closed.");
+    }
 }
 
 void StartCapture() {
@@ -428,6 +500,10 @@ void Ui(double) {
             }
             if (ImGui::BeginTabItem("Standings Projector")) {
                 ShortSeason();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Dynasty")) {
+                Dynasty();
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Extras")) {

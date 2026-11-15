@@ -13,9 +13,12 @@ extern uint32_t g_injury_length;  // percent of the game's own injury lengths in
 extern uint32_t g_memory_mb;  // the Xbox's RAM: 64 (as the console) or 128, with the game's heap grown to match
 extern bool g_player_full_detail;  // every player drawn with his most detailed model (the game drops distant ones to lower ones)
 extern bool g_daylight_parks;  // day games in daylight at the parks EA lit as dusk (Fenway, ...)
+extern bool g_depth_of_field;  // EA's depth of field (xbox_render's DOF IsActive, off on the Xbox)
 extern uint32_t g_rain;  // 0: the game's own weather, 1: rain in every game
 // asked for from the Tools menu, done by the game's own thread at the end of a frame (src/game/hooks.cpp)
 extern std::atomic<int> g_unlock_request;  // 1: asked, 2: done, 3: no profile signed in
+extern std::atomic<int> g_points_request;  // MVP points: 1 asked, 2 done, 3 no profile signed in
+extern std::atomic<uint32_t> g_points_amount;
 extern uint32_t g_season_games;  // the schedule's length: counted from schedule.big at start, else season_games
 
 bool Open();
