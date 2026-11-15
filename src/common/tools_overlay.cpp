@@ -25,6 +25,7 @@ uint32_t g_pitcher_recovery = 100;
 uint32_t g_injury_length = 100;
 uint32_t g_memory_mb = 64;
 bool g_player_full_detail = false;
+bool g_live_jumbotron = false;
 
 namespace {
 
