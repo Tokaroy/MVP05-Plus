@@ -4,13 +4,13 @@ Make your own season schedules, and short seasons now finish on their own.
 
 ## Highlights
 - **Create a schedule** (*Schedule → Create a schedule…*): a season of any even number of games from 12 to 162. Every team plays the same number of games, exactly half at home, in 2 to 4-game series. Interleague as in 2005, matchups you choose, a new matchup each dynasty year, or none (with interleague, 30 games or more). Natural rivals every year if you like, and the All-Star Game hosted by the AL, the NL, or each in turn. A different season for each of the three dynasty years, previewed team by team before you save it to your list.
+- **Dynasty goals fit the season:** goals that count games or stats (home and road wins, total wins, team home runs, pitchers' wins, players' home runs) are scaled to your season's length, and so is the win percentage goal. A 3-year goal of 100 home wins is 28 in a 46-game season.
 - **Short seasons end on their own:** a season shorter than 162 games goes on to the playoffs by itself. The game counts the games in your schedule when it starts, so it works whichever schedule is installed and however it got there.
 
 ## Changed
 - **Standings Projector** (was the Short Season Advancer): no longer needed for short seasons. It's kept for a dynasty stuck at the end of a short season from an older version.
 
 ## Known issues
-- **Dynasty goals that count games or stats** (like 100 home wins in 3 years, or 2 pitchers with 10 wins) are still sized for 162-game seasons, so in a short season some can't be reached. Goals for averages and percentages (a .450 win %, hit .230) work at any length.
 - **Switching schedules mid-season:** a new schedule starts with the next season. Switching in the middle of one changes that season's length from the next time the game starts, so switch between seasons.
 
 ## Updating

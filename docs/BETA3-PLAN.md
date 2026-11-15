@@ -34,13 +34,11 @@ the schedule's length, counted from the installed schedule.big when the game sta
 season_games from the Launcher only if it can't be counted), so a short season goes on to the playoffs by itself. The Short Season Advancer is now
 the Standings Projector (not needed; for dynasties stuck from an older version). Ctrl+Shift+F9 in the game saves a
 memory capture to logs (the menu button is gone). **Still open:** a schedule switched mid-season is counted at the next start
-while the old season is still played (switch between seasons, as the Schedule tab says); the team goals' win
-targets are still for 162 games: the Yankees' 3-year goal is 300 wins ("Win %1 Total %2 Games") whatever the
-season's length, so the targets don't come from the season-length function; probably from the team's tier
-(org_tieratstart; goals in org_frangoal1-8, made when a dynasty starts). Needs a capture on the goals screen. It's every goal that counts games or stats ("Win %1 Total %2 Games", "Win %1 %2
-Home/Road Games", "%2 MLB Pitchers with %1 Wins", "%1 Home/Road Wins-2 of %2 Seasons", "%1 Career Regular Season
-Wins"; spy_jam's 46-game test: 100 home wins in 3 years, 2 pitchers with 10 wins); rate goals (win %, average,
-slugging) and leader/award goals are fine at any length. Fix: scale the counting targets by games/162 when made.
+while the old season is still played (switch between seasons, as the Schedule tab says); the dynasty goals: their counting targets are now
+scaled while the game reads them (hooks.cpp: the goal object, vtable 0x5B8BCC, 32 records of on/X/Y; readers 0x1DC8C0
+met?, 0x1DC960 progress, 0x1DCB10 text, 0x1F63E0 screen line, 0x1F6650 progress figure; WinPct checked as X * 486 =
+3 x 162 at 0x5B8C30). To check in game: the per-player goals (XWinsbyYP, XHRsYplayers) count players through the
+stat tracker (0x49B0C0 → 0x1ACCB0), which may use its own threshold.
 
 ## Owner mode imports
 Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are now. Owner mode is its own mode with its own save type. It needs matched pairs: a new owner mode save with the same team on each platform, saved straight away.
