@@ -1,6 +1,50 @@
-# MVP05-Plus Beta 3: plan
+# MVP05-Plus 3.0: plan
 
-What's planned for Beta 3, with what's already known. Beta 2 was released on 2026-11-13.
+3.0 is **owner mode save imports**, once everything in Beta 2.5 tests out. Everything else that was planned for Beta 3
+has moved to *Future* below. Beta 2 was released on 2026-11-13.
+
+## Owner mode imports (3.0)
+Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are now. Owner mode is its own mode with its own save type. It needs matched pairs: a new owner mode save with the same team on each platform, saved straight away.
+Goes with it: tywiggins' ChangeMoney (owner mode money) and the Owner Mode bank balance in the Tools menu
+([[[0x657288]+0x34]+4]+0x12B7C, a float in dollars).
+
+# Future
+
+## Payroll budget (dynasty)
+Not the Owner Mode bank balance. In memory the org table (vtable 0x5B13C0, 34 records of 0x54 bytes, SetField
+0x444B60) has a dword at +0x38 that looks like payroll in dollars ($38.3M for one team, $173.2M for another); to
+confirm against a team's budget screen. org.dat's CSV has org_budget.
+From the save side: every team has a budget in dynasty mode. In a save, org record halfword s21 is the budget in $100K units (FORMAT_NOTES 3.7). Needs the other money figures from the budget screen. tywiggins' ChangeMoney is for owner mode and goes with the owner mode work.
+
+## Stats editor
+EA's Stat Pumper from their debug menu (constructor 0x4E5FF0, Execute 0x4B64E0; setters on 0x657288: 0x1ACBC0,
+0x1AC250, 0x1AC210, 0x1AC310, 0x1ACC50, 0x1AC390, 0x1AC350; is-pitcher 0x1B8150): 7 stat categories, 0..10000.
+
+## More Game Tweaks
+- **Free camera.**
+- **Sky and time of day:** the stadium loader 0x130250 has overrides at 0x653F24/28 (field, 0..2) and 0x653F2C/30
+  (sky, 0..4).
+- **Other datafile.big visuals:** fog, shadow alpha, fireworks.
+
+## Draft class from MVP 06 (to look into)
+Requested by a player: the college players from an MVP 06 dynasty become the draft class of an MVP 2005 dynasty, as
+EA's NCAA Football draft classes went into Madden. In use: choose an 06 dynasty save (end of season) and one of your
+05 dynasty saves in the Launcher; the draft-eligible players (juniors and seniors, or a pick) are converted to 2005's
+player format and put in the 05 dynasty's draft pool. To work out first:
+- **06 players:** where an 06 save keeps each player's name, position, year, ratings and appearance (the saves
+  already convert between platforms, but the player records aren't decoded).
+- **05 draft pool:** where an 05 dynasty keeps its draft prospects, and whether they're made from the disc's
+  `database/rookie.big` or kept in the save. Needs 05 dynasty saves from just before and just after a draft.
+- **Translation:** 06 and 05 ratings and looks don't line up one to one; each needs a rule (and how many players
+  the pool takes).
+
+## Also open
+- **Stamina Changer:** tywiggins' spot (data + 0x231420) holds heap headers on the Xbox, so it needs its own search.
+- **GameCube dynasty converter:** history merge by overlap rather than by year (see the save conversion notes, 4.4).
+- **Dynasty export to GameCube** from the Launcher (the converter already does it).
+- **Low latency for MVP06-Plus;** MVP 2004.
+
+# Done
 
 ## Player of the day
 Done in Beta 2.1 (tools/installer/potd.py): local date, counted from 2026-11-13 through a SHA-256 shuffle of all the players (each once per round of 731 days); the 30 franchises' default rosters in database/database.big with a picture in frontend/portrait.big (named by playerattrib_audioid), 731 players. The notes below were the plan.
@@ -11,7 +55,7 @@ A card across the empty bottom of the *Play* tab: a player's picture, name, team
 - **Picture:** read from the player's own installed game files at run time, like the title art. EA's art is never shipped. First, find where MVP 2005 keeps player headshots in its `.big` files and in what texture format, and whether every MLB player has one. That needs a listing of `assets\data` and a few `.big` files from a real install.
 - **Layout:** the dog easter egg uses the bottom-right corner, so leave room for it or let it sit on top of the card.
 
-## Create a schedule (built, not released yet)
+## Create a schedule (Beta 2.5)
 The Schedule tab's *Create a schedule…* (a window like *Import a schedule…*; the seasons from tools/installer/
 schedgen.py): any even length from 12 to 162 games (30 or more with interleague, so every team plays some);
 interleague shared out evenly as in 2005, chosen division matchups, a new matchup each
@@ -39,27 +83,3 @@ scaled while the game reads them (hooks.cpp: the goal object, vtable 0x5B8BCC, 3
 met?, 0x1DC960 progress, 0x1DCB10 text, 0x1F63E0 screen line, 0x1F6650 progress figure; WinPct checked as X * 486 =
 3 x 162 at 0x5B8C30). To check in game: the per-player goals (XWinsbyYP, XHRsYplayers) count players through the
 stat tracker (0x49B0C0 → 0x1ACCB0), which may use its own threshold.
-
-## Owner mode imports
-Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are now. Owner mode is its own mode with its own save type. It needs matched pairs: a new owner mode save with the same team on each platform, saved straight away.
-
-## Budget changer (dynasty)
-Every team has a budget in dynasty mode. In a save, org record halfword s21 is the budget in $100K units (FORMAT_NOTES 3.7). In memory, no stored value turned up (it's probably computed), so editing the save may be the way. Needs the other money figures from the budget screen. tywiggins' ChangeMoney is for owner mode and goes with the owner mode work.
-
-## Draft class from MVP 06 (to look into)
-Requested by a player: the college players from an MVP 06 dynasty become the draft class of an MVP 2005 dynasty, as
-EA's NCAA Football draft classes went into Madden. In use: choose an 06 dynasty save (end of season) and one of your
-05 dynasty saves in the Launcher; the draft-eligible players (juniors and seniors, or a pick) are converted to 2005's
-player format and put in the 05 dynasty's draft pool. To work out first:
-- **06 players:** where an 06 save keeps each player's name, position, year, ratings and appearance (the saves
-  already convert between platforms, but the player records aren't decoded).
-- **05 draft pool:** where an 05 dynasty keeps its draft prospects, and whether they're made from the disc's
-  `database/rookie.big` or kept in the save. Needs 05 dynasty saves from just before and just after a draft.
-- **Translation:** 06 and 05 ratings and looks don't line up one to one; each needs a rule (and how many players
-  the pool takes).
-
-## Also open
-- **Stamina Changer:** tywiggins' spot (data + 0x231420) holds heap headers on the Xbox, so it needs its own search.
-- **GameCube dynasty converter:** history merge by overlap rather than by year (see the save conversion notes, 4.4).
-- **Dynasty export to GameCube** from the Launcher (the converter already does it).
-- **Low latency for MVP06-Plus;** MVP 2004.

@@ -40,7 +40,7 @@ Bring your saves over from the other versions of MVP 2005, pick the season you p
 - **GameCube:** rosters and dynasties, from the `.gci` Dolphin exports.
 - **PC:** rosters and dynasties (`.sav`).
 - **Xbox:** rosters and dynasties from another Xbox (its `data.dat`).
-- Owner mode saves aren't imported yet (planned for Beta 3).
+- Owner mode saves aren't imported yet (planned for 3.0).
 
 Roster conversion is **Mad Dog**'s, from his MVP Roster Toolkit (the same file it makes). GameCube conversion, rosters and dynasties, is **spy_jam**'s. PS2 and PC dynasties use both.
 
