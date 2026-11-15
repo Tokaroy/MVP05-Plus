@@ -37,7 +37,10 @@ memory capture to logs (the menu button is gone). **Still open:** a schedule swi
 while the old season is still played (switch between seasons, as the Schedule tab says); the team goals' win
 targets are still for 162 games: the Yankees' 3-year goal is 300 wins ("Win %1 Total %2 Games") whatever the
 season's length, so the targets don't come from the season-length function; probably from the team's tier
-(org_tieratstart; goals in org_frangoal1-8, made when a dynasty starts). Needs a capture on the goals screen.
+(org_tieratstart; goals in org_frangoal1-8, made when a dynasty starts). Needs a capture on the goals screen. It's every goal that counts games or stats ("Win %1 Total %2 Games", "Win %1 %2
+Home/Road Games", "%2 MLB Pitchers with %1 Wins", "%1 Home/Road Wins-2 of %2 Seasons", "%1 Career Regular Season
+Wins"; spy_jam's 46-game test: 100 home wins in 3 years, 2 pitchers with 10 wins); rate goals (win %, average,
+slugging) and leader/award goals are fine at any length. Fix: scale the counting targets by games/162 when made.
 
 ## Owner mode imports
 Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are now. Owner mode is its own mode with its own save type. It needs matched pairs: a new owner mode save with the same team on each platform, saved straight away.

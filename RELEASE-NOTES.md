@@ -10,7 +10,7 @@ Make your own season schedules, and short seasons now finish on their own.
 - **Standings Projector** (was the Short Season Advancer): no longer needed for short seasons. It's kept for a dynasty stuck at the end of a short season from an older version.
 
 ## Known issues
-- **Team goals:** the dynasty's win goals (like a 3-year goal of 300 wins) are still sized for 162-game seasons.
+- **Dynasty goals that count games or stats** (like 100 home wins in 3 years, or 2 pitchers with 10 wins) are still sized for 162-game seasons, so in a short season some can't be reached. Goals for averages and percentages (a .450 win %, hit .230) work at any length.
 - **Switching schedules mid-season:** a new schedule starts with the next season. Switching in the middle of one changes that season's length from the next time the game starts, so switch between seasons.
 
 ## Updating
