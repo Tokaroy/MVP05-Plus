@@ -116,9 +116,10 @@ int SeasonGames() {
 }
 
 void ShortSeason() {
-    Help("For seasons shorter than 162 games. After the last regular season game: save the dynasty and stay on "
-         "the season screen. Find the standings here, check them, and write them projected to 162 games. Then "
-         "advance to the playoffs and save again.");
+    Help("Every team's record projected to 162 games, keeping its winning percentage. Short seasons don't need it: "
+         "they end on their own. It's for a dynasty stuck at the end of a short season from an older MVP05-Plus: on "
+         "the season screen, find the standings here, check them, and write them projected to 162 games. Then advance "
+         "to the playoffs and save.");
     ImGui::Spacing();
     int games = SeasonGames();
     ImGui::Text("This season: %d games (your Schedule tab's)", games);
@@ -396,7 +397,7 @@ void Ui(double) {
             if (!g_capture_note.empty()) Help(g_capture_note.c_str());
         }
         if (ImGui::BeginTabBar("tools")) {
-            if (ImGui::BeginTabItem("Short Season Advancer")) {
+            if (ImGui::BeginTabItem("Standings Projector")) {
                 ShortSeason();
                 ImGui::EndTabItem();
             }
@@ -410,13 +411,6 @@ void Ui(double) {
             }
             ImGui::EndTabBar();
         }
-        // for working out the game: the same capture as Ctrl+Shift+F9
-        ImGui::Separator();
-        ImGui::BeginDisabled(g_capturing);
-        if (ImGui::Button("Save a memory capture")) StartCapture();
-        ImGui::EndDisabled();
-        ImGui::SameLine();
-        ImGui::TextDisabled("(for testing: saved in logs, also Ctrl+Shift+F9)");
     }
     ImGui::End();
     ImGui::PopStyleVar(5);

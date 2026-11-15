@@ -14,7 +14,7 @@ MVP Baseball 2005 on Windows, and on SteamOS (Linux) through Proton, built on [M
 * **MVP05-Plus Launcher**: install from your discs, launch the game, import and restore saves, pick the season schedule, run the tools, adjust display settings, and update MVP05-Plus.
 * **Fixes**: a shader cache to prevent mid-game stutter, SteamOS support through Proton, and a fix for a crash during stolen bases, found while testing the original recomp.
 * **Save backups**: a full save backup menu in the Launcher. Your saves are backed up automatically when the game starts, keeping the latest 30 backups by default, and you can view and restore them in the Launcher.
-* **Tools**: extra tools for your seasons and saves, in the Launcher's Tools tab and in the game (F10, or hold Back + Start / Z + Start). Beta 2 has a Short Season Advancer, a Team Changer and a Playoffs Editor.
+* **Tools**: extra tools for your seasons and saves, in the Launcher's Tools tab and in the game (F10, or hold Back + Start / Z + Start). A Standings Projector, a Team Changer and a Playoffs Editor.
 
 ## Compatible controllers
 
@@ -70,7 +70,7 @@ sh -c 'B="/home/deck/Games/MVP05-Plus/gcbridge"; chmod +x "$B"; "$B" & exec "$@"
 * **Install**, which becomes **Play** once the game's installed (coming from an older MVP05-Plus or Mad Dog's MVP05? The Launcher offers to bring its game, saves and settings over the first time it opens; **Ctrl+Shift+B** offers it again): your discs in, then what's installed (checked each start), **Launch MVP 05**, and which controllers Windows sees right now, including whether the GameCube adapter has the WinUSB driver it needs. At the bottom, the **Player of the Day**: an MLB player from the game's 2005 rosters, with his picture and 2004 season, the same for everyone each day.
 * **Saves**: *Your saves*, with *Import a save…* for saves from the PS2, GameCube, PC or another Xbox; and *Backups* by date. Restore single saves or a whole date; your saves become a backup first, so a restore can be undone.
 * **Schedule**: the season schedule new seasons play, and *Import a schedule…*.
-* **Tools**: the Short Season Advancer, Team Changer and Playoffs Editor, in the running game or (Short Season Advancer, Playoffs Editor) on a saved dynasty.
+* **Tools**: the Standings Projector, Team Changer and Playoffs Editor, in the running game or (Standings Projector, Playoffs Editor) on a saved dynasty.
 * **Settings**: display mode, aspect ratio (16:9, or 4:3 with black bars at the sides), resolution (default: fullscreen at your desktop's resolution), render scale, frame rate cap, texture filtering, VSync, low latency, Xbox 720p mode; desktop shortcuts for the game ("MVP 05 Plus") and the Launcher, if you want them; and *Updates*: check for a new release, install it, or go back to the version before.
 
 For the least delay between a button and the screen, as on a console: turn on *Low latency* in Settings (turn it back off if the game stutters), and use your monitor's G-Sync / FreeSync or your TV's game mode if it has one.

@@ -1438,9 +1438,8 @@ def schedule_tab(tabs, root, tk, ttk):
     tabs.add(frm, text="Schedule")
     ttk.Label(frm, text="Season Schedule", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w")
     ttk.Label(frm, foreground="#666", wraplength=560, justify="left", text=(
-        "A new schedule starts with the next season, when spring training ends. Seasons shorter than 162 games need "
-        "the Short Season Advancer after the last regular season game to reach the playoffs (Tools tab, or F10 in "
-        "the game).")).grid(
+        "A new schedule starts with the next season, when spring training ends. A shorter season ends on its own and "
+        "goes on to the playoffs.")).grid(
         row=1, column=0, sticky="w", pady=(0, 8))
     have = ttk.Label(frm, font=("Segoe UI", 9, "bold"))
     have.grid(row=2, column=0, sticky="w", pady=(0, 6))
@@ -1520,11 +1519,10 @@ def schedule_tab(tabs, root, tk, ttk):
         except (SCH.ScheduleError, OSError) as e:
             note.configure(text=f"Not changed: {e}", foreground="#a33")
             return
-        ST.write(root, {"season_games": games})  # the Short Season Advancer's season length
+        ST.write(root, {"season_games": games})  # the season's length: the game ends a short season by it
         note.configure(foreground="#1a7f37", text=(
             f"Done: new seasons play {games} games." + (" The Launcher deals a new shuffle every time it starts "
-            "the game." if sid == SCH.SHUFFLED else "" if games == 162 else
-            " At the end of each regular season, run the Short Season Advancer (Tools tab, or F10 in the game).")))
+            "the game." if sid == SCH.SHUFFLED else "")))
         refresh()
     use.configure(command=go)
 
@@ -1823,8 +1821,8 @@ def tools_tab(tabs, root, tk, ttk):
         "controller).")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
     tools = [
-        ("Short Season Advancer", "Seasons under 162 games: at the end of the regular season, the standings made 162 "
-         "games long (same winning percentages), so the season goes on to the playoffs.", short_season_tool),
+        ("Standings Projector", "Every team's record projected to 162 games, keeping its winning percentage. Short "
+         "seasons don't need it: they end on their own.", short_season_tool),
         ("Team Changer", "Take over another organization in your dynasty or owner mode. Based on tywiggins' Team "
          "Changer.", team_changer_tool),
         ("Playoffs Editor", "Swap teams in a playoff round before its first game. Based on tywiggins' Playoffs "
@@ -2056,17 +2054,18 @@ def playoffs_tool(frm, root, tk, ttk):
 
 
 def short_season_tool(frm, root, tk, ttk):
-    """Short season: every MLB team's record projected to 162 games, in the running game or in a dynasty save.
-    The game's own Tools menu (F10) does the first in the game."""
+    """Standings Projector: every MLB team's record projected to 162 games, in the running game or in a dynasty save.
+    The game's own Tools menu (F10) does the first in the game. Short seasons end on their own now (hooks.cpp)."""
     import saves05 as S
     import settings as ST
     from tkinter import messagebox
 
-    ttk.Label(frm, text="Short Season Advancer", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
+    ttk.Label(frm, text="Standings Projector", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
     ttk.Label(frm, foreground="#666", wraplength=560, justify="left", text=(
-        "A season shorter than 162 games stops at the end of the regular season until the standings are made "
-        "162 games long. This keeps every team's winning percentage. In the game, F10 (or Back + Start) opens the "
-        "same tool without leaving it.")).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        "Every team's record projected to 162 games, keeping its winning percentage. Short seasons don't need it: "
+        "they end on their own and go on to the playoffs. It's for a dynasty that's stuck at the end of a short "
+        "season from an older MVP05-Plus. In the game, F10 (or Back + Start) opens the same tool.")).grid(
+        row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
     how = tk.StringVar(value="game")
     ttk.Radiobutton(frm, variable=how, value="game", text=(
         "In the running game (save the dynasty after the last regular season game, stay on that screen)")).grid(
@@ -2133,7 +2132,7 @@ def short_season_tool(frm, root, tk, ttk):
         except ValueError:
             n = 0
         if not 1 <= n <= 162:
-            messagebox.showinfo("Short Season Advancer", "Enter how many games the season has (1 to 162).", parent=frm)
+            messagebox.showinfo("Standings Projector", "Enter how many games the season has (1 to 162).", parent=frm)
             return None
         return n
 

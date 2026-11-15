@@ -27,6 +27,15 @@ redistributing or editing it.
 **To test in the game:** a dynasty through a full created season into year 2, at 162 and at a short length (64), and
 with interleague off; the All-Star Game hosted by the NL. Then Beta 3, or a 2.5.
 
+## Short seasons end on their own (built, tested by spy_jam)
+The game measures a season against its league's length (0x19D190: 162 for the majors, 144 AAA, 142 AA, 140 A;
+asked from db_sec at 0x466692, 0x467008, 0x49174D and through 0x1AEC10). src/game/hooks.cpp gives the majors
+the schedule's season_games, so a short season goes on to the playoffs by itself. The Short Season Advancer is now
+the Standings Projector (not needed; for dynasties stuck from an older version). Ctrl+Shift+F9 in the game saves a
+memory capture to logs (the menu button is gone). **Still open:** read the length from the schedule the season
+loaded rather than the setting (a schedule switched mid-season would end that season early); the team goals' win
+targets are still for 162 games (needs a screenshot of the goals and a capture there).
+
 ## Owner mode imports
 Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are now. Owner mode is its own mode with its own save type. It needs matched pairs: a new owner mode save with the same team on each platform, saved straight away.
 
