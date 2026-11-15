@@ -224,11 +224,12 @@ def _league(x, w, need, rng):
 
 # --- rounds: every team plays one series in each
 
-def _matching(left, rounds_left, last, rng, inter_bonus):
-    """A perfect matching of the 30 teams from the pairs with series left, the most pressing first."""
+def _matching(left, rounds_left, last, rng, inter_bonus, strict=True):
+    """A perfect matching of the 30 teams from the pairs with series left, the most pressing first. strict: no pair
+    that played the round before (no team meets the same opponent in two series running)."""
     nbr = {t: [] for t in TEAMS}
     for (a, b), n in left.items():
-        if n:
+        if n and not (strict and frozenset((a, b)) in last):
             nbr[a].append(b)
             nbr[b].append(a)
 
@@ -271,6 +272,8 @@ def _rounds(counts, rounds, rng):
         for r in range(rounds):
             mid = 0.3 * rounds <= r <= 0.65 * rounds  # interleague mostly in May and June, as in 2005
             m = _matching(left, rounds - r, last, rng, 0.25 if mid else -0.15)
+            if m is None:  # only if the season leaves no other way
+                m = _matching(left, rounds - r, last, rng, 0.25 if mid else -0.15, strict=False)
             if m is None:
                 break
             for a, b in m:
@@ -284,7 +287,7 @@ def _rounds(counts, rounds, rng):
 
 # --- home and away
 
-def _flow_extras(odd_pairs, need_lo, need_hi, rng):
+def _flow_extras(odd_pairs, need_lo, need_hi, rng, allowed=None):
     """Which team of each item gets a home series, every team t getting between need_lo[t] and need_hi[t] of them:
     augmenting paths (a b-matching of items to teams), first up to need_lo, then up to need_hi. An item is
     (pair, tag): a pair's odd series out, or one series of a 2- or 4-game round."""
@@ -297,7 +300,7 @@ def _flow_extras(odd_pairs, need_lo, need_hi, rng):
         return q[0][0] if q[0][1] == t else q[0][1]
 
     def dfs(p, cap, seen):
-        ts = list(p[0])
+        ts = list(allowed.get(p, p[0]) if allowed else p[0])
         rng.shuffle(ts)
         for t in ts:
             if t in seen:
@@ -321,6 +324,8 @@ def _flow_extras(odd_pairs, need_lo, need_hi, rng):
 
     def dfs_move(q, frm, to, cap, seen):
         """q goes from team frm to team to (making room on frm), if `to` has room or can make it."""
+        if allowed and to not in allowed.get(q, q[0]):
+            return False
         seen.add(to)
         if load[to] < cap[to]:
             load[to] += 1
@@ -342,9 +347,75 @@ def _flow_extras(odd_pairs, need_lo, need_hi, rng):
         for p in order:
             if p not in give:
                 dfs(p, cap, set())
+    if allowed and (len(give) != len(odd_pairs) or any(load[t] < need_lo[t] for t in TEAMS)):
+        allowed = None  # the preferences can't all be kept: the rest placed wherever they fit
+        for cap in (need_lo, need_hi):
+            for p in order:
+                if p not in give:
+                    dfs(p, cap, set())
     if len(give) != len(odd_pairs) or any(load[t] < need_lo[t] for t in TEAMS):
         raise GenError("couldn't even out home and away")
     return give
+
+
+def _even_pairs(home, lengths, rng):
+    """Where two teams' series don't split (one at home two more times than the other), turned along a cycle of
+    series of the same length: A's home series against B goes to B, and B gives one back to A by way of C (B's home
+    series against C goes to C, C's against A goes to A). Every team keeps its home games; the pairs on the way only
+    lose a lean they had. Repeated until every pair splits within one series, or no cycle is left."""
+    d = {}  # (X, Y) -> X's home series against Y minus Y's against X
+
+    def lean(x, y):
+        return d.get((x, y), 0)
+    for (p, r), t in home.items():
+        o = p[0] if t == p[1] else p[1]
+        d[(t, o)] = d.get((t, o), 0) + 1
+        d[(o, t)] = d.get((o, t), 0) - 1
+    series = {}  # (home team, length) -> [(pair, round)]
+    for (p, r), t in home.items():
+        series.setdefault((t, lengths[r]), []).append((p, r))
+
+    def flip(key, frm, to):
+        home[key] = to
+        n = lengths[key[1]]
+        series[(frm, n)].remove(key)
+        series.setdefault((to, n), []).append(key)
+        d[(frm, to)] = d.get((frm, to), 0) - 2
+        d[(to, frm)] = d.get((to, frm), 0) + 2
+
+    for _ in range(2000):
+        bad = [(x, y) for (x, y), v in d.items() if v >= 2]
+        if not bad:
+            return
+        rng.shuffle(bad)
+        fixed = False
+        for a, b in bad:
+            for key in [k for k, t in home.items() if t == a and b in k[0]]:
+                n = lengths[key[1]]
+                # a path b -> ... -> a over series of length n, each step x -> y a home series of x against y
+                # where x leans toward itself (flipping it can't make that pair worse)
+                prev, queue = {b: None}, [b]
+                while queue and a not in prev:
+                    x = queue.pop(0)
+                    for k in series.get((x, n), []):
+                        y = k[0][0] if k[0][1] == x else k[0][1]
+                        if y not in prev and lean(x, y) >= 1 and k != key:
+                            prev[y] = (x, k)
+                            queue.append(y)
+                if a not in prev:
+                    continue
+                flip(key, a, b)
+                y = a
+                while prev[y]:
+                    x, k = prev[y]
+                    flip(k, x, y)
+                    y = x
+                fixed = True
+                break
+            if fixed:
+                break
+        if not fixed:
+            return
 
 
 def _homes(seq, lengths, games, rng):
@@ -354,13 +425,6 @@ def _homes(seq, lengths, games, rng):
     half of each kind, so the length doesn't tip anyone's home games."""
     home = {}  # (pair, round) -> home team
     main = [r for r, n in enumerate(lengths) if n == 3]
-    for n in sorted(set(lengths) - {3}):
-        rs = [r for r, x in enumerate(lengths) if x == n]
-        items = [(_key(a, b), r) for r in rs for a, b in seq[r]]
-        half = {t: len(rs) // 2 for t in TEAMS}
-        give = _flow_extras(items, half, {t: (len(rs) + 1) // 2 for t in TEAMS}, rng)
-        for it, t in give.items():
-            home[it] = t
     by_pair = {}
     for r in main:
         for a, b in seq[r]:
@@ -384,6 +448,26 @@ def _homes(seq, lengths, games, rng):
         o = p[0] if f == p[1] else p[1]
         for k, r in enumerate(rs):
             home[(p, r)] = f if k % 2 == 0 else o
+    # the 2- and 4-game rounds: each team at home in half of each kind, and where it can be, the pair's extra series
+    # goes to the team that has one fewer at home against the other
+    for n in sorted(set(lengths) - {3}):
+        rs = [r for r, x in enumerate(lengths) if x == n]
+        items = [(_key(a, b), r) for r in rs for a, b in seq[r]]
+        half = {t: len(rs) // 2 for t in TEAMS}
+        top = {t: (len(rs) + 1) // 2 for t in TEAMS}
+        tilt = {}
+        for (p, r), t in home.items():
+            tilt[p] = tilt.get(p, 0) + (1 if t == p[0] else -1)
+        allowed = {it: ((it[0][1],) if tilt.get(it[0], 0) > 0 else (it[0][0],) if tilt.get(it[0], 0) < 0
+                        else it[0]) for it in items}
+        give = _flow_extras(items, half, top, rng, allowed)
+        for it, t in give.items():
+            home[it] = t
+    _even_pairs(home, lengths, rng)
+    by_pair = {}
+    for r in main:
+        for a, b in seq[r]:
+            by_pair.setdefault(_key(a, b), []).append(r)
     # then swaps within a pair (one of its home series for one of its road ones), which change nobody's totals:
     # kept when they shorten long home stands and road trips (real ones are about three series at most)
     team_rounds = {t: [] for t in TEAMS}
@@ -393,13 +477,16 @@ def _homes(seq, lengths, games, rng):
             team_rounds[b].append((r, _key(a, b)))
 
     def penalty(t):
-        run, last, cost = 0, None, 0
+        run, last, cost, prev = 0, None, 0, None
         for r, p in team_rounds[t]:
             h = home[(p, r)] == t
             run = run + 1 if h == last else 1
             last = h
             if run > 2:
                 cost += (run - 2) ** 3
+            if prev == (r - 1, p) and home[(p, r - 1)] == home[(p, r)]:
+                cost += 8  # the same opponent at the same park twice running
+            prev = (r, p)
         return cost
 
     multi = [p for p, rs in by_pair.items() if len(rs) >= 2]
@@ -416,6 +503,40 @@ def _homes(seq, lengths, games, rng):
             home[(p, ra)], home[(p, rb)] = p[1], p[0]
             if penalty(p[0]) + penalty(p[1]) > before:
                 home[(p, ra)], home[(p, rb)] = p[0], p[1]
+    # and turns along three teams (A's home series against B to B, B's against C to C, C's against A to A, all of
+    # one length): nobody's home games change, and they're kept when no pair stops splitting and the stands shorten
+    lean = {}
+    for (q, r), t in home.items():
+        o = q[0] if t == q[1] else q[1]
+        lean[(t, o)] = lean.get((t, o), 0) + 1
+        lean[(o, t)] = lean.get((o, t), 0) - 1
+    at = {}  # (home, away, length) -> [(pair, round)]
+    for (q, r), t in home.items():
+        o = q[0] if t == q[1] else q[1]
+        at.setdefault((t, o, lengths[r]), []).append((q, r))
+    keys = list(home)
+    for _ in range(15 * len(keys)):
+        k1 = rng.choice(keys)
+        a = home[k1]
+        b = k1[0][0] if a == k1[0][1] else k1[0][1]
+        n = lengths[k1[1]]
+        cs = [c for c in TEAMS if c not in (a, b) and at.get((b, c, n)) and at.get((c, a, n))]
+        if not cs:
+            continue
+        c = rng.choice(cs)
+        k2, k3 = rng.choice(at[(b, c, n)]), rng.choice(at[(c, a, n)])
+        if any(abs(lean.get(xy, 0) - 2) > 1 for xy in ((a, b), (b, c), (c, a))):
+            continue  # one of the pairs would stop splitting
+        before = penalty(a) + penalty(b) + penalty(c)
+        home[k1], home[k2], home[k3] = b, c, a
+        if penalty(a) + penalty(b) + penalty(c) >= before:
+            home[k1], home[k2], home[k3] = a, b, c
+            continue
+        for (x, y, k) in ((a, b, k1), (b, c, k2), (c, a, k3)):
+            at[(x, y, n)].remove(k)
+            at.setdefault((y, x, n), []).append(k)
+            lean[(x, y)] -= 2
+            lean[(y, x)] += 2
     out = [[None] * len(m) for m in seq]
     for r, m in enumerate(seq):
         for i, (a, b) in enumerate(m):

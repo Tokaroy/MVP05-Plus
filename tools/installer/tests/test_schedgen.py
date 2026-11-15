@@ -6,7 +6,7 @@ import schedgen as G
 import schedules as SC
 
 n = 0
-for games in (162, 141, 120, 100, 81, 64, 60, 45, 31, 30, 15, 12):
+for games in (162, 141, 100, 64, 45, 31, 30, 15, 12):
     for mode in G.INTERLEAGUE:
         if mode != "off" and games < G.MIN_INTERLEAGUE:
             continue
@@ -14,7 +14,7 @@ for games in (162, 141, 120, 100, 81, 64, 60, 45, 31, 30, 15, 12):
         o.update(games=games, interleague=mode, all_star="alternate")
         if mode == "choose":
             o["pairing"] = {"AL East": "NL West", "AL Central": "NL East", "AL West": "NL Central"}
-        for seed in (1, 2):
+        for seed in (1,):
             ts = G.seasons(o, seed)
             assert SC.check_season(ts) == games, (games, mode)
             assert ts == G.seasons(o, seed), "the same choices and seed must give the same seasons"

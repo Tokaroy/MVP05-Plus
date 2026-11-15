@@ -1754,7 +1754,10 @@ def make_schedule(parent, root, tk, ttk, on_saved):
                 texts, err = SCH.generate(op, seed), None
             except SCH.ScheduleError as e:
                 texts, err = None, str(e)
-            win.after(0, lambda: done(ticket, op, texts, err))
+            try:
+                win.after(0, lambda: done(ticket, op, texts, err))
+            except (tk.TclError, RuntimeError):
+                pass  # the window was closed meanwhile
         threading.Thread(target=work, daemon=True).start()
 
     def done(ticket, op, texts, err):
