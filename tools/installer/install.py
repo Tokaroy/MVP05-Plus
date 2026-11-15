@@ -1213,7 +1213,7 @@ def desktop_resolution():
         return None
 
 
-# Game Tweaks, by group (Gameplay and Dynasty are pages in the Tools tab, Graphics a section of Settings): (key in
+# Game Tweaks, by group (Gameplay and Dynasty are pages in the Tools tab, Graphics a window from Settings): (key in
 # mvp05-settings.toml, title, explanation, {choice: value}) for a dropdown, or (key, None, text, None) for a
 # checkbox. The first choice is the game's own (what an unset key means).
 TWEAKS = {
@@ -1345,6 +1345,50 @@ def adjustments_tool(group, heading, about):
     return build
 
 
+def graphics_window(parent, root, tk, ttk):
+    """Graphics and memory (TWEAKS["Graphics"]), a window from the Settings tab. Used at the game's next start."""
+    import settings as ST
+    w = parent.winfo_toplevel()
+    for c in w.winfo_children():  # one at a time
+        if isinstance(c, tk.Toplevel) and getattr(c, "_graphics", False):
+            c.lift()
+            return
+    win = tk.Toplevel(w)
+    win._graphics = True
+    win.title("Graphics and memory")
+    win.transient(w)
+    win.resizable(False, False)
+    f = ttk.Frame(win, padding=14)
+    f.grid()
+    ttk.Label(f, text="Graphics and memory", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3,
+                                                                                sticky="w")
+    ttk.Label(f, foreground="#666", wraplength=540, justify="left", text=(
+        "Built into MVP05-Plus; your game files stay as they are. Changes take effect the next time the game "
+        "starts.")).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
+    values, load, r = tweak_controls(f, TWEAKS["Graphics"], ST.read(root), tk, ttk, row=2)
+    note = ttk.Label(f, text="", wraplength=540, justify="left")
+    note.grid(row=r + 1, column=0, columnspan=3, sticky="w", pady=(6, 0))
+
+    def save():
+        ST.write(root, values())
+        note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
+
+    def defaults():
+        load({})
+        save()
+        note.configure(text="Back to MVP 05 Default. Restart the game if it's running.", foreground="#1a7f37")
+
+    bar = ttk.Frame(f)
+    bar.grid(row=r, column=0, columnspan=3, sticky="we", pady=(12, 0))
+    ttk.Button(bar, text="Close", command=win.destroy).pack(side="right")
+    ttk.Button(bar, text="Save", command=save).pack(side="right", padx=6)
+    ttk.Button(bar, text="MVP 05 Default", command=defaults).pack(side="left")
+    win.update_idletasks()  # centred over the Launcher
+    x = w.winfo_rootx() + (w.winfo_width() - win.winfo_width()) // 2
+    y = w.winfo_rooty() + (w.winfo_height() - win.winfo_height()) // 3
+    win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+
+
 def settings_tab(tabs, root, tk, ttk):
     """Display options in mvp05-settings.toml: the game reads them when it starts."""
     import settings as ST
@@ -1397,13 +1441,8 @@ def settings_tab(tabs, root, tk, ttk):
     x720_box.grid(row=9, column=0, columnspan=3, sticky="w")
     ttk.Checkbutton(frm, text="Low latency (1 frame queued for the screen, not 3: less input delay, may stutter)",
                     variable=low_latency).grid(row=10, column=0, columnspan=3, sticky="w")
-    gfx = ttk.Frame(frm)
-    gfx.grid(row=11, column=0, columnspan=3, sticky="we", pady=(10, 0))
-    ttk.Label(gfx, text="Graphics and memory", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3,
-                                                                                  sticky="w")
-    gfx_values, gfx_load, _ = tweak_controls(gfx, TWEAKS["Graphics"], ST.read(root), tk, ttk, row=1)
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
-    note.grid(row=13, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    note.grid(row=12, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
     def name_of(d, v):
         return next((k for k, x in d.items() if x == v), str(v))
@@ -1472,7 +1511,6 @@ def settings_tab(tabs, root, tk, ttk):
         low_latency.set(bool(s.get("low_latency", False)))
         wide_720[0] = bool(s["xbox_720p"]) if aspect.get() == WIDE else True
         x720.set(wide_720[0] if aspect.get() == WIDE else False)
-        gfx_load(s)
 
     def save():
         r = parse_res(res.get())
@@ -1493,12 +1531,11 @@ def settings_tab(tabs, root, tk, ttk):
         ST.write(root, {"display_mode": mode.get().lower(), "width": w, "height": h, "render_percent": sc,
                         "fps_cap": fp, "vsync": vsync.get(), "low_latency": low_latency.get(),
                         "anisotropic_filtering": an,
-                        "xbox_720p": x720.get(), **gfx_values()})
+                        "xbox_720p": x720.get()})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
 
     def defaults():
-        gfx_load({})
-        ST.write(root, {**ST.DEFAULTS, **gfx_values()})
+        ST.write(root, dict(ST.DEFAULTS))
         load()
         note.configure(text="Back to the defaults (fullscreen at your desktop's resolution). Restart the game if it's running.",
                        foreground="#1a7f37")
@@ -1507,7 +1544,7 @@ def settings_tab(tabs, root, tk, ttk):
     import shortcuts as SC
     # shortcuts and updates side by side under the display settings
     lower = ttk.Frame(frm)
-    lower.grid(row=14, column=0, columnspan=3, sticky="nwe", pady=(8, 0))
+    lower.grid(row=13, column=0, columnspan=3, sticky="nwe", pady=(8, 0))
     lower.columnconfigure(0, weight=1)
     lower.columnconfigure(2, weight=1)
     scf = ttk.Frame(lower)
@@ -1558,11 +1595,13 @@ def settings_tab(tabs, root, tk, ttk):
     updates_section(upf, root, tk, ttk, 0)
 
     bar = ttk.Frame(frm)
-    bar.grid(row=12, column=0, columnspan=3, sticky="we", pady=(8, 0))
+    bar.grid(row=11, column=0, columnspan=3, sticky="we", pady=(8, 0))
     ttk.Button(bar, text="Save", command=save).pack(side="right")
     ttk.Button(bar, text="Defaults", command=defaults).pack(side="right", padx=6)
     ttk.Button(bar, text="Open the settings file", command=lambda: os.startfile(os.path.join(root, ST.FILE))
                if os.name == "nt" else None).pack(side="left")
+    ttk.Button(bar, text="Graphics and memory...", command=lambda: graphics_window(frm, root, tk, ttk)).pack(
+        side="left", padx=6)
     load()
 
 
