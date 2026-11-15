@@ -43,6 +43,15 @@ SECOND_HALF = datetime.date(2005, 7, 14)
 AFTER_DEADLINE = datetime.date(2005, 8, 1)
 LAST_DAY = datetime.date(2005, 10, 2)
 MIN_GAMES, MAX_GAMES = 12, 162
+MIN_INTERLEAGUE = 30  # with interleague, so every team gets at least one interleague series
+NAMES = {"Bal": "Baltimore Orioles", "Bos": "Boston Red Sox", "NYY": "New York Yankees", "TB": "Tampa Bay Devil Rays",
+         "Tor": "Toronto Blue Jays", "CWS": "Chicago White Sox", "Cle": "Cleveland Indians", "Det": "Detroit Tigers",
+         "KC": "Kansas City Royals", "Min": "Minnesota Twins", "Ana": "Anaheim Angels", "Oak": "Oakland Athletics",
+         "Sea": "Seattle Mariners", "Tex": "Texas Rangers", "Atl": "Atlanta Braves", "Fla": "Florida Marlins",
+         "NYM": "New York Mets", "Phi": "Philadelphia Phillies", "Was": "Washington Nationals",
+         "ChC": "Chicago Cubs", "Cin": "Cincinnati Reds", "Hou": "Houston Astros", "Mil": "Milwaukee Brewers",
+         "Pit": "Pittsburgh Pirates", "StL": "St. Louis Cardinals", "Ari": "Arizona Diamondbacks",
+         "Col": "Colorado Rockies", "LA": "Los Angeles Dodgers", "SD": "San Diego Padres", "SF": "San Francisco Giants"}
 INTERLEAGUE = ("real", "choose", "rotate", "off")
 ALL_STAR_HOST = ("AL", "NL", "alternate")
 
@@ -104,82 +113,113 @@ def _key(a, b):
 
 
 def _series_counts(rounds, pairing, rivals, rng):
-    """{pair: series} with every team in exactly `rounds` series."""
+    """{pair: series} with every team in exactly `rounds` series: the interleague ones first, shared as evenly as
+    the leagues allow, then the league ones in the disc's proportions."""
     w = _weights(pairing, rivals)
+    x = {p: 0 for p in w}
+    need = {t: rounds for t in TEAMS}
+    if pairing:
+        _interleague(x, w, rounds, rivals, rng)
+        for p, n in x.items():
+            if _inter(*p):
+                need[p[0]] -= n
+                need[p[1]] -= n
+    _league(x, w, need, rng)
+    return {p: n for p, n in x.items() if n}
+
+
+def _inter(a, b):
+    return DIV[a][:2] != DIV[b][:2]
+
+
+def _interleague(x, w, rounds, rivals, rng):
+    """About a ninth of each AL team's series (18 games of 162), an even number in all: natural rivals once first,
+    then one series at a time to the AL team with the fewest so far, against its interleague opponent with the
+    fewest (and, of those, the one it has met least)."""
+    pairs = [p for p in w if _inter(*p)]
+    total = max(16, 2 * round(14 * rounds / 9 / 2))  # 16 at least: one for every NL team
+    have = {t: 0 for t in TEAMS}
+    if rivals and rounds >= 6:
+        for p in pairs:
+            al_nl = p if DIV[p[0]] in AL else (p[1], p[0])
+            if al_nl in RIVALS and total - sum(x[q] for q in pairs) > 0:
+                x[p] += 1
+                have[p[0]] += 1
+                have[p[1]] += 1
+    opp = {t: [] for t in TEAMS}
+    for p in pairs:
+        opp[p[0]].append(p[1])
+        opp[p[1]].append(p[0])
+    al = [t for t in TEAMS if DIV[t] in AL]
+    # everyone gets one first (the NL has more teams, and a big division may meet a small one)
+    for t in [t for t in TEAMS if DIV[t] in NL] + al:
+        if have[t] == 0 and opp[t]:
+            u = min(opp[t], key=lambda b: (have[b], rng.random()))
+            x[_key(t, u)] += 1
+            have[t] += 1
+            have[u] += 1
+    done = sum(x[p] for p in pairs)
+    total = max(total, done + done % 2)
+    while sum(x[p] for p in pairs) < total:
+        rng.shuffle(al)
+        a = min((t for t in al if opp[t]), key=lambda t: have[t])
+        u = min(opp[a], key=lambda b: (have[b], x[_key(a, b)], rng.random()))
+        x[_key(a, u)] += 1
+        have[a] += 1
+        have[u] += 1
+    if any(have[t] > rounds for t in TEAMS):
+        raise GenError("too many interleague series for the season")
+
+
+def _league(x, w, need, rng):
+    """The league series: each league pair's share of its teams' remaining series (division rivals about 12 games
+    over 162, the rest of the league about 10 or 11), rounded, then evened out so every team has exactly `need`."""
+    league = [p for p in w if not _inter(*p)]
     tot = {t: 0.0 for t in TEAMS}
-    for (a, b), x in w.items():
-        tot[a] += x
-        tot[b] += x
-    x, tgt, floor = {}, {}, {}
-    for (a, b), v in w.items():
-        target = rounds * v / ((tot[a] + tot[b]) / 2)
+    for (a, b) in league:
+        tot[a] += w[(a, b)]
+        tot[b] += w[(a, b)]
+    tgt = {}
+    for (a, b) in league:
+        target = (need[a] * w[(a, b)] / tot[a] + need[b] * w[(a, b)] / tot[b]) / 2 if tot[a] and tot[b] else 0
         tgt[(a, b)] = target
         n = int(target)
         if rng.random() < target - n:
             n += 1
-        # natural rivals meet at least once a year (if the season has room)
-        al_nl = (a, b) if DIV[a] in AL else (b, a)
-        floor[(a, b)] = 1 if rivals and pairing is not None and al_nl in RIVALS and rounds >= 6 else 0
-        x[(a, b)] = max(n, floor[(a, b)])
+        x[(a, b)] = n
     deg = {t: 0 for t in TEAMS}
-    for (a, b), n in x.items():
-        deg[a] += n
-        deg[b] += n
-    league = [p for p in w if DIV[p[0]][:2] == DIV[p[1]][:2]]
+    for (a, b) in league:
+        deg[a] += x[(a, b)]
+        deg[b] += x[(a, b)]
+    by_team = {t: [p for p in league if t in p] for t in TEAMS}
+
+    def other(p, t):
+        return p[0] if p[1] == t else p[1]
+
     for _ in range(20000):
-        over = [t for t in TEAMS if deg[t] > rounds]
-        under = [t for t in TEAMS if deg[t] < rounds]
+        over = [t for t in TEAMS if deg[t] > need[t]]
+        under = [t for t in TEAMS if deg[t] < need[t]]
         if not over and not under:
-            break
-        if len(over) >= 2 and rng.random() < 0.5 or not under:
+            return
+        if over and (rng.random() < 0.5 or not under):
             a = rng.choice(over)
-            opts = [p for p in w if a in p and x[p] > floor[p] and deg[p[0] if p[1] == a else p[1]] > rounds]
-            if opts:
-                p = max(opts, key=lambda p: (x[p] - tgt[p]) + rng.random() * 0.5)
-                x[p] -= 1
-                deg[p[0]] -= 1
-                deg[p[1]] -= 1
-                continue
-            # take one away from a and give it to a partner pair: a-b out, b-c in, where c is under
-            opts = [p for p in w if a in p and x[p] > floor[p]]
-            p = rng.choice(opts)
-            b = p[0] if p[1] == a else p[1]
+            opts = [p for p in by_team[a] if x[p] > 0 and deg[other(p, a)] > need[other(p, a)]]
+            if not opts:
+                opts = [p for p in by_team[a] if x[p] > 0]
+            p = max(opts, key=lambda p: (x[p] - tgt[p]) + rng.random() * 0.5)
             x[p] -= 1
-            deg[a] -= 1
-            deg[b] -= 1
+            deg[p[0]] -= 1
+            deg[p[1]] -= 1
             continue
         a = rng.choice(under)
-        opts = [p for p in league if a in p and deg[p[0] if p[1] == a else p[1]] < rounds]
-        opts = opts or [p for p in w if a in p and deg[p[0] if p[1] == a else p[1]] < rounds]
-        if opts:
-            p = min(opts, key=lambda p: (x[p] - tgt[p]) + rng.random() * 0.5)
-            x[p] += 1
-            deg[p[0]] += 1
-            deg[p[1]] += 1
-            continue
-        # every other team is full: one of a's league partners b gives up a series with c, and a plays both
-        opts = [p for p in league if a in p]
-        p = rng.choice(opts)
-        b = p[0] if p[1] == a else p[1]
-        rest = [q for q in w if b in q and a not in q and x[q] > floor[q]]
-        if not rest:
-            continue
-        q = rng.choice(rest)
-        c = q[0] if q[1] == b else q[1]
-        x[q] -= 1
-        deg[c] -= 1
-        deg[b] -= 1
+        opts = [p for p in by_team[a] if deg[other(p, a)] < need[other(p, a)]]
+        if not opts:
+            opts = by_team[a]
+        p = min(opts, key=lambda p: (x[p] - tgt[p]) + rng.random() * 0.5)
         x[p] += 1
-        deg[a] += 1
-        deg[b] += 1
-        k = _key(a, c)
-        if k in x:
-            x[k] += 1
-            deg[a] += 1
-            deg[c] += 1
-    if any(deg[t] != rounds for t in TEAMS):
-        raise GenError("couldn't share out the series")
-    return {p: n for p, n in x.items() if n}
+        deg[p[0]] += 1
+        deg[p[1]] += 1
+    raise GenError("couldn't share out the series")
 
 
 # --- rounds: every team plays one series in each
@@ -449,6 +489,8 @@ def season(options, year=1, seed=None):
     games = int(options.get("games", 162))
     if not MIN_GAMES <= games <= MAX_GAMES:
         raise GenError(f"a season has {MIN_GAMES} to {MAX_GAMES} games")
+    if options.get("interleague", "real") != "off" and games < MIN_INTERLEAGUE:
+        raise GenError(f"with interleague games, a season needs at least {MIN_INTERLEAGUE} games")
     rng = random.Random(f"{seed}:{year}")
     lengths = _lengths(games)
     rounds = len(lengths)

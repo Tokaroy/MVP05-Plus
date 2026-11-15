@@ -13,7 +13,8 @@ A card across the empty bottom of the *Play* tab: a player's picture, name, team
 
 ## Create a schedule (built, not released yet)
 The Schedule tab's *Create a schedule…* (a window like *Import a schedule…*; the seasons from tools/installer/
-schedgen.py): any length from 12 to 162 games; interleague as in 2005, chosen division matchups, a new matchup each
+schedgen.py): any length from 12 to 162 games (30 or more with interleague, so every team plays some);
+interleague shared out evenly as in 2005, chosen division matchups, a new matchup each
 dynasty year, or none; natural rivals every year (or not); the All-Star Game hosted by the AL, the NL, or each in
 turn; a different season for each of the three dynasty years, shown team by team and year by year, with Regenerate
 for another one. *Save* adds it to the list under a name ("created by you"), kept with the imported ones in

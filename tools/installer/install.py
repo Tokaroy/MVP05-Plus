@@ -1637,10 +1637,11 @@ def make_schedule(parent, root, tk, ttk, on_saved):
     view.grid(row=3, column=0, columnspan=4, sticky="we", pady=(12, 0))
     top = ttk.Frame(view)
     top.grid(row=0, column=0, sticky="w")
-    team = tk.StringVar(value="NYY")
+    team = tk.StringVar(value=G.NAMES["NYY"])
     year = tk.StringVar(value="Year 1")
+    abbr = {v: k for k, v in G.NAMES.items()}
     ttk.Label(top, text="Team").pack(side="left")
-    ttk.Combobox(top, state="readonly", width=6, values=sorted(G.TEAMS), textvariable=team).pack(
+    ttk.Combobox(top, state="readonly", width=22, values=sorted(G.NAMES.values()), textvariable=team).pack(
         side="left", padx=(6, 14))
     ttk.Label(top, text="Dynasty year").pack(side="left")
     ttk.Combobox(top, state="readonly", width=8, values=["Year 1", "Year 2", "Year 3"], textvariable=year).pack(
@@ -1681,6 +1682,9 @@ def make_schedule(parent, root, tk, ttk, on_saved):
         pairing = {al: pv[al].get() for al in G.AL}
         if m == "choose" and sorted(pairing.values()) != sorted(G.NL):
             raise ValueError("give each AL division a different NL division")
+        if m != "off" and n < G.MIN_INTERLEAGUE:
+            raise ValueError(f"with interleague games, a season needs at least {G.MIN_INTERLEAGUE} games a team "
+                             "(so every team plays some): pick more games, or None for interleague")
         return {"games": n, "interleague": m, "pairing": pairing, "rivals": bool(rivals.get()),
                 "all_star": next(k for k, v in hosts.items() if v == host.get())}
 
@@ -1703,8 +1707,9 @@ def make_schedule(parent, root, tk, ttk, on_saved):
         if not texts:
             return
         y = int(year.get().split()[-1])
-        rows, c = G.team_view(texts[y - 1], team.get())
-        div = G.DIV[team.get()]
+        tm = abbr[team.get()]
+        rows, c = G.team_view(texts[y - 1], tm)
+        div = G.DIV[tm]
         pairing = G.pairing_for(op, y)
         il = ""
         if pairing:
@@ -1723,7 +1728,7 @@ def make_schedule(parent, root, tk, ttk, on_saved):
             if half == "-":
                 tree.insert("", "end", values=(when, "All-Star Game", "break"))
             else:
-                tree.insert("", "end", values=(when, ("vs " if hm else "at ") + opp,
+                tree.insert("", "end", values=(when, ("vs " if hm else "at ") + G.NAMES.get(opp, opp),
                                                "first half" if half == "0" else "second half"))
 
     def make(*_):
