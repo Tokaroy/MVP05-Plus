@@ -1231,7 +1231,8 @@ TWEAKS = {
         ("rain", "Weather", "EA's rain, still in the game but rarely seen.",
          {"MVP 05 Default (the game's own weather)": 0, "Rain in every game (test)": 1}),
         ("park_factors", "Park factors",
-         "How each park changes home runs, hits, doubles and triples (Coors helps hitters, Comerica hurts home runs).",
+         "How each park changes home runs, hits, doubles and triples in the games the computer simulates (Coors helps "
+         "hitters, Comerica hurts home runs). Games you play use the parks themselves.",
          {"MVP 05 Default (EA's 2005 parks)": 0, "Neutral: every park plays the same": 1}),
     ],
     "Graphics": [
