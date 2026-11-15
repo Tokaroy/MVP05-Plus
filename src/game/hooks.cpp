@@ -144,6 +144,19 @@ X86_FUNC(sub_001C98E0) {
     if (ret == 0x499996) ctx.eax = As162(ctx.eax);
 }
 
+// The win-percentage goal's progress figure (db_sec 0x49A02B: goal 13 in the goal tracker) is wins over the games
+// of the contract so far, counted as 162 for each finished season (imul edi,edi,0xA2 at 0x49A083) plus this
+// season's games played (0x1ACF30, returning to 0x49A092). With edi still holding the finished seasons' 162s when
+// that call returns, they are made the season's length instead, so a 46-game dynasty shows wins over 46s.
+X86_EXTERN_FUNC(__imp__sub_001ACF30);
+X86_FUNC(sub_001ACF30) {
+    uint32_t ret = kernel::R32(ctx.esp);
+    __imp__sub_001ACF30(ctx, base);
+    uint32_t games = tools::g_season_games;
+    if (ret == 0x49A092 && games >= 12 && games < 162 && ctx.edi % 162 == 0 && ctx.edi <= 162 * 2)
+        ctx.edi = ctx.edi / 162 * games;
+}
+
 // Pitchers' stamina between games. The dynasty keeps every pitcher's current stamina in "pitcher.dat", a table
 // (vtable 0x5ADC04, records of 20 bytes at [this+0x24], count at [this+0x20]) whose field 27 is the current stamina
 // (bits 7..13 of the record's word at +0x10; field 0 is the stamina rating, the most it can be). The game gives each
