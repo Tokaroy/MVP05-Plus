@@ -1213,6 +1213,68 @@ def desktop_resolution():
         return None
 
 
+def game_tweaks_window(parent, root, tk, ttk):
+    """Game Tweaks: small changes to how the game plays, made by MVP05-Plus while it runs (the game's files stay
+    stock). Saved in mvp05-settings.toml; the game reads them when it starts."""
+    import settings as ST
+    w = parent.winfo_toplevel()
+    for c in w.winfo_children():  # one at a time
+        if isinstance(c, tk.Toplevel) and getattr(c, "_tweaks", False):
+            c.lift()
+            return
+    win = tk.Toplevel(w)
+    win._tweaks = True
+    win.title("Game Tweaks")
+    win.transient(w)
+    win.resizable(False, False)
+    f = ttk.Frame(win, padding=14)
+    f.grid()
+    ttk.Label(f, text="Game Tweaks", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
+    ttk.Label(f, foreground="#666", wraplength=480, justify="left", text=(
+        "Changes to how the game plays, built into MVP05-Plus. Your game files stay as they are. "
+        "Changes take effect the next time the game starts.")).grid(row=1, column=0, columnspan=2, sticky="w",
+                                                                    pady=(0, 10))
+    # pitcher_recovery: percent of the game's own daily stamina recovery (100: as the game)
+    ttk.Label(f, text="Pitchers' rest", font=("Segoe UI", 9, "bold")).grid(row=2, column=0, columnspan=2, sticky="w")
+    ttk.Label(f, wraplength=480, justify="left", text=(
+        "How fast pitchers get their stamina back between games. As the game, a starter is ready again two days "
+        "after a full start and relievers are almost never tired.")).grid(row=3, column=0, columnspan=2,
+                                                                         sticky="w", pady=(0, 4))
+    rest_names = {"As the game (100%): starters ready after about 2 days": 100,
+                  "Quicker (75%): starters ready after about 3 days": 75,
+                  "Five-man rotation (50%): starters ready after about 4 days": 50,
+                  "Slow (35%): starters ready after about 6 days": 35}
+    rest = tk.StringVar()
+    box = ttk.Combobox(f, textvariable=rest, values=list(rest_names), state="readonly", width=56)
+    box.grid(row=4, column=0, columnspan=2, sticky="w")
+    note = ttk.Label(f, text="", wraplength=480, justify="left")
+    note.grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+    def load():
+        v = ST.read(root).get("pitcher_recovery", 100)
+        v = v if isinstance(v, int) and not isinstance(v, bool) else 100
+        name = next((k for k, x in rest_names.items() if x == v), None)
+        if name is None:  # set by hand in the file
+            name = f"Your own ({v}%)"
+            box.configure(values=list(rest_names) + [name])
+            rest_names[name] = v
+        rest.set(name)
+
+    def save():
+        ST.write(root, {"pitcher_recovery": rest_names.get(rest.get(), 100)})
+        note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
+
+    bar = ttk.Frame(f)
+    bar.grid(row=6, column=0, columnspan=2, sticky="e", pady=(12, 0))
+    ttk.Button(bar, text="Close", command=win.destroy).pack(side="right")
+    ttk.Button(bar, text="Save", command=save).pack(side="right", padx=6)
+    load()
+    win.update_idletasks()  # centred over the Launcher
+    x = w.winfo_rootx() + (w.winfo_width() - win.winfo_width()) // 2
+    y = w.winfo_rooty() + (w.winfo_height() - win.winfo_height()) // 3
+    win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+
+
 def settings_tab(tabs, root, tk, ttk):
     """Display options in mvp05-settings.toml: the game reads them when it starts."""
     import settings as ST
@@ -1424,6 +1486,8 @@ def settings_tab(tabs, root, tk, ttk):
     ttk.Button(bar, text="Defaults", command=defaults).pack(side="right", padx=6)
     ttk.Button(bar, text="Open the settings file", command=lambda: os.startfile(os.path.join(root, ST.FILE))
                if os.name == "nt" else None).pack(side="left")
+    ttk.Button(bar, text="Game Tweaks...", command=lambda: game_tweaks_window(frm, root, tk, ttk)).pack(
+        side="left", padx=6)
     load()
 
 
