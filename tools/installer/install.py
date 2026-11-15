@@ -1213,8 +1213,9 @@ def desktop_resolution():
         return None
 
 
-# Game Tweaks, by tab: (key in mvp05-settings.toml, title, explanation, {choice: value}) for a dropdown, or
-# (key, None, text, None) for a checkbox. The first choice is the game's own (what an unset key means).
+# Game Tweaks, by group (Gameplay and Dynasty are pages in the Tools tab, Graphics a section of Settings): (key in
+# mvp05-settings.toml, title, explanation, {choice: value}) for a dropdown, or (key, None, text, None) for a
+# checkbox. The first choice is the game's own (what an unset key means).
 TWEAKS = {
     "Gameplay": [
         ("pitcher_recovery", "Pitchers' rest",
@@ -1267,73 +1268,81 @@ TWEAKS = {
 }
 
 
-def game_tweaks_window(parent, root, tk, ttk):
-    """Game Tweaks: changes to how the game plays, made by MVP05-Plus while it runs (the game's files stay stock).
-    Saved in mvp05-settings.toml; the game reads them when it starts."""
-    import settings as ST
-    w = parent.winfo_toplevel()
-    for c in w.winfo_children():  # one at a time
-        if isinstance(c, tk.Toplevel) and getattr(c, "_tweaks", False):
-            c.lift()
-            return
-    win = tk.Toplevel(w)
-    win._tweaks = True
-    win.title("Game Tweaks")
-    win.transient(w)
-    win.resizable(False, False)
-    f = ttk.Frame(win, padding=14)
-    f.grid()
-    ttk.Label(f, text="Game Tweaks", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w")
-    ttk.Label(f, foreground="#666", wraplength=500, justify="left", text=(
-        "Changes to how the game plays, built into MVP05-Plus. Your game files stay as they are. "
-        "Changes take effect the next time the game starts.")).grid(row=1, column=0, sticky="w", pady=(0, 8))
-    nb = ttk.Notebook(f)
-    nb.grid(row=2, column=0, sticky="nwe")
-    saved = ST.read(root)
+def tweak_controls(parent, items, saved, tk, ttk, row=0, width=58):
+    """The controls for a list of TWEAKS items, from row on in parent's grid: checkboxes, or a title, an
+    explanation and a dropdown. Returns (values, load, next row): values() gives {key: value} to save, load(saved)
+    sets them again from the settings."""
     controls = []  # (key, var, choices or None)
-    for tab, items in TWEAKS.items():
-        page = ttk.Frame(nb, padding=10)
-        nb.add(page, text=tab)
-        r = 0
-        for key, title, text, choices in items:
-            if choices is None:
-                var = tk.BooleanVar(value=saved.get(key, False) is True)
-                ttk.Checkbutton(page, text=text, variable=var).grid(row=r, column=0, sticky="w", pady=2)
-                r += 1
-                controls.append((key, var, None))
+    r = row
+    for key, title, text, choices in items:
+        if choices is None:
+            var = tk.BooleanVar()
+            ttk.Checkbutton(parent, text=text, variable=var).grid(row=r, column=0, columnspan=3, sticky="w", pady=2)
+            r += 1
+            controls.append((key, var, None))
+            continue
+        ttk.Label(parent, text=title, font=("Segoe UI", 9, "bold")).grid(row=r, column=0, columnspan=3, sticky="w",
+                                                                       pady=(8 if r > row else 0, 0))
+        ttk.Label(parent, wraplength=540, justify="left", text=text).grid(row=r + 1, column=0, columnspan=3,
+                                                                          sticky="w", pady=(0, 3))
+        var = tk.StringVar()
+        box = ttk.Combobox(parent, textvariable=var, state="readonly", width=width)
+        box.grid(row=r + 2, column=0, columnspan=3, sticky="w")
+        r += 3
+        controls.append((key, var, (dict(choices), box)))
+
+    def load(saved):
+        for key, var, c in controls:
+            if c is None:
+                var.set(saved.get(key, False) is True)
                 continue
-            ttk.Label(page, text=title, font=("Segoe UI", 9, "bold")).grid(row=r, column=0, sticky="w",
-                                                                           pady=(8 if r else 0, 0))
-            ttk.Label(page, wraplength=500, justify="left", text=text).grid(row=r + 1, column=0, sticky="w",
-                                                                           pady=(0, 3))
-            choices = dict(choices)
-            v = saved.get(key, list(choices.values())[0])
-            v = v if isinstance(v, int) and not isinstance(v, bool) else list(choices.values())[0]
+            choices, box = c
+            first = list(choices.values())[0]
+            v = saved.get(key, first)
+            v = v if isinstance(v, int) and not isinstance(v, bool) else first
             name = next((k for k, x in choices.items() if x == v), None)
             if name is None:  # set by hand in the file
                 name = f"Your own ({v})"
                 choices[name] = v
-            var = tk.StringVar(value=name)
-            ttk.Combobox(page, textvariable=var, values=list(choices), state="readonly", width=58).grid(
-                row=r + 2, column=0, sticky="w")
-            r += 3
-            controls.append((key, var, choices))
-    note = ttk.Label(f, text="", wraplength=500, justify="left")
-    note.grid(row=3, column=0, sticky="w", pady=(8, 0))
+            box.configure(values=list(choices))
+            var.set(name)
 
-    def save():
-        ST.write(root, {key: (var.get() if choices is None else choices.get(var.get(), list(choices.values())[0]))
-                        for key, var, choices in controls})
-        note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
+    def values():
+        return {key: (var.get() if c is None else c[0].get(var.get(), list(c[0].values())[0]))
+                for key, var, c in controls}
 
-    bar = ttk.Frame(f)
-    bar.grid(row=4, column=0, sticky="e", pady=(12, 0))
-    ttk.Button(bar, text="Close", command=win.destroy).pack(side="right")
-    ttk.Button(bar, text="Save", command=save).pack(side="right", padx=6)
-    win.update_idletasks()  # centred over the Launcher
-    x = w.winfo_rootx() + (w.winfo_width() - win.winfo_width()) // 2
-    y = w.winfo_rooty() + (w.winfo_height() - win.winfo_height()) // 3
-    win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+    load(saved)
+    return values, load, r
+
+
+def adjustments_tool(group, heading, about):
+    """A Tools page for one TWEAKS group: its settings, Save and Defaults. Used at the game's next start."""
+    def build(frm, root, tk, ttk):
+        import settings as ST
+        frm.columnconfigure(0, weight=1)
+        ttk.Label(frm, text=heading, font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
+        ttk.Label(frm, foreground="#666", wraplength=560, justify="left", text=about + (
+            " Saved in mvp05-settings.toml; the game uses them the next time it starts.")).grid(
+            row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        values, load, r = tweak_controls(frm, TWEAKS[group], ST.read(root), tk, ttk, row=2)
+        note = ttk.Label(frm, text="", wraplength=560, justify="left")
+        note.grid(row=r + 1, column=0, columnspan=3, sticky="w", pady=(6, 0))
+
+        def save():
+            ST.write(root, values())
+            note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
+
+        def defaults():
+            load({})
+            save()
+            note.configure(text="Back to MVP 05 Default. Restart the game if it's running.", foreground="#1a7f37")
+
+        bar = ttk.Frame(frm)
+        bar.grid(row=r, column=0, columnspan=3, sticky="we", pady=(12, 0))
+        ttk.Button(bar, text="Save", command=save).pack(side="right")
+        ttk.Button(bar, text="MVP 05 Default", command=defaults).pack(side="right", padx=6)
+        return lambda: (load(ST.read(root)), note.configure(text=""))
+    return build
 
 
 def settings_tab(tabs, root, tk, ttk):
@@ -1388,8 +1397,13 @@ def settings_tab(tabs, root, tk, ttk):
     x720_box.grid(row=9, column=0, columnspan=3, sticky="w")
     ttk.Checkbutton(frm, text="Low latency (1 frame queued for the screen, not 3: less input delay, may stutter)",
                     variable=low_latency).grid(row=10, column=0, columnspan=3, sticky="w")
+    gfx = ttk.Frame(frm)
+    gfx.grid(row=11, column=0, columnspan=3, sticky="we", pady=(10, 0))
+    ttk.Label(gfx, text="Graphics and memory", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3,
+                                                                                  sticky="w")
+    gfx_values, gfx_load, _ = tweak_controls(gfx, TWEAKS["Graphics"], ST.read(root), tk, ttk, row=1)
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
-    note.grid(row=12, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    note.grid(row=13, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
     def name_of(d, v):
         return next((k for k, x in d.items() if x == v), str(v))
@@ -1458,6 +1472,7 @@ def settings_tab(tabs, root, tk, ttk):
         low_latency.set(bool(s.get("low_latency", False)))
         wide_720[0] = bool(s["xbox_720p"]) if aspect.get() == WIDE else True
         x720.set(wide_720[0] if aspect.get() == WIDE else False)
+        gfx_load(s)
 
     def save():
         r = parse_res(res.get())
@@ -1478,11 +1493,12 @@ def settings_tab(tabs, root, tk, ttk):
         ST.write(root, {"display_mode": mode.get().lower(), "width": w, "height": h, "render_percent": sc,
                         "fps_cap": fp, "vsync": vsync.get(), "low_latency": low_latency.get(),
                         "anisotropic_filtering": an,
-                        "xbox_720p": x720.get()})
+                        "xbox_720p": x720.get(), **gfx_values()})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
 
     def defaults():
-        ST.write(root, dict(ST.DEFAULTS))
+        gfx_load({})
+        ST.write(root, {**ST.DEFAULTS, **gfx_values()})
         load()
         note.configure(text="Back to the defaults (fullscreen at your desktop's resolution). Restart the game if it's running.",
                        foreground="#1a7f37")
@@ -1491,7 +1507,7 @@ def settings_tab(tabs, root, tk, ttk):
     import shortcuts as SC
     # shortcuts and updates side by side under the display settings
     lower = ttk.Frame(frm)
-    lower.grid(row=13, column=0, columnspan=3, sticky="nwe", pady=(8, 0))
+    lower.grid(row=14, column=0, columnspan=3, sticky="nwe", pady=(8, 0))
     lower.columnconfigure(0, weight=1)
     lower.columnconfigure(2, weight=1)
     scf = ttk.Frame(lower)
@@ -1542,13 +1558,11 @@ def settings_tab(tabs, root, tk, ttk):
     updates_section(upf, root, tk, ttk, 0)
 
     bar = ttk.Frame(frm)
-    bar.grid(row=11, column=0, columnspan=3, sticky="we", pady=(8, 0))
+    bar.grid(row=12, column=0, columnspan=3, sticky="we", pady=(8, 0))
     ttk.Button(bar, text="Save", command=save).pack(side="right")
     ttk.Button(bar, text="Defaults", command=defaults).pack(side="right", padx=6)
     ttk.Button(bar, text="Open the settings file", command=lambda: os.startfile(os.path.join(root, ST.FILE))
                if os.name == "nt" else None).pack(side="left")
-    ttk.Button(bar, text="Game Tweaks...", command=lambda: game_tweaks_window(frm, root, tk, ttk)).pack(
-        side="left", padx=6)
     load()
 
 
@@ -1942,8 +1956,8 @@ def tools_tab(tabs, root, tk, ttk):
     home.columnconfigure(0, weight=1)
     ttk.Label(home, text="Tools", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
     ttk.Label(home, foreground="#666", wraplength=560, justify="left", text=(
-        "Pick a tool to open it. They're in the game too: F10, or hold Back + Start (Z + Start on a GameCube "
-        "controller).")).grid(
+        "Pick a tool to open it. The first three are in the game too: F10, or hold Back + Start (Z + Start on a "
+        "GameCube controller).")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
     tools = [
         ("Team Changer", "Take over another organization in your dynasty or owner mode. Based on tywiggins' Team "
@@ -1952,6 +1966,15 @@ def tools_tab(tabs, root, tk, ttk):
          "Creator.", playoffs_tool),
         ("Standings Projector", "Every team's record projected to 162 games, keeping its winning percentage. Short "
          "seasons don't need it: they end on their own.", short_season_tool),
+        ("Gameplay adjustments", "Pitchers' rest, injury length, rain and park factors. Set here, used the next "
+         "time the game starts.", adjustments_tool("Gameplay", "Gameplay adjustments",
+                                                   "Changes to how games play, built into MVP05-Plus. Your game "
+                                                   "files stay as they are.")),
+        ("Dynasty adjustments", "Player development, aging, retirement, contract prices, re-signing and rookies. "
+         "Set here, used the next time the game starts.",
+         adjustments_tool("Dynasty", "Dynasty adjustments",
+                          "Changes to EA's dynasty tables (they're used between seasons), built into MVP05-Plus. "
+                          "Your game files stay as they are.")),
     ]
     pages = {}
 
