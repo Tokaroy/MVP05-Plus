@@ -35,7 +35,9 @@ season_games from the Launcher only if it can't be counted), so a short season g
 the Standings Projector (not needed; for dynasties stuck from an older version). Ctrl+Shift+F9 in the game saves a
 memory capture to logs (the menu button is gone). **Still open:** a schedule switched mid-season is counted at the next start
 while the old season is still played (switch between seasons, as the Schedule tab says); the team goals' win
-targets are still for 162 games (needs a screenshot of the goals and a capture there).
+targets are still for 162 games: the Yankees' 3-year goal is 300 wins ("Win %1 Total %2 Games") whatever the
+season's length, so the targets don't come from the season-length function; probably from the team's tier
+(org_tieratstart; goals in org_frangoal1-8, made when a dynasty starts). Needs a capture on the goals screen.
 
 ## Owner mode imports
 Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are now. Owner mode is its own mode with its own save type. It needs matched pairs: a new owner mode save with the same team on each platform, saved straight away.
