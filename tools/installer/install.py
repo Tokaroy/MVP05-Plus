@@ -1281,8 +1281,15 @@ def game_tweaks_window(parent, root, tk, ttk):
     jumbotron = tk.BooleanVar()
     ttk.Checkbutton(f, text="Live jumbotrons: the game on the big screen in every scene",
                     variable=jumbotron).grid(row=13, column=0, columnspan=2, sticky="w")
+    # rain: 1 rain in every game (the game's own weather otherwise)
+    ttk.Label(f, text="Weather", font=("Segoe UI", 9, "bold")).grid(row=14, column=0, columnspan=2, sticky="w",
+                                                                    pady=(10, 0))
+    rain_names = {"MVP 05 Default (the game's own weather)": 0, "Rain in every game (test)": 1}
+    rain = tk.StringVar()
+    rbox = ttk.Combobox(f, textvariable=rain, values=list(rain_names), state="readonly", width=56)
+    rbox.grid(row=15, column=0, columnspan=2, sticky="w")
     note = ttk.Label(f, text="", wraplength=480, justify="left")
-    note.grid(row=14, column=0, columnspan=2, sticky="w", pady=(8, 0))
+    note.grid(row=16, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
     def pick(box, names, v):
         v = v if isinstance(v, int) and not isinstance(v, bool) else 100
@@ -1301,16 +1308,18 @@ def game_tweaks_window(parent, root, tk, ttk):
                         list(memory_names)[0]))
         full_detail.set(saved.get("player_full_detail", False) is True)
         jumbotron.set(saved.get("live_jumbotron", False) is True)
+        rain.set(next((k for k, x in rain_names.items() if x == saved.get("rain", 0)), list(rain_names)[0]))
 
     def save():
         ST.write(root, {"pitcher_recovery": rest_names.get(rest.get(), 100),
                         "injury_length": injury_names.get(injury.get(), 100),
                         "memory_mb": memory_names.get(memory.get(), 64),
-                        "player_full_detail": full_detail.get(), "live_jumbotron": jumbotron.get()})
+                        "player_full_detail": full_detail.get(), "live_jumbotron": jumbotron.get(),
+                        "rain": rain_names.get(rain.get(), 0)})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
 
     bar = ttk.Frame(f)
-    bar.grid(row=15, column=0, columnspan=2, sticky="e", pady=(12, 0))
+    bar.grid(row=17, column=0, columnspan=2, sticky="e", pady=(12, 0))
     ttk.Button(bar, text="Close", command=win.destroy).pack(side="right")
     ttk.Button(bar, text="Save", command=save).pack(side="right", padx=6)
     load()

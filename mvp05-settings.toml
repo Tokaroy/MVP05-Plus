@@ -38,3 +38,5 @@ memory_mb = 64
 player_full_detail = false
 # The jumbotrons' live video of the game in every scene (the game turns it off in some, HD among them).
 live_jumbotron = false
+# Weather: 0 the game's own, 1 rain in every game (the game's rain, left in by EA; being tested).
+rain = 0

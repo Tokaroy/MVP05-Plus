@@ -1,6 +1,7 @@
 #pragma once
 // MVP05-Plus Tools inside the game: F10, or Back + Start held for a second on a controller, opens and closes it.
 // While it's open the game gets no controller input, and the controllers move around the menu instead.
+#include <atomic>
 #include <cstdint>
 
 #include "core/input.h"
@@ -12,6 +13,9 @@ extern uint32_t g_injury_length;  // percent of the game's own injury lengths in
 extern uint32_t g_memory_mb;  // the Xbox's RAM: 64 (as the console) or 128, with the game's heap grown to match
 extern bool g_player_full_detail;  // every player drawn with his most detailed model (the game drops distant ones to lower ones)
 extern bool g_live_jumbotron;  // the jumbotrons' live video in every scene
+extern uint32_t g_rain;  // 0: the game's own weather, 1: rain in every game
+// asked for from the Tools menu, done by the game's own thread at the end of a frame (src/game/hooks.cpp)
+extern std::atomic<int> g_unlock_request;  // 1: asked, 2: done, 3: no profile signed in
 extern uint32_t g_season_games;  // the schedule's length: counted from schedule.big at start, else season_games
 
 bool Open();

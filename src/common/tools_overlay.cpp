@@ -26,6 +26,8 @@ uint32_t g_injury_length = 100;
 uint32_t g_memory_mb = 64;
 bool g_player_full_detail = false;
 bool g_live_jumbotron = false;
+uint32_t g_rain = 0;
+std::atomic<int> g_unlock_request{0};
 
 namespace {
 
@@ -324,6 +326,20 @@ std::atomic<bool> g_capturing{false};
 std::mutex g_capture_lock;
 std::string g_capture_note;
 
+// Extras: EA's own "Unlock All Unlockables" (0x204600, from their debug menu), for the profile signed in
+void Extras() {
+    Help("Unlock everything: every stadium, team, player, jersey and Legend the game hides behind MVP points, for the "
+         "profile you're signed in with. Save your profile afterwards to keep it.");
+    int st = g_unlock_request.load();
+    if (st == 1) {
+        ImGui::TextUnformatted("Unlocking...");
+    } else if (ImGui::Button("Unlock everything")) {
+        g_unlock_request = 1;
+    }
+    if (st == 2) ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1), "Done. Save your profile to keep it.");
+    if (st == 3) ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "Sign in with a profile first, then try again.");
+}
+
 void StartCapture() {
     if (g_capturing.exchange(true)) return;
     {
@@ -412,6 +428,10 @@ void Ui(double) {
             }
             if (ImGui::BeginTabItem("Standings Projector")) {
                 ShortSeason();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Extras")) {
+                Extras();
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();

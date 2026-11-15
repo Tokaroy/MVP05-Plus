@@ -25,7 +25,8 @@ const app::GameInfo app::kGame = {
                 {"injury_length", nullptr, &tools::g_injury_length},  // % of the game's injury lengths
                 {"memory_mb", nullptr, &tools::g_memory_mb},  // the Xbox's RAM: 64 or 128 MB
                 {"player_full_detail", &tools::g_player_full_detail, nullptr},  // best player models, shadows and dust
-                {"live_jumbotron", &tools::g_live_jumbotron, nullptr}},  // the jumbotrons' live video everywhere
+                {"live_jumbotron", &tools::g_live_jumbotron, nullptr},  // the jumbotrons' live video everywhere
+                {"rain", nullptr, &tools::g_rain}},  // 1: rain in every game
     .load = nullptr,                      // reads more from the settings file's toml::table
     .save = nullptr,                      // writes more into it
     .init = [] {                           // after the settings load, before the window and boot

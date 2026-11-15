@@ -15,6 +15,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "kernel/kernel.h"
 #include "kernel/memory.h"
 #include "xdk/hle.h"
 #include "../common/tools_overlay.h"
@@ -279,4 +280,52 @@ X86_FUNC(sub_00274D90) {
     }
     __imp__sub_00274D90(ctx, base);
     if (tools::g_player_full_detail && (ctx.eax == 1 || ctx.eax == 2)) ctx.eax = 0;
+}
+
+// Weather. When a game's stadium is set up (0x283B10..), its weather pattern is picked at random and handed to
+// 0x27CA60 (thiscall: pattern, flag; returning to 0x283B71): 0 none, 1 and 2 a shower starting some minutes in
+// (2 lasting longer), 3 rain from the start for the whole game (only offered at one setting, 0x3E). The rain is drawn
+// (0x27D5B0, when EA's "Draw Rain" switch 0x63B200 is on, as it is) from the pattern's timing and strength. With
+// rain = 1 every game gets pattern 3.
+X86_EXTERN_FUNC(__imp__sub_0027CA60);
+X86_FUNC(sub_0027CA60) {
+    uint32_t ret = kernel::R32(ctx.esp);
+    if (ret == 0x283B71) {
+        uint32_t pattern = kernel::R32(ctx.esp + 4);
+        if (tools::g_rain == 1) kernel::W32(ctx.esp + 4, 3);
+        LOGR("weather: pattern %u%s", pattern, tools::g_rain == 1 ? " (rain in every game: 3)" : "");
+    }
+    __imp__sub_0027CA60(ctx, base);
+}
+
+// Things the Tools menu asks the game to do, run by the game's own thread at the end of a frame: the two functions
+// that hand a finished frame to D3D (0x2F9320 and 0x2F8D00, around D3DDevice_Swap).
+namespace {
+void RunToolRequests(X86Context& ctx) {
+    if (tools::g_unlock_request.load() == 1) {
+        // EA's "Unlock All Unlockables" (debug menu button, 0x204600): every unlockable for the profile signed in
+        // (0x311650 on the profile manager at 0x657288; -1 when there's none)
+        uint32_t profiles = kernel::R32(0x657288), saved_ecx = ctx.ecx;
+        ctx.ecx = profiles;
+        uint32_t who = profiles ? kernel::CallGuest(ctx, 0x311650, {}) : 0xFFFFFFFFu;
+        ctx.ecx = saved_ecx;
+        if (who == 0xFFFFFFFFu) {
+            tools::g_unlock_request = 3;
+        } else {
+            kernel::CallGuest(ctx, 0x204600, {});
+            tools::g_unlock_request = 2;
+            LOGR("extras: unlocked everything for profile %u", who);
+        }
+    }
+}
+}  // namespace
+X86_EXTERN_FUNC(__imp__sub_002F9320);
+X86_FUNC(sub_002F9320) {
+    __imp__sub_002F9320(ctx, base);
+    RunToolRequests(ctx);
+}
+X86_EXTERN_FUNC(__imp__sub_002F8D00);
+X86_FUNC(sub_002F8D00) {
+    __imp__sub_002F8D00(ctx, base);
+    RunToolRequests(ctx);
 }
