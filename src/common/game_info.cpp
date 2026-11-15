@@ -23,7 +23,8 @@ const app::GameInfo app::kGame = {
                 {"season_games", nullptr, &tools::g_season_games},  // the schedule's length, used if schedule.big can't be counted
                 {"pitcher_recovery", nullptr, &tools::g_pitcher_recovery},  // % of the game's daily stamina recovery
                 {"injury_length", nullptr, &tools::g_injury_length},  // % of the game's injury lengths
-                {"memory_mb", nullptr, &tools::g_memory_mb}},  // the Xbox's RAM: 64 or 128 MB
+                {"memory_mb", nullptr, &tools::g_memory_mb},  // the Xbox's RAM: 64 or 128 MB
+                {"player_full_detail", &tools::g_player_full_detail, nullptr}},  // every player's most detailed model
     .load = nullptr,                      // reads more from the settings file's toml::table
     .save = nullptr,                      // writes more into it
     .init = [] {                           // after the settings load, before the window and boot

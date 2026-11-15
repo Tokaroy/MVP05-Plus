@@ -1272,8 +1272,14 @@ def game_tweaks_window(parent, root, tk, ttk):
     memory = tk.StringVar()
     mbox = ttk.Combobox(f, textvariable=memory, values=list(memory_names), state="readonly", width=56)
     mbox.grid(row=10, column=0, columnspan=2, sticky="w")
+    # player_full_detail: every player drawn with his most detailed model
+    ttk.Label(f, text="Player detail", font=("Segoe UI", 9, "bold")).grid(row=11, column=0, columnspan=2,
+                                                                          sticky="w", pady=(10, 0))
+    full_detail = tk.BooleanVar()
+    ttk.Checkbutton(f, text="Always full detail (every player's best model, not only near the camera)",
+                    variable=full_detail).grid(row=12, column=0, columnspan=2, sticky="w")
     note = ttk.Label(f, text="", wraplength=480, justify="left")
-    note.grid(row=11, column=0, columnspan=2, sticky="w", pady=(8, 0))
+    note.grid(row=13, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
     def pick(box, names, v):
         v = v if isinstance(v, int) and not isinstance(v, bool) else 100
@@ -1290,15 +1296,17 @@ def game_tweaks_window(parent, root, tk, ttk):
         injury.set(pick(ibox, injury_names, saved.get("injury_length", 100)))
         memory.set(next((k for k, x in memory_names.items() if x == saved.get("memory_mb", 64)),
                         list(memory_names)[0]))
+        full_detail.set(saved.get("player_full_detail", False) is True)
 
     def save():
         ST.write(root, {"pitcher_recovery": rest_names.get(rest.get(), 100),
                         "injury_length": injury_names.get(injury.get(), 100),
-                        "memory_mb": memory_names.get(memory.get(), 64)})
+                        "memory_mb": memory_names.get(memory.get(), 64),
+                        "player_full_detail": full_detail.get()})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
 
     bar = ttk.Frame(f)
-    bar.grid(row=12, column=0, columnspan=2, sticky="e", pady=(12, 0))
+    bar.grid(row=14, column=0, columnspan=2, sticky="e", pady=(12, 0))
     ttk.Button(bar, text="Close", command=win.destroy).pack(side="right")
     ttk.Button(bar, text="Save", command=save).pack(side="right", padx=6)
     load()

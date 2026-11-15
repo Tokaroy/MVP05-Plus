@@ -33,3 +33,5 @@ injury_length = 100
 # The Xbox's RAM in MB: 64 (as the console) or 128, which grows the game's heap from 41 MB to 97 MB for mods that
 # load more than the Xbox could hold.
 memory_mb = 64
+# Every player drawn with his most detailed model, not only the ones near the camera.
+player_full_detail = false

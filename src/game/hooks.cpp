@@ -252,3 +252,15 @@ X86_FUNC(sub_002D31E0) {
         }
     }
 }
+
+// Player detail. Each player model has levels of detail 0 (the most detailed) to 2, and 3 for the least. Which one a
+// player gets comes from his "importance" (how close and how central to the play he is) against thresholds in the
+// "lod" tuning group (PLAYER_LOD_0..2_INGAME/OUTOFGAME/HRD/JUMBOTRON_MIN_IMPORTANCE): 0x274D90 (obj, importance,
+// out of game, home run derby, jumbotron) returns the first level whose threshold the importance beats, else 3.
+// With player_full_detail, levels 1 and 2 become 0; 3 (the game's least, for the least important players) is kept,
+// in case it hides as well as simplifies.
+X86_EXTERN_FUNC(__imp__sub_00274D90);
+X86_FUNC(sub_00274D90) {
+    __imp__sub_00274D90(ctx, base);
+    if (tools::g_player_full_detail && (ctx.eax == 1 || ctx.eax == 2)) ctx.eax = 0;
+}
