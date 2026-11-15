@@ -7,7 +7,11 @@
 //     __imp__sub_00012345(ctx, base);  // the original
 // }
 
+#include <algorithm>
+#include <atomic>
 #include <cstdint>
+#include <map>
+#include <mutex>
 #include <cstring>
 
 #include "core/log.h"
@@ -138,4 +142,44 @@ X86_FUNC(sub_001C98E0) {
     uint32_t ret = kernel::R32(ctx.esp);
     __imp__sub_001C98E0(ctx, base);
     if (ret == 0x499996) ctx.eax = As162(ctx.eax);
+}
+
+// Pitchers' stamina between games. The dynasty keeps every pitcher's current stamina in "pitcher.dat", a table
+// (vtable 0x5ADC04, records of 20 bytes at [this+0x24], count at [this+0x20]) whose field 27 is the current stamina
+// (bits 7..13 of the record's word at +0x10; field 0 is the stamina rating, the most it can be). The game gives each
+// pitcher back about a quarter of his rating every day (10 + 15% of it: 24 a day at 97), so a 100-pitch start is
+// gone in two days and relievers are never tired. Every write of field 27 goes through SetField (0x19FB30, thiscall:
+// field, record, value); for pitcher.dat (the only table that big; the in-game teams' copies have 25) a rise is cut
+// to pitcher_recovery percent of itself. Drops (pitching) are left alone, and so are the two refills to the full
+// rating (new season, 0x1A5997 and 0x1C122C).
+namespace {
+constexpr uint32_t kStaminaTable = 0x5ADC04, kCurrentStamina = 27;
+}  // namespace
+X86_EXTERN_FUNC(__imp__sub_0019FB30);
+X86_FUNC(sub_0019FB30) {
+    uint32_t self = ctx.ecx, ret = kernel::R32(ctx.esp), field = kernel::R32(ctx.esp + 4),
+             rec = kernel::R32(ctx.esp + 8), value = kernel::R32(ctx.esp + 12);
+    if (field == kCurrentStamina && kernel::R32(self) == kStaminaTable) {
+        uint32_t count = kernel::R32(self + 0x20);
+        if (rec < count) {
+            uint32_t base_rec = kernel::R32(self + 0x24) + rec * 20;
+            int old = int((kernel::R32(base_rec + 0x10) >> 7) & 0x7F), now = std::clamp(int(value), 0, 127);
+            int pct = int(std::min<uint32_t>(tools::g_pitcher_recovery, 100));
+            bool big = count >= 100, refill = ret == 0x1A5997 || ret == 0x1C122C;
+            static std::mutex m;  // which code writes it, for checking: the first 6 writes from each place
+            static std::map<uint32_t, int> seen;
+            {
+                std::lock_guard<std::mutex> lock(m);
+                if (seen[ret]++ < 6)
+                    LOGR("stamina: field 27 set from %08X (table of %u, record %u): %d -> %d%s", ret, count, rec, old,
+                         now, big && !refill && pct < 100 && now > old ? " (recovery cut)" : "");
+            }
+            if (big && !refill && pct < 100 && now > old) {
+                int scaled = old + ((now - old) * pct + 50) / 100;
+                if (scaled == old) scaled = old + 1;
+                kernel::W32(ctx.esp + 12, uint32_t(scaled));
+            }
+        }
+    }
+    __imp__sub_0019FB30(ctx, base);
 }

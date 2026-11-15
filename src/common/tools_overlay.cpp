@@ -21,6 +21,7 @@ extern "C" __declspec(dllimport) short __stdcall GetAsyncKeyState(int);
 namespace tools {
 
 uint32_t g_season_games = standings::kFullSeason;
+uint32_t g_pitcher_recovery = 100;
 
 namespace {
 

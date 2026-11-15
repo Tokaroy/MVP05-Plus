@@ -23,3 +23,7 @@ save_backups = 30
 # Games in a season's schedule. The game counts them in schedule.big when it starts; this is only used if it can't.
 # The Launcher's Schedule tab sets it.
 season_games = 162
+# How fast pitchers get their stamina back between games, as a percent of the game's own pace (100: as the game).
+# The game gives a pitcher back about a quarter of his stamina every day, so a starter is ready again after one or
+# two days off and relievers are almost never tired. At 50 a starter needs about four days, like a five-man rotation.
+pitcher_recovery = 50

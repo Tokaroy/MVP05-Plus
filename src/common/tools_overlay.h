@@ -7,6 +7,7 @@
 
 namespace tools {
 
+extern uint32_t g_pitcher_recovery;  // percent of the game's own between-games stamina recovery (100: as the game)
 extern uint32_t g_season_games;  // the schedule's length: counted from schedule.big at start, else season_games
 
 bool Open();
