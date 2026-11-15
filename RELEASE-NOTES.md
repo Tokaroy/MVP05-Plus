@@ -1,3 +1,21 @@
+# MVP05-Plus Beta 2.5
+
+Make your own season schedules, and short seasons now finish on their own.
+
+## Highlights
+- **Create a schedule** (*Schedule → Create a schedule…*): a season of any even number of games from 12 to 162. Every team plays the same number of games, exactly half at home, in 2 to 4-game series. Interleague as in 2005, matchups you choose, a new matchup each dynasty year, or none (with interleague, 30 games or more). Natural rivals every year if you like, and the All-Star Game hosted by the AL, the NL, or each in turn. A different season for each of the three dynasty years, previewed team by team before you save it to your list.
+- **Short seasons end on their own:** a season shorter than 162 games goes on to the playoffs by itself. The game counts the games in your schedule when it starts, so it works whichever schedule is installed and however it got there.
+
+## Changed
+- **Standings Projector** (was the Short Season Advancer): no longer needed for short seasons. It's kept for a dynasty stuck at the end of a short season from an older version.
+
+## Known issues
+- **Team goals:** the dynasty's win goals (like a 3-year goal of 300 wins) are still sized for 162-game seasons.
+- **Switching schedules mid-season:** a new schedule starts with the next season. Switching in the middle of one changes that season's length from the next time the game starts, so switch between seasons.
+
+## Updating
+From Beta 2 or 2.1: *Settings → Updates*. From Beta 1: unzip into a new folder and bring your old one over when the Launcher asks.
+
 # MVP05-Plus Beta 2.1
 
 - **Player of the Day** on the *Play* tab: an MLB player from the game's 2005 rosters, with his picture and 2004 season, the same for everyone each day. It's read from your own installed game.

@@ -10,7 +10,7 @@ MVP Baseball 2005 on Windows, and on SteamOS (Linux) through Proton, built on [M
 * **PlayStation controllers** with the PS2 release's full control layout and stick handling, analog button pressure and rumble.
 * **Button art to match your controller**: GameCube or PS2 buttons in menus and in-game, made from your own discs (optional).
 * **Import saves**: rosters and dynasties from the PS2, GameCube, PC or Xbox versions of MVP 2005.
-* **Custom season schedules**: the real 2005 season, or its 162 games shuffled each time you play. A 64-game season made for MVP05-Plus balances division, league and interleague games. Basic 60, 30 and 15-game schedules are included, or you can import your own.
+* **Custom season schedules**: the real 2005 season, or its 162 games shuffled each time you play. Create your own at any length, or import one. A 64-game season made for MVP05-Plus balances division, league and interleague games, and basic 60, 30 and 15-game schedules are included. Shorter seasons end on their own and go on to the playoffs.
 * **MVP05-Plus Launcher**: install from your discs, launch the game, import and restore saves, pick the season schedule, run the tools, adjust display settings, and update MVP05-Plus.
 * **Fixes**: a shader cache to prevent mid-game stutter, SteamOS support through Proton, and a fix for a crash during stolen bases, found while testing the original recomp.
 * **Save backups**: a full save backup menu in the Launcher. Your saves are backed up automatically when the game starts, keeping the latest 30 backups by default, and you can view and restore them in the Launcher.
@@ -69,7 +69,7 @@ sh -c 'B="/home/deck/Games/MVP05-Plus/gcbridge"; chmod +x "$B"; "$B" & exec "$@"
 
 * **Install**, which becomes **Play** once the game's installed (coming from an older MVP05-Plus or Mad Dog's MVP05? The Launcher offers to bring its game, saves and settings over the first time it opens; **Ctrl+Shift+B** offers it again): your discs in, then what's installed (checked each start), **Launch MVP 05**, and which controllers Windows sees right now, including whether the GameCube adapter has the WinUSB driver it needs. At the bottom, the **Player of the Day**: an MLB player from the game's 2005 rosters, with his picture and 2004 season, the same for everyone each day.
 * **Saves**: *Your saves*, with *Import a save…* for saves from the PS2, GameCube, PC or another Xbox; and *Backups* by date. Restore single saves or a whole date; your saves become a backup first, so a restore can be undone.
-* **Schedule**: the season schedule new seasons play, and *Import a schedule…*.
+* **Schedule**: the season schedule new seasons play; *Create a schedule…* (any even number of games from 12 to 162, interleague as in 2005, matchups you choose, a new matchup each year or none, natural rivals, the All-Star Game's host, a different season each dynasty year, previewed team by team before you save it); and *Import a schedule…*.
 * **Tools**: the Standings Projector, Team Changer and Playoffs Editor, in the running game or (Standings Projector, Playoffs Editor) on a saved dynasty.
 * **Settings**: display mode, aspect ratio (16:9, or 4:3 with black bars at the sides), resolution (default: fullscreen at your desktop's resolution), render scale, frame rate cap, texture filtering, VSync, low latency, Xbox 720p mode; desktop shortcuts for the game ("MVP 05 Plus") and the Launcher, if you want them; and *Updates*: check for a new release, install it, or go back to the version before.
 

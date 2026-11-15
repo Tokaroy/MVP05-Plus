@@ -33,7 +33,7 @@ for sub in ("gc_layout", "ps2_layout", "saves", os.path.join("saves", "mvp05", "
 
 import discs  # noqa: E402
 
-VERSION = "Beta 2.1"
+VERSION = "Beta 2.5"
 VERSION = os.environ.get("MVP05_TEST_VERSION") or VERSION  # Test-Updater.cmd: pretend to be older
 GAME = "MVP05-Plus"
 
