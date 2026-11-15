@@ -9,7 +9,7 @@ MVP05-Plus: a test release, made the way a real one is, in your Downloads folder
      (MVP05-Plus-Launcher.exe, gcbridge), then downloads them
   5. packs MVP05-Plus-Beta-1.zip as a release is packed, with Mad Dog's three runtime DLLs from his Beta 3 zip
   6. makes a DRAFT release on GitHub with it (only you can see a draft)
-  7. unzips that zip into Downloads\MVP05-Plus-Beta-2.5, as a player would, and opens it; if a test install with the
+  7. unzips that zip into Downloads\MVP05-Plus-3.0, as a player would, and opens it; if a test install with the
      game installed is already there, it replaces only its program files instead (game files, saves and settings
      stay)
 
@@ -22,7 +22,7 @@ param(
     [string]$Downloads = (Join-Path $env:USERPROFILE "Downloads"),
     [string]$GameDir = "",          # your current MVP05 folder (with assets\default.xbe); asked for if not given
     [string]$RepoName = "",         # default: MVP05-Plus for -Final, a private MVP05-Plus-test for a test
-    [string]$Version = "Beta 2.5",
+    [string]$Version = "3.0",
     [switch]$SkipBuild,             # use the MVP05.exe already built in the work folder
     [switch]$Final,                 # the real release's draft: tag beta-1, no "(test)" (still a draft until you publish)
     [switch]$Refresh                # with -Final, on a release that's already published: rebuild and replace its zip,
