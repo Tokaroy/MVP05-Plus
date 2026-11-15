@@ -10,6 +10,9 @@
 #include <string>
 #include <thread>
 
+#ifdef _WIN32
+extern "C" __declspec(dllimport) short __stdcall GetAsyncKeyState(int);
+#endif
 #include "core/log.h"
 #include "imgui.h"
 #include "dbtools.h"
@@ -21,7 +24,8 @@ uint32_t g_season_games = standings::kFullSeason;
 
 namespace {
 
-constexpr uint32_t kVkF10 = 0x79, kVkEscape = 0x1B, kWmKeyDown = 0x0100, kWmSysKeyDown = 0x0104;
+constexpr uint32_t kVkF10 = 0x79, kVkF12 = 0x7B, kVkEscape = 0x1B, kWmKeyDown = 0x0100, kWmSysKeyDown = 0x0104;
+constexpr int kVkShift = 0x10, kVkControl = 0x11;
 constexpr uint16_t kStart = 1u << 4, kBack = 1u << 5;
 constexpr auto kHold = std::chrono::milliseconds(1000);
 
@@ -308,6 +312,40 @@ void PlayoffsCreator() {
     }
 }
 
+// a memory capture for working out the game (Ctrl+Shift+F12, any time): the whole of the game's memory to
+// logs/memory-<date>-<time>.bin, written on its own thread; what happened is logged and shown in the Tools menu
+std::atomic<bool> g_capturing{false};
+std::mutex g_capture_lock;
+std::string g_capture_note;
+
+void StartCapture() {
+    if (g_capturing.exchange(true)) return;
+    {
+        std::lock_guard l(g_capture_lock);
+        g_capture_note = "Saving a memory capture...";
+    }
+    std::thread([] {
+        std::string path = dbtools::Capture();
+        std::string note = path.empty() ? "The memory capture couldn't be written." : "Memory capture saved: " + path;
+        LOGR("%s", note.c_str());
+        logx::Flush();
+        {
+            std::lock_guard l(g_capture_lock);
+            g_capture_note = note;
+        }
+        g_capturing = false;
+    }).detach();
+}
+
+bool Held(int vk) {
+#ifdef _WIN32
+    return (GetAsyncKeyState(vk) & 0x8000) != 0;
+#else
+    (void)vk;
+    return false;
+#endif
+}
+
 }  // namespace
 
 bool Open() { return g_open; }
@@ -317,6 +355,11 @@ bool Message(void*, uint32_t msg, uintptr_t wp, intptr_t lp, intptr_t* result) {
     bool repeated = (lp & (1LL << 30)) != 0;
     if (wp == kVkF10 || (wp == kVkEscape && g_open)) {
         if (!repeated) g_toggle = true;
+        *result = 0;
+        return true;
+    }
+    if (wp == kVkF12 && Held(kVkControl) && Held(kVkShift)) {
+        if (!repeated) StartCapture();
         *result = 0;
         return true;
     }
@@ -348,6 +391,10 @@ void Ui(double) {
         ImGui::SetWindowFontScale(s);
         Help("F10 or Esc closes this, or hold Back + Start (Z + Start on a GameCube controller) for a second. The game "
              "gets no controller input while it's open.");
+        {
+            std::lock_guard l(g_capture_lock);
+            if (!g_capture_note.empty()) Help(g_capture_note.c_str());
+        }
         if (ImGui::BeginTabBar("tools")) {
             if (ImGui::BeginTabItem("Short Season Advancer")) {
                 ShortSeason();
