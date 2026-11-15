@@ -1445,7 +1445,7 @@ def schedule_tab(tabs, root, tk, ttk):
     have = ttk.Label(frm, font=("Segoe UI", 9, "bold"))
     have.grid(row=2, column=0, sticky="w", pady=(0, 6))
     kinds = {"original": "default, MVP 2005 disc", "mvp2004": "from the MVP 2004 disc", "custom": "made for MVP05-Plus",
-             "shuffled": "MVP 2005 disc", "imported": "imported by you", "made": "made by you"}
+             "shuffled": "MVP 2005 disc", "imported": "imported by you", "made": "created by you"}
     cat, label, by_label = [], {}, {}
     pick = tk.StringVar()
     box = ttk.Combobox(frm, state="readonly", width=58)
@@ -1478,10 +1478,10 @@ def schedule_tab(tabs, root, tk, ttk):
     remove.pack(side="right")
     add = ttk.Button(buttons, text="Import a schedule\u2026")
     add.pack(side="right", padx=6)
-    make = ttk.Button(buttons, text="Make a schedule\u2026")
+    make = ttk.Button(buttons, text="Create a schedule\u2026")
     make.pack(side="right")
     ttk.Label(frm, foreground="#777", wraplength=560, justify="left", text=(
-        "Make a schedule: any length, with your choice of interleague and All-Star host, a different season each "
+        "Create a schedule: any length, with your choice of interleague and All-Star host, a different season each "
         "dynasty year. Import a schedule: a schedule.big, or its mlb162_1/2/3.dat files, from any version of MVP 2005 "
         "(Xbox, PS2, GameCube or PC: the schedules are the same everywhere).")).grid(
         row=7, column=0, sticky="w", pady=(14, 0))
@@ -1583,14 +1583,14 @@ def schedule_tab(tabs, root, tk, ttk):
 
 
 def make_schedule(parent, root, tk, ttk, on_saved):
-    """Make a schedule (schedgen.py): the choices, the season it makes (team by team, year by year), and Save, which
+    """Create a schedule (schedgen.py): the choices, the season it makes (team by team, year by year), and Save, which
     adds it to the Schedule tab's list as one of yours."""
     import random
     import schedgen as G
     import schedules as SCH
 
     win = tk.Toplevel(parent)
-    win.title("Make a schedule")
+    win.title("Create a schedule")
     win.transient(parent.winfo_toplevel())
     win.resizable(False, False)
     f = ttk.Frame(win, padding=14)
@@ -1605,11 +1605,12 @@ def make_schedule(parent, root, tk, ttk, on_saved):
     host = tk.StringVar(value=hosts["alternate"])
     rivals = tk.BooleanVar(value=True)
 
-    ttk.Label(f, text="Make a schedule", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=4,
+    ttk.Label(f, text="Create a schedule", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=4,
                                                                              sticky="w")
     ttk.Label(f, foreground="#666", wraplength=520, justify="left", text=(
-        "Every team plays the same number of games, half at home, in 2 to 4-game series, with a different season "
-        "for each of the three dynasty years. Regenerate for another season with the same choices.")).grid(
+        "Every team plays the same number of games, half of them at home (or one series more home or away when the "
+        "number is odd), in 2 to 4-game series, with a different season for each of the three dynasty years. "
+        "Regenerate for another season with the same choices.")).grid(
         row=1, column=0, columnspan=4, sticky="w", pady=(0, 10))
     opts = ttk.Frame(f)
     opts.grid(row=2, column=0, columnspan=4, sticky="w")
@@ -1689,7 +1690,7 @@ def make_schedule(parent, root, tk, ttk, on_saved):
             "off": "no interleague"}[op["interleague"]]
         riv = ", natural rivals every year" if op["rivals"] and op["interleague"] != "off" else ""
         star = {"AL": "the AL hosts", "NL": "the NL hosts", "alternate": "the AL and NL take turns"}[op["all_star"]]
-        return f"Made by you: {op['games']} games a team, {il}{riv}; at the All-Star Game {star}."
+        return f"Created by you: {op['games']} games a team, {il}{riv}; at the All-Star Game {star}."
 
     def default_name(op):
         il = {"real": "", "choose": ", chosen interleague", "rotate": ", rotating interleague",

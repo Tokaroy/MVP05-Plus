@@ -16,6 +16,14 @@ for games in (162, 141, 120, 100, 81, 64, 60, 45, 30, 15, 12):
             ts = G.seasons(o, seed)
             assert SC.check_season(ts) == games, (games, mode)
             assert ts == G.seasons(o, seed), "the same choices and seed must give the same seasons"
+            if games % 2 == 0:  # an even length: exactly half at home for every team
+                for t in ts:
+                    home = {}
+                    for ln in t.decode().splitlines()[2:]:
+                        f = ln.split(",")
+                        if f[2] not in ("AL", "NL"):
+                            home[f[2]] = home.get(f[2], 0) + 1
+                    assert set(home.values()) == {games // 2}, (games, mode, sorted(set(home.values())))
             n += 1
 o = G.default_options()
 ts = G.seasons(o, 3)

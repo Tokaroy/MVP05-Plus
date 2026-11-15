@@ -8,8 +8,8 @@ follows the MVP 2005 disc's own season, scaled to the length:
   the rest of the league   about 10 or 11 games each
   interleague       a series against each team of the paired division, and a second one against a natural rival
 
-Home and away are dealt so every team plays half its games at home (within a game when the length is odd) and each
-pair splits its series. The calendar is the 2005 one: opening day April 4, the All-Star Game on July 12 (the HALF
+Home and away are dealt so every team plays exactly half its games at home (one series more home or away when
+the length is odd) and each pair splits its series. The calendar is the 2005 one: opening day April 4, the All-Star Game on July 12 (the HALF
 column 0 before it, 1 after), off days spread through each half. A season of 100 games or more spreads over the whole
 calendar; a shorter one plays its first half from opening day with an off day every few series, and its second
 half from August 1, after the trade deadline, when it fits before October 3.
@@ -110,13 +110,17 @@ def _series_counts(rounds, pairing, rivals, rng):
     for (a, b), x in w.items():
         tot[a] += x
         tot[b] += x
-    x = {}
+    x, tgt, floor = {}, {}, {}
     for (a, b), v in w.items():
         target = rounds * v / ((tot[a] + tot[b]) / 2)
+        tgt[(a, b)] = target
         n = int(target)
         if rng.random() < target - n:
             n += 1
-        x[(a, b)] = n
+        # natural rivals meet at least once a year (if the season has room)
+        al_nl = (a, b) if DIV[a] in AL else (b, a)
+        floor[(a, b)] = 1 if rivals and pairing is not None and al_nl in RIVALS and rounds >= 6 else 0
+        x[(a, b)] = max(n, floor[(a, b)])
     deg = {t: 0 for t in TEAMS}
     for (a, b), n in x.items():
         deg[a] += n
@@ -129,15 +133,15 @@ def _series_counts(rounds, pairing, rivals, rng):
             break
         if len(over) >= 2 and rng.random() < 0.5 or not under:
             a = rng.choice(over)
-            opts = [p for p in w if a in p and x[p] > 0 and deg[p[0] if p[1] == a else p[1]] > rounds]
+            opts = [p for p in w if a in p and x[p] > floor[p] and deg[p[0] if p[1] == a else p[1]] > rounds]
             if opts:
-                p = max(opts, key=lambda p: (x[p] - w[p] * rounds / 54) + rng.random() * 0.5)
+                p = max(opts, key=lambda p: (x[p] - tgt[p]) + rng.random() * 0.5)
                 x[p] -= 1
                 deg[p[0]] -= 1
                 deg[p[1]] -= 1
                 continue
             # take one away from a and give it to a partner pair: a-b out, b-c in, where c is under
-            opts = [p for p in w if a in p and x[p] > 0]
+            opts = [p for p in w if a in p and x[p] > floor[p]]
             p = rng.choice(opts)
             b = p[0] if p[1] == a else p[1]
             x[p] -= 1
@@ -148,7 +152,7 @@ def _series_counts(rounds, pairing, rivals, rng):
         opts = [p for p in league if a in p and deg[p[0] if p[1] == a else p[1]] < rounds]
         opts = opts or [p for p in w if a in p and deg[p[0] if p[1] == a else p[1]] < rounds]
         if opts:
-            p = min(opts, key=lambda p: (x[p] - w[p] * rounds / 54) + rng.random() * 0.5)
+            p = min(opts, key=lambda p: (x[p] - tgt[p]) + rng.random() * 0.5)
             x[p] += 1
             deg[p[0]] += 1
             deg[p[1]] += 1
@@ -157,7 +161,7 @@ def _series_counts(rounds, pairing, rivals, rng):
         opts = [p for p in league if a in p]
         p = rng.choice(opts)
         b = p[0] if p[1] == a else p[1]
-        rest = [q for q in w if b in q and a not in q and x[q] > 0]
+        rest = [q for q in w if b in q and a not in q and x[q] > floor[q]]
         if not rest:
             continue
         q = rng.choice(rest)
@@ -241,15 +245,19 @@ def _rounds(counts, rounds, rng):
 # --- home and away
 
 def _flow_extras(odd_pairs, need_lo, need_hi, rng):
-    """Which team of each odd pair gets its extra home series, every team t getting between need_lo[t] and
-    need_hi[t] of them: augmenting paths (a b-matching of pairs to teams), first up to need_lo, then up to need_hi."""
+    """Which team of each item gets a home series, every team t getting between need_lo[t] and need_hi[t] of them:
+    augmenting paths (a b-matching of items to teams), first up to need_lo, then up to need_hi. An item is
+    (pair, tag): a pair's odd series out, or one series of a 2- or 4-game round."""
     give, load = {}, {t: 0 for t in TEAMS}
     holds = {t: [] for t in TEAMS}
     order = odd_pairs[:]
     rng.shuffle(order)
 
+    def other_of(q, t):
+        return q[0][0] if q[0][1] == t else q[0][1]
+
     def dfs(p, cap, seen):
-        ts = list(p)
+        ts = list(p[0])
         rng.shuffle(ts)
         for t in ts:
             if t in seen:
@@ -261,7 +269,7 @@ def _flow_extras(odd_pairs, need_lo, need_hi, rng):
                 give[p] = t
                 return True
             for q in list(holds[t]):
-                u = q[0] if q[1] == t else q[1]
+                u = other_of(q, t)
                 if u in seen:
                     continue
                 if dfs_move(q, t, u, cap, seen):
@@ -280,7 +288,7 @@ def _flow_extras(odd_pairs, need_lo, need_hi, rng):
             give[q] = to
             return True
         for r in list(holds[to]):
-            u = r[0] if r[1] == to else r[1]
+            u = other_of(r, to)
             if u in seen:
                 continue
             if dfs_move(r, to, u, cap, seen):
@@ -300,27 +308,37 @@ def _flow_extras(odd_pairs, need_lo, need_hi, rng):
 
 
 def _homes(seq, lengths, games, rng):
-    """For each round, [(home, away)]: every team at home for half its series (within one when it has an odd number),
-    each pair splitting its series and taking turns."""
+    """For each round, [(home, away)]: every team at home for half its games. The 3-game series: each team at home
+    in half of them (within one when there's an odd number), each pair splitting its series and taking turns. The
+    rounds of 2 or 4 games (there's an even number of each when the season length is even): each team at home in
+    half of each kind, so the length doesn't tip anyone's home games."""
+    home = {}  # (pair, round) -> home team
+    main = [r for r, n in enumerate(lengths) if n == 3]
+    for n in sorted(set(lengths) - {3}):
+        rs = [r for r, x in enumerate(lengths) if x == n]
+        items = [(_key(a, b), r) for r in rs for a, b in seq[r]]
+        half = {t: len(rs) // 2 for t in TEAMS}
+        give = _flow_extras(items, half, {t: (len(rs) + 1) // 2 for t in TEAMS}, rng)
+        for it, t in give.items():
+            home[it] = t
     by_pair = {}
-    for r, m in enumerate(seq):
-        for a, b in m:
+    for r in main:
+        for a, b in seq[r]:
             by_pair.setdefault(_key(a, b), []).append(r)
-    rounds = len(seq)
+    rounds = len(main)
     base = {t: 0 for t in TEAMS}
     odd = []
     for p, rs in by_pair.items():
         for t in p:
             base[t] += len(rs) // 2
         if len(rs) % 2:
-            odd.append(p)
+            odd.append((p, None))
     lo = {t: rounds // 2 - base[t] for t in TEAMS}
     hi = {t: (rounds + 1) // 2 - base[t] for t in TEAMS}
     if any(v < 0 for v in lo.values()):
         raise GenError("couldn't even out home and away")
-    extra = _flow_extras(odd, lo, hi, rng)
+    extra = {it[0]: t for it, t in _flow_extras(odd, lo, hi, rng).items()}
     # each pair's series alternate to start with (the extra one, if odd, to the team the flow gave it)
-    home = {}  # (pair, round) -> home team
     for p, rs in by_pair.items():
         f = extra[p] if p in extra else rng.choice(p)
         o = p[0] if f == p[1] else p[1]
@@ -401,17 +419,39 @@ def _fmt(d):
     return f"{d.month}/{d.day}/{d.year}"
 
 
+def _lengths(games):
+    """Each round's series length: 3-game series, with as few 2- and 4-game rounds as make up the length. The 2- and
+    4-game rounds come in even numbers (and for an even length the 3-game ones too), so every team can be at home
+    for exactly half its games, or within one series when the length is odd."""
+    best = None
+    for c in range(0, 6):
+        for b in range(0, 6):
+            rest = games - 2 * b - 4 * c
+            if rest < 0 or rest % 3:
+                continue
+            a = rest // 3
+            if b % 2 or c % 2 or (games % 2 == 0 and a % 2):
+                continue
+            if a + b + c == 0:
+                continue
+            k = (b + c, b)
+            if best is None or k < best[0]:
+                best = (k, a, b, c)
+    _, a, b, c = best
+    out = [3] * a
+    mid = len(out) // 2
+    out[mid:mid] = [4] * c + [2] * b  # the odd ones in the middle of the season, a few apart
+    return out
+
+
 def season(options, year=1, seed=None):
     """One season file (bytes), as the disc's mlb162_<year>.dat."""
     games = int(options.get("games", 162))
     if not MIN_GAMES <= games <= MAX_GAMES:
         raise GenError(f"a season has {MIN_GAMES} to {MAX_GAMES} games")
     rng = random.Random(f"{seed}:{year}")
-    rounds = max(1, round(games / 3))
-    lengths = [3] * rounds
-    extra = games - 3 * rounds  # -1 or +1: one round of 2 or 4 games
-    for k in range(abs(extra)):
-        lengths[rounds // 2 + k] += 1 if extra > 0 else -1
+    lengths = _lengths(games)
+    rounds = len(lengths)
     for attempt in range(20):
         counts = _series_counts(rounds, pairing_for(options, year), options.get("rivals", True), rng)
         try:
@@ -476,8 +516,7 @@ def check(text, games):
         raise GenError("the All-Star Game is missing")
     if set(played) != set(TEAMS) or set(played.values()) != {games}:
         raise GenError("not every team plays the whole season")
-    rounds = max(1, round(games / 3))
-    slack = 2 if rounds % 2 == 0 else 5  # an odd number of series can't split evenly: one more at home or away
+    slack = 0 if games % 2 == 0 else 3  # an odd length can't split evenly: a series more at home or away
     if any(abs(2 * home.get(t, 0) - games) > slack for t in TEAMS):
         raise GenError("home and away aren't even")
 
