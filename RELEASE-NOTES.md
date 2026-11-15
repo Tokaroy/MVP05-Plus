@@ -1,9 +1,8 @@
-# MVP05-Plus 3.0
+# MVP05-Plus Beta 2.5
 
-Mods, Game Tweaks, your own season schedules, and short seasons that finish on their own.
+Make your own season schedules, and short seasons now finish on their own.
 
 ## Highlights
-- **Mods** (the Launcher's new Mods tab): add a mod's zip, files or folder, and each of its files goes in place of the game's own file of that path or name, found for you (when the game has a file in more than one place, you pick). One checkbox per mod, however many files it has; put them in order, and when two mods have the same file the higher one wins (the list says which). Your game files are never changed: mods sit in their own folder beside the game, and one that's off isn't used. The Game Tweaks work on top of them: a tweak that changes a file a mod replaces starts from the mod's version.
 - **Create a schedule** (*Schedule → Create a schedule…*): a season of any even number of games from 12 to 162. Every team plays the same number of games, exactly half at home, in 2 to 4-game series. Interleague as in 2005, matchups you choose, a new matchup each dynasty year, or none (with interleague, 30 games or more). Natural rivals every year if you like, and the All-Star Game hosted by the AL, the NL, or each in turn. A different season for each of the three dynasty years, previewed team by team before you save it to your list.
 - **Dynasty goals fit the season:** goals that count games or stats (home and road wins, total wins, team home runs, pitchers' wins, players' home runs) are scaled to your season's length, and so is the win percentage goal (its target and the figure shown beside it). A 40/40 season counts at the same pace (about 11 home runs and 11 steals in 46 games). A 3-year goal of 100 home wins is 28 in a 46-game season.
 - **Short seasons end on their own:** a season shorter than 162 games goes on to the playoffs by itself. The game counts the games in your schedule when it starts, so it works whichever schedule is installed and however it got there.
@@ -30,7 +29,6 @@ From Beta 2 or 2.1: *Settings → Updates*. From Beta 1: unzip into a new folder
 Bring your saves over from the other versions of MVP 2005, pick the season you play, run tools inside the game, and update from the Launcher.
 
 ## Highlights
-- **Mods** (the Launcher's new Mods tab): add a mod's zip, files or folder, and each of its files goes in place of the game's own file of that path or name, found for you (when the game has a file in more than one place, you pick). One checkbox per mod, however many files it has; put them in order, and when two mods have the same file the higher one wins (the list says which). Your game files are never changed: mods sit in their own folder beside the game, and one that's off isn't used. The Game Tweaks work on top of them: a tweak that changes a file a mod replaces starts from the mod's version.
 - **Import saves from the PS2, GameCube, PC and Xbox** (*Saves → Import a save…*): rosters and dynasties, converted into one of your MVP05-Plus saves so they play here. Your save is backed up first.
 - **Custom season schedules** (*Schedule* tab): the real 2005 season, or its 162 games shuffled each time you play. A 64-game season made for MVP05-Plus balances division, league and interleague games. Basic 60, 30 and 15-game schedules are included, or you can import your own.
 - **Tools** (the Launcher's *Tools* tab, and in the game: F10, or hold Back + Start / Z + Start): a Short Season Advancer, a Team Changer and a Playoffs Editor.
@@ -42,7 +40,7 @@ Bring your saves over from the other versions of MVP 2005, pick the season you p
 - **GameCube:** rosters and dynasties, from the `.gci` Dolphin exports.
 - **PC:** rosters and dynasties (`.sav`).
 - **Xbox:** rosters and dynasties from another Xbox (its `data.dat`).
-- Owner mode saves aren't imported yet (being worked on).
+- Owner mode saves aren't imported yet (planned for 3.0).
 
 Roster conversion is **Mad Dog**'s, from his MVP Roster Toolkit (the same file it makes). GameCube conversion, rosters and dynasties, is **spy_jam**'s. PS2 and PC dynasties use both.
 

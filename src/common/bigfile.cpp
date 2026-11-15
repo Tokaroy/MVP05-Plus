@@ -1,6 +1,5 @@
 // See bigfile.h.
 #include "bigfile.h"
-#include "mods.h"
 
 #include <algorithm>
 #include <cctype>
@@ -219,10 +218,9 @@ void SetText(Entry& e, const std::string& text) {
     e.data = packed ? Pack(raw) : raw;
 }
 
-namespace {
-fs::path FindIn(fs::path dir, std::initializer_list<const char*> parts) {
+fs::path FindAsset(std::initializer_list<const char*> parts) {
     std::error_code ec;
-    if (!fs::is_directory(dir, ec)) return {};
+    fs::path dir = app::ExeDir() / "assets";
     for (const char* part : parts) {
         fs::path next;
         for (auto it = fs::directory_iterator(dir, ec); !ec && it != fs::directory_iterator(); it.increment(ec))
@@ -234,13 +232,6 @@ fs::path FindIn(fs::path dir, std::initializer_list<const char*> parts) {
         dir = next;
     }
     return dir;
-}
-}  // namespace
-
-fs::path FindAsset(std::initializer_list<const char*> parts) {
-    for (const fs::path& mod : mods::Enabled())  // a mod's copy, as the game would load it
-        if (fs::path p = FindIn(mod, parts); !p.empty()) return p;
-    return FindIn(app::ExeDir() / "assets", parts);
 }
 
 fs::path TweaksDir(std::initializer_list<const char*> parts) {

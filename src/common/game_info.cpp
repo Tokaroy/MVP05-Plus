@@ -4,7 +4,6 @@
 #include "save_backup.h"
 #include "day_parks.h"
 #include "dynasty_data.h"
-#include "mods.h"
 #include "season_length.h"
 #include "tuning.h"
 #include "tools_overlay.h"
@@ -45,11 +44,9 @@ const app::GameInfo app::kGame = {
         mem::SetPhysicalSize(tools::g_memory_mb);  // the Xbox's RAM, before boot maps it
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
-        mods::Load();                      // the mods that are on (mods/mods.txt), for the tweaks to start from
         dayparks::Apply();                 // day games in daylight at the parks EA lit as dusk, if asked
         tuning::Apply();                   // the game's tuning (datafile.big) as the Game Tweaks ask
         dynastydata::Apply();              // the dynasty's data tables (development, contracts, ...) as they ask
-        mods::Mount();                     // then the mods' folders, after the tweaks' (which win)
         gc::Init();
     },
     .loaded = nullptr,                    // image in memory, before its entry point runs

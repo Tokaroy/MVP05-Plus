@@ -25,8 +25,7 @@ std::vector<uint8_t> Pack(const std::vector<uint8_t>& in);
 bool Text(const Entry& e, std::string& out);
 // the entry given new text, packed as it was
 void SetText(Entry& e, const std::string& text);
-// a file as the game would load it: from the first mod that's on with it (mods.h), else the assets folder;
-// whatever the case of its names; empty if missing
+// a file under the game's assets folder, whatever the case of its names; empty if missing
 std::filesystem::path FindAsset(std::initializer_list<const char*> parts);
 // the "tweaks" overlay folder's copy of an asset path (made), e.g. {"data","database"}
 std::filesystem::path TweaksDir(std::initializer_list<const char*> parts);

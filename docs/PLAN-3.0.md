@@ -1,16 +1,7 @@
 # MVP05-Plus 3.0: plan
 
-3.0 takes in everything built since Beta 2 (there's no Beta 2.5), plus the **mod manager** (built) and **owner mode
-save imports**. Everything else that was planned for Beta 3 has moved to *Future* below. Beta 2 was released on
-2026-11-13.
-
-## Mod manager (3.0, built)
-The Launcher's Mods tab (tools/installer/mods.py): a mod's zip, files or folder imported into mods\<name>\, laid out
-like assets, each file matched by its path (wherever the game's part starts, or the end of a game path) or else its
-name; a name in several places is picked by the person, one the game doesn't have is left out (or, under one of the
-game's top folders, kept as a new file). One checkbox each, in order, in mods\mods.txt; clashes shown. The game
-(src/common/mods.cpp) adds each one that's on as a disc replacement folder after the Game Tweaks' "tweaks" folder,
-and the tweaks start from a mod's file (bigfile::FindAsset).
+3.0 is **owner mode save imports**, once everything in Beta 2.5 tests out. Everything else that was planned for Beta 3
+has moved to *Future* below. Beta 2 was released on 2026-11-13.
 
 ## Owner mode imports (3.0)
 Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are now. Owner mode is its own mode with its own save type. It needs matched pairs: a new owner mode save with the same team on each platform, saved straight away.
@@ -18,10 +9,6 @@ Goes with it: tywiggins' ChangeMoney (owner mode money) and the Owner Mode bank 
 ([[[0x657288]+0x34]+4]+0x12B7C, a float in dollars).
 
 # Future
-
-## Mods: files inside a .big
-A mod's single texture or csv that lives inside one of the game's .big archives: find the archive holding it and,
-at start, write a copy with that entry swapped into the tweaks folder (as the Dynasty tweaks do for progress.big).
 
 ## Payroll budget (dynasty)
 Not the Owner Mode bank balance. In memory the org table (vtable 0x5B13C0, 34 records of 0x54 bytes, SetField
@@ -68,7 +55,7 @@ A card across the empty bottom of the *Play* tab: a player's picture, name, team
 - **Picture:** read from the player's own installed game files at run time, like the title art. EA's art is never shipped. First, find where MVP 2005 keeps player headshots in its `.big` files and in what texture format, and whether every MLB player has one. That needs a listing of `assets\data` and a few `.big` files from a real install.
 - **Layout:** the dog easter egg uses the bottom-right corner, so leave room for it or let it sit on top of the card.
 
-## Create a schedule (3.0)
+## Create a schedule (Beta 2.5)
 The Schedule tab's *Create a schedule…* (a window like *Import a schedule…*; the seasons from tools/installer/
 schedgen.py): any even length from 12 to 162 games (30 or more with interleague, so every team plays some);
 interleague shared out evenly as in 2005, chosen division matchups, a new matchup each
