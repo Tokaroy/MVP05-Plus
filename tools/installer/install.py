@@ -1821,12 +1821,12 @@ def tools_tab(tabs, root, tk, ttk):
         "controller).")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
     tools = [
-        ("Standings Projector", "Every team's record projected to 162 games, keeping its winning percentage. Short "
-         "seasons don't need it: they end on their own.", short_season_tool),
         ("Team Changer", "Take over another organization in your dynasty or owner mode. Based on tywiggins' Team "
          "Changer.", team_changer_tool),
         ("Playoffs Editor", "Swap teams in a playoff round before its first game. Based on tywiggins' Playoffs "
          "Creator.", playoffs_tool),
+        ("Standings Projector", "Every team's record projected to 162 games, keeping its winning percentage. Short "
+         "seasons don't need it: they end on their own.", short_season_tool),
     ]
     pages = {}
 

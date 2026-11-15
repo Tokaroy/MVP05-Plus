@@ -397,16 +397,16 @@ void Ui(double) {
             if (!g_capture_note.empty()) Help(g_capture_note.c_str());
         }
         if (ImGui::BeginTabBar("tools")) {
-            if (ImGui::BeginTabItem("Standings Projector")) {
-                ShortSeason();
-                ImGui::EndTabItem();
-            }
             if (ImGui::BeginTabItem("Team Changer")) {
                 TeamChanger();
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Playoffs Editor")) {
                 PlayoffsCreator();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Standings Projector")) {
+                ShortSeason();
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();
