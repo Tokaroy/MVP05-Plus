@@ -13,13 +13,13 @@ A card across the empty bottom of the *Play* tab: a player's picture, name, team
 
 ## Create a schedule (built, not released yet)
 The Schedule tab's *Create a schedule…* (a window like *Import a schedule…*; the seasons from tools/installer/
-schedgen.py): any length from 12 to 162 games (30 or more with interleague, so every team plays some);
+schedgen.py): any even length from 12 to 162 games (30 or more with interleague, so every team plays some);
 interleague shared out evenly as in 2005, chosen division matchups, a new matchup each
 dynasty year, or none; natural rivals every year (or not); the All-Star Game hosted by the AL, the NL, or each in
 turn; a different season for each of the three dynasty years, shown team by team and year by year, with Regenerate
 for another one. *Save* adds it to the list under a name ("created by you"), kept with the imported ones in
 schedules/imported/ (updates and Bring it over keep them), used and removed the same way. Every team plays the same
-number of games in 2- to 4-game series, exactly half at home (one series more home or away for an odd length), with the disc's proportions of division, league and
+number of games in 2- to 4-game series, exactly half at home, with the disc's proportions of division, league and
 interleague games, on 2005's calendar (opening day April 4, the All-Star Game July 12; 100+ games fill the
 calendar, shorter seasons play a first half from opening day and a second half from August 1, after the trade
 deadline). Our own code: nothing from Dylan Bradbury's Random Schedule Generator, whose readme forbids

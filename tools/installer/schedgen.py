@@ -8,8 +8,8 @@ follows the MVP 2005 disc's own season, scaled to the length:
   the rest of the league   about 10 or 11 games each
   interleague       a series against each team of the paired division, and a second one against a natural rival
 
-Home and away are dealt so every team plays exactly half its games at home (one series more home or away when
-the length is odd) and each pair splits its series. The calendar is the 2005 one: opening day April 4, the All-Star Game on July 12 (the HALF
+Home and away are dealt so every team plays exactly half its games at home (the length is always even) and each
+pair splits its series. The calendar is the 2005 one: opening day April 4, the All-Star Game on July 12 (the HALF
 column 0 before it, 1 after), off days spread through each half. A season of 100 games or more spreads over the whole
 calendar; a shorter one plays its first half from opening day with an off day every few series, and its second
 half from August 1, after the trade deadline, when it fits before October 3.
@@ -583,7 +583,7 @@ def _fmt(d):
 def _lengths(games):
     """Each round's series length: 3-game series, with as few 2- and 4-game rounds as make up the length. The 2- and
     4-game rounds come in even numbers (and for an even length the 3-game ones too), so every team can be at home
-    for exactly half its games, or within one series when the length is odd."""
+    for exactly half its games (a season's length is always even)."""
     best = None
     for c in range(0, 6):
         for b in range(0, 6):
@@ -608,8 +608,9 @@ def _lengths(games):
 def season(options, year=1, seed=None):
     """One season file (bytes), as the disc's mlb162_<year>.dat."""
     games = int(options.get("games", 162))
-    if not MIN_GAMES <= games <= MAX_GAMES:
-        raise GenError(f"a season has {MIN_GAMES} to {MAX_GAMES} games")
+    if not MIN_GAMES <= games <= MAX_GAMES or games % 2:
+        raise GenError(f"a season has an even number of games, {MIN_GAMES} to {MAX_GAMES}, so every team plays half "
+                       "of them at home")
     if options.get("interleague", "real") != "off" and games < MIN_INTERLEAGUE:
         raise GenError(f"with interleague games, a season needs at least {MIN_INTERLEAGUE} games")
     rng = random.Random(f"{seed}:{year}")

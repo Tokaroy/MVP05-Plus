@@ -1608,14 +1608,14 @@ def make_schedule(parent, root, tk, ttk, on_saved):
     ttk.Label(f, text="Create a schedule", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=4,
                                                                              sticky="w")
     ttk.Label(f, foreground="#666", wraplength=520, justify="left", text=(
-        "Every team plays the same number of games, half of them at home (or one series more home or away when the "
-        "number is odd), in 2 to 4-game series, with a different season for each of the three dynasty years. "
-        "Regenerate for another season with the same choices.")).grid(
+        "Every team plays the same number of games (an even number), exactly half of them at home, in 2 to 4-game "
+        "series, with a different season for each of the three dynasty years. Regenerate makes another one with the "
+        "same choices.")).grid(
         row=1, column=0, columnspan=4, sticky="w", pady=(0, 10))
     opts = ttk.Frame(f)
     opts.grid(row=2, column=0, columnspan=4, sticky="w")
     ttk.Label(opts, text="Games a team").grid(row=0, column=0, sticky="w")
-    ttk.Spinbox(opts, from_=G.MIN_GAMES, to=G.MAX_GAMES, textvariable=games, width=6).grid(
+    ttk.Spinbox(opts, from_=G.MIN_GAMES, to=G.MAX_GAMES, increment=2, textvariable=games, width=6).grid(
         row=0, column=1, sticky="w", padx=(6, 18))
     ttk.Label(opts, text="All-Star Game").grid(row=0, column=2, sticky="w")
     ttk.Combobox(opts, state="readonly", width=20, textvariable=host, values=list(hosts.values())).grid(
@@ -1676,8 +1676,9 @@ def make_schedule(parent, root, tk, ttk, on_saved):
             n = int(games.get())
         except ValueError:
             n = 0
-        if not G.MIN_GAMES <= n <= G.MAX_GAMES:
-            raise ValueError(f"games a team: a number from {G.MIN_GAMES} to {G.MAX_GAMES}")
+        if not G.MIN_GAMES <= n <= G.MAX_GAMES or n % 2:
+            raise ValueError(f"games a team: an even number from {G.MIN_GAMES} to {G.MAX_GAMES}, so every team "
+                             "plays exactly half at home")
         m = next(k for k, v in modes.items() if v == mode.get())
         pairing = {al: pv[al].get() for al in G.AL}
         if m == "choose" and sorted(pairing.values()) != sorted(G.NL):
