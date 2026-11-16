@@ -53,7 +53,17 @@ Windows may warn that the Launcher is from an unknown publisher: choose *More in
 
 ### SteamOS (Proton)
 
-Add `MVP05.exe` to Steam as a non-Steam game, run with Proton. For the GameCube adapter, turn off Steam's own GameCube adapter support and set the launch options (with your folder's path):
+Add `MVP05.exe` to Steam as a non-Steam game, run with Proton.
+
+For the GameCube adapter, turn off Steam's own GameCube adapter support, then set up the bridge once. In desktop mode, open a terminal in the game's folder and run:
+
+```
+chmod +x gcbridge && ./gcbridge --install
+```
+
+It then starts with the system and waits: it takes the adapter when the game starts and gives it back when the game closes, so Dolphin still works in between. `~/.local/share/gcbridge/gcbridge --uninstall` takes it out. After a new release, run the install line again.
+
+Or, without installing anything, start it from the game's Steam launch options (with your folder's path):
 
 ```
 sh -c 'B="/home/deck/Games/MVP05-Plus/gcbridge"; chmod +x "$B"; "$B" & exec "$@"' sh %command%

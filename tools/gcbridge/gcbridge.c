@@ -13,6 +13,11 @@
      bridge -> game  "GCL1" + text          a line of this log (the game puts it in its own, "gcbridge: ...")
      bridge -> game  "GCA1"                 about every second: it's running (with or without an adapter)
 
+   Set up once instead (SteamOS desktop mode, in a terminal in the game's folder): ./gcbridge --install
+   That copies it to ~/.local/share/gcbridge and has systemd start it at every login (gcbridge --service): it waits
+   there without touching the adapter, takes it when a game says hello and gives it back 5 s after the game is gone
+   (so Dolphin still gets it between games). No Steam launch options then. ./gcbridge --uninstall takes it out.
+
    Build (static, so it runs in Steam's container; plain x86-64): cc -O2 -march=x86-64 -static -s -o gcbridge gcbridge.c
    Needs read/write access to the adapter's /dev/bus/usb node (the same as Dolphin: SteamOS has it). */
 #include <dirent.h>
@@ -22,6 +27,8 @@
 #include <fcntl.h>
 #include <linux/usbdevice_fs.h>
 #include <netinet/in.h>
+#include <poll.h>
+#include <sys/wait.h>
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -226,7 +233,95 @@ static void close_adapter(int fd) {
     close(fd);
 }
 
-int main(void) {
+/* --install / --uninstall: a systemd user service running a copy of this program with --service */
+static int run(const char *a, const char *b, const char *c, const char *d) {
+    pid_t pid = fork();
+    if (pid < 0) return -1;
+    if (!pid) {
+        execlp("systemctl", "systemctl", "--user", a, b, c, d, (char *)NULL);
+        _exit(127);
+    }
+    int st = 0;
+    waitpid(pid, &st, 0);
+    return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+}
+static int copy_file(const char *from, const char *to) {
+    char tmp[4200];
+    snprintf(tmp, sizeof tmp, "%s.new", to);
+    int in = open(from, O_RDONLY), out = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+    if (in < 0 || out < 0) { if (in >= 0) close(in); if (out >= 0) close(out); return -1; }
+    char buf[65536];
+    ssize_t n;
+    int bad = 0;
+    while ((n = read(in, buf, sizeof buf)) > 0)
+        if (write(out, buf, n) != n) { bad = 1; break; }
+    if (n < 0) bad = 1;
+    close(in);
+    if (fchmod(out, 0755) < 0 || close(out) < 0) bad = 1;
+    if (bad || rename(tmp, to) < 0) { unlink(tmp); return -1; }  /* (rename: a running copy keeps its old file) */
+    return 0;
+}
+static int install(int remove_it) {
+    const char *home = getenv("HOME");
+    if (!home || !*home) { fprintf(stderr, "gcbridge: no HOME\n"); return 1; }
+    char dir[4096], prog[4200], unitdir[4096], unit[4200], self[4096] = {0};
+    snprintf(dir, sizeof dir, "%s/.local/share/gcbridge", home);
+    snprintf(prog, sizeof prog, "%s/gcbridge", dir);
+    snprintf(unitdir, sizeof unitdir, "%s/.config/systemd/user", home);
+    snprintf(unit, sizeof unit, "%s/gcbridge.service", unitdir);
+    if (remove_it) {
+        run("disable", "--now", "gcbridge.service", NULL);
+        unlink(unit);
+        unlink(prog);
+        run("daemon-reload", NULL, NULL, NULL);
+        printf("gcbridge: taken out (the service and %s)\n", prog);
+        return 0;
+    }
+    if (readlink("/proc/self/exe", self, sizeof self - 1) <= 0) { perror("gcbridge: /proc/self/exe"); return 1; }
+    char cmd[3][4200];
+    snprintf(cmd[0], sizeof cmd[0], "%s/.local", home);
+    snprintf(cmd[1], sizeof cmd[1], "%s/.local/share", home);
+    snprintf(cmd[2], sizeof cmd[2], "%s/.config", home);
+    mkdir(cmd[0], 0755); mkdir(cmd[1], 0755); mkdir(dir, 0755);
+    mkdir(cmd[2], 0755);
+    snprintf(cmd[2], sizeof cmd[2], "%s/.config/systemd", home);
+    mkdir(cmd[2], 0755); mkdir(unitdir, 0755);
+    if (strcmp(self, prog) && copy_file(self, prog) < 0) {
+        fprintf(stderr, "gcbridge: copying to %s: %s\n", prog, strerror(errno));
+        return 1;
+    }
+    FILE *f = fopen(unit, "w");
+    if (!f) { fprintf(stderr, "gcbridge: %s: %s\n", unit, strerror(errno)); return 1; }
+    fprintf(f, "[Unit]\nDescription=GameCube controller adapter bridge for MVP Baseball under Proton\n\n"
+               "[Service]\nExecStart=\"%s\" --service\nRestart=on-failure\nRestartSec=5\n\n"
+               "[Install]\nWantedBy=default.target\n", prog);
+    fclose(f);
+    run("daemon-reload", NULL, NULL, NULL);
+    run("stop", "gcbridge.service", NULL, NULL);  /* an older copy */
+    int r = run("enable", "--now", "gcbridge.service", NULL);
+    if (r) {
+        fprintf(stderr, "gcbridge: systemctl --user enable --now gcbridge.service failed (%d). The files are in place "
+                        "(%s, %s)\n", r, prog, unit);
+        return 1;
+    }
+    printf("gcbridge: set up. It starts at every login and waits for the game; the Steam launch option isn't needed "
+           "any more (take it out).\n  program: %s\n  service: %s\n  to take it out: %s --uninstall\n", prog, unit, prog);
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    int service = 0;
+    if (argc > 1) {
+        if (!strcmp(argv[1], "--install")) return install(0);
+        if (!strcmp(argv[1], "--uninstall")) return install(1);
+        if (!strcmp(argv[1], "--service")) service = 1;
+        else {
+            printf("gcbridge (%s)\n  gcbridge             run until the game is gone (started by the game or Steam's launch options)\n"
+                   "  gcbridge --install   set up once: start at every login and wait for games\n"
+                   "  gcbridge --uninstall take that out\n  gcbridge --service   what --install runs\n", gcbridge_version);
+            return strcmp(argv[1], "--help") != 0;
+        }
+    }
     t0 = now();
     int s = socket(AF_INET, SOCK_DGRAM, 0);
     struct sockaddr_in me = {0};
@@ -248,7 +343,8 @@ int main(void) {
     }
     if (!logf) logf = fopen("gcbridge.log", "w");
     if (!logf) logf = fopen("/tmp/gcbridge.log", "w");
-    LOG("gcbridge running (pid %d, uid %u, log %s)", (int)getpid(), (unsigned)getuid(), sl > 0 ? self : "?");
+    LOG("gcbridge running (pid %d, uid %u, log %s%s)", (int)getpid(), (unsigned)getuid(), sl > 0 ? self : "?",
+        service ? ", as a service: waiting for games" : "");
     fcntl(s, F_SETFL, O_NONBLOCK);
     double last_hello = now(), last_alive = 0, opened_at = 0;
     int fd = -1, restarts = 0;
@@ -276,8 +372,20 @@ int main(void) {
             }
             fl = sizeof from;
         }
-        /* the game gone (or never came): stop */
-        if (now() - last_hello > (have_game ? 5.0 : 180.0)) break;
+        /* the game gone (or never came): stop. As a service: give the adapter back and wait for the next one */
+        if (service) {
+            if (have_game && now() - last_hello > 5.0) {
+                LOG("no hello for 5 s: the game is gone, waiting for the next");
+                if (fd >= 0) { close_adapter(fd); fd = -1; }
+                have_game = 0; backlog_n = 0; next_try = 0;
+            }
+            if (!have_game) {  /* asleep until something arrives; the adapter is left alone */
+                struct pollfd pf = {s, POLLIN, 0};
+                poll(&pf, 1, 5000);
+                continue;
+            }
+        }
+        else if (now() - last_hello > (have_game ? 5.0 : 180.0)) break;
         if (have_game && now() - last_alive >= 1.0) {
             last_alive = now();
             sendto(s, "GCA1", 4, 0, (struct sockaddr *)&game, sizeof game);

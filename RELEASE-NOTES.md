@@ -19,7 +19,7 @@ Mods, Game Tweaks, your own season schedules, and short seasons that finish on t
 - **Standings Projector** (was the Short Season Advancer): no longer needed for short seasons. It's kept for a dynasty stuck at the end of a short season from an older version.
 
 ## Known issues
-- **Switching schedules mid-season:** a new schedule starts with the next season. Switching in the middle of one changes that season's length from the next time the game starts, so switch between seasons.
+- **Switching schedules mid-season:** a new schedule starts with the next season, and the season you're in is played out at its own length (the game reads it from the dynasty itself). One limit: if you switch during the playoffs, the new length is used at once, so switch before the playoffs or after them.
 
 ## Updating
 From Beta 2 or 2.1: *Settings → Updates*. From Beta 1: unzip into a new folder and bring your old one over when the Launcher asks.
@@ -106,10 +106,10 @@ First release of MVP05-Plus by spy_jam, built on Mad Dog's MVP05 Public Beta 3 (
 
 ## Fixed
 - A crash during stolen bases, found in testing.
-- SteamOS (through Proton): the black screen; the GameCube adapter through `gcbridge` (see the README for the launch option).
+- SteamOS (through Proton): the black screen; the GameCube adapter through `gcbridge` (see the README for the one-time set-up).
 
 ## Known issues
-- Under Proton, the GameCube adapter needs the Steam launch option; the game can't start `gcbridge` by itself yet.
+- Under Proton, the GameCube adapter needs a one-time set-up (`./gcbridge --install`, see the README) or the Steam launch option; the game can't start `gcbridge` by itself.
 - Display issues from the base recompilation (for example 720p fonts) are unchanged.
 
 ## Requirements

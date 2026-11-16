@@ -429,7 +429,7 @@ bool OpenBridge(Device& d) {
     } else if (launched && ++silent_launches == 3) {
         // (one started from Steam's launch options is still listened for, every second)
         LOGR("gcadapter: gcbridge started 3 times and never answered: not starting it again this session. Under "
-             "Proton, start it from the game's Steam launch options (see the handoff)");
+             "Proton, set it up once: in a terminal in the game's folder, ./gcbridge --install (see the README)");
     }
     if (launched && GetTickCount64() - g_bridge_heard >= 3000 && told_quiet++ < 3) {
         // not a word from it: what the shell and its own log say
@@ -437,8 +437,8 @@ bool OpenBridge(Device& d) {
         bool any = LogFile(out, "gcbridge.out");
         any |= LogFile(log, "gcbridge.log");
         if (!any)
-            LOGR("gcadapter: no gcbridge.out%s and no gcbridge.log: nothing ran. Put the full path of gcbridge, then "
-                 "& %%command%%, in the game's Steam launch options (see the handoff)",
+            LOGR("gcadapter: no gcbridge.out%s and no gcbridge.log: nothing ran. Set it up once instead: in a "
+                 "terminal in the game's folder, ./gcbridge --install (see the README)",
                  via_sh ? " from /bin/sh" : "");
     }
     d.Close();

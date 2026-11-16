@@ -70,8 +70,11 @@ asked from db_sec at 0x466692, 0x467008, 0x49174D and through 0x1AEC10). src/gam
 the schedule's length, counted from the installed schedule.big when the game starts (src/common/season_length.cpp;
 season_games from the Launcher only if it can't be counted), so a short season goes on to the playoffs by itself. The Short Season Advancer is now
 the Standings Projector (not needed; for dynasties stuck from an older version). Ctrl+Shift+F9 in the game saves a
-memory capture to logs (the menu button is gone). **Still open:** a schedule switched mid-season is counted at the next start
-while the old season is still played (switch between seasons, as the Schedule tab says); the dynasty goals: their counting targets are now
+memory capture to logs (the menu button is gone). A schedule switched mid-season: the hooks now take the length of the season in memory
+(the majors' schedule at [[[0x6572A0]+0x28]], 28-byte records, team ids at +4 and +0x10; checked against memory captures
+of 46- and 64-game dynasties), so the old season is played out at its own length and the new schedule starts with the next
+season. Limit: a dynasty loaded during the playoffs has only the series in memory, so the installed schedule's length is
+used there (as before); the dynasty goals: their counting targets are now
 scaled while the game reads them (hooks.cpp: the goal object, vtable 0x5B8BCC, 32 records of on/X/Y; readers 0x1DC8C0
 met?, 0x1DC960 progress, 0x1DCB10 text, 0x1F63E0 screen line, 0x1F6650 progress figure; WinPct checked as X * 486 =
 3 x 162 at 0x5B8C30). The per-player goals (XHRsYplayers, XWinsbyYP) are counted in the goal

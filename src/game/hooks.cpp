@@ -25,11 +25,69 @@
 // and whether the regular season is over (it's asked at 0x466692 and 0x467008 for a team, at 0x49174D for a league,
 // and for the halves through 0x1AEC10). The majors are given the schedule's own length (counted from schedule.big
 // when the game starts, src/common/season_length.cpp), so a short season ends by itself.
+//
+// A dynasty keeps the season it's playing in its save, so a schedule switched in the Launcher part-way through a
+// season only starts with the next one, and until then the installed schedule.big says the wrong length. The season
+// being played is in memory: the schedule set at [[0x6572A0]+0x28] holds the four levels' schedules (the majors'
+// first), each {capacity, games, records}, a record 28 bytes with the home team's id at +4 and the road team's at
+// +0x10 (0x463C00 counts a team's games left that way). When the majors' has 30 teams all playing the same 12 to
+// 162 games (the two All-Star teams, one game each, aside), that is the season's length, and it's kept through the
+// playoffs, whose schedule is only the series. Otherwise it's the installed schedule's.
+namespace {
+bool InHeap(uint32_t va, uint32_t n) {
+    return va >= 0x80000000u && va - 0x80000000u < mem::kPhysicalSize && n <= mem::kPhysicalSize - (va - 0x80000000u);
+}
+uint32_t CountSchedule(uint32_t records, uint32_t count) {
+    std::map<uint32_t, uint32_t> games;
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t home = kernel::R32(records + i * 28 + 4), road = kernel::R32(records + i * 28 + 0x10);
+        if (home == road) return 0;
+        games[home]++;
+        games[road]++;
+        if (games.size() > 32) return 0;
+    }
+    uint32_t teams = 0, length = 0;
+    for (auto& [team, n] : games) {
+        if (n == 1) continue;  // an All-Star team
+        if (length && n != length) return 0;
+        length = n;
+        teams++;
+    }
+    return teams == 30 && length >= 12 && length <= 162 ? length : 0;
+}
+uint32_t SeasonGames() {
+    static uint32_t key[5] = {}, counted = 0, last_good = 0;
+    uint32_t mgr = kernel::R32(0x6572A0), set = InHeap(mgr, 0x2C) ? kernel::R32(mgr + 0x28) : 0;
+    uint32_t sched = InHeap(set, 4) ? kernel::R32(set) : 0;
+    if (!InHeap(sched, 12)) {  // no season in memory (the menus, an exhibition): nothing kept from the last one
+        key[0] = 0;
+        last_good = 0;
+        return tools::g_season_games;
+    }
+    uint32_t count = kernel::R32(sched + 4), records = kernel::R32(sched + 8);
+    if (count < 2 || count > 2600 || !InHeap(records, count * 28)) return last_good ? last_good : tools::g_season_games;
+    uint32_t now[5] = {sched, count, records, kernel::R32(records + 4) ^ kernel::R32(records + 0x10),
+                       kernel::R32(records + (count - 1) * 28 + 4) ^ kernel::R32(records + (count - 1) * 28 + 0x10)};
+    if (std::memcmp(now, key, sizeof key) != 0) {
+        std::memcpy(key, now, sizeof key);
+        counted = CountSchedule(records, count);
+        if (counted && counted != last_good) {
+            if (counted != tools::g_season_games)
+                LOGR("season length: the season being played has %u games a team (the installed schedule: %u, from "
+                     "the next season)", counted, tools::g_season_games);
+            else
+                LOGR("season length: the season being played has %u games a team", counted);
+        }
+        if (counted) last_good = counted;
+    }
+    return last_good ? last_good : tools::g_season_games;
+}
+}  // namespace
 X86_EXTERN_FUNC(__imp__sub_0019D190);
 X86_FUNC(sub_0019D190) {
     uint32_t level = kernel::R32(ctx.esp + 4);
     __imp__sub_0019D190(ctx, base);
-    uint32_t games = tools::g_season_games;
+    uint32_t games = SeasonGames();
     if ((level == 0 || level == 1) && ctx.eax == 162 && games >= 12 && games < 162) {
         LOG_FIRST(1, "short season: the majors' season is %u games", games);
         ctx.eax = games;
@@ -58,7 +116,7 @@ struct ScaledGoals {
     uint32_t saved[8] = {};
     bool pct = false;
     ScaledGoals(uint32_t o, bool with_pct) {
-        uint32_t games = tools::g_season_games;
+        uint32_t games = SeasonGames();
         if (g_goal_depth++ || games < 12 || games >= 162 || kernel::R32(o) != kGoalVtable) return;
         obj = o;
         pct = with_pct;
@@ -128,7 +186,7 @@ X86_FUNC(sub_001F6650) {
 // short season's totals are given as if over 162 games, so 40/40 means about 11/11 in a 46-game season.
 namespace {
 uint32_t As162(uint32_t v) {
-    uint32_t games = tools::g_season_games;
+    uint32_t games = SeasonGames();
     if (games < 12 || games >= 162 || v > 1000) return v;
     return uint32_t(uint64_t(v) * 162 / games);
 }
@@ -166,7 +224,7 @@ X86_EXTERN_FUNC(__imp__sub_001ACF30);
 X86_FUNC(sub_001ACF30) {
     uint32_t ret = kernel::R32(ctx.esp);
     __imp__sub_001ACF30(ctx, base);
-    uint32_t games = tools::g_season_games;
+    uint32_t games = SeasonGames();
     if (ret == 0x49A092 && games >= 12 && games < 162 && ctx.edi % 162 == 0 && ctx.edi <= 162 * 2)
         ctx.edi = ctx.edi / 162 * games;
 }
