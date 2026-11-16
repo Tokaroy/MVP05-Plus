@@ -33,6 +33,11 @@
 // +0x10 (0x463C00 counts a team's games left that way). When the majors' has 30 teams all playing the same 12 to
 // 162 games (the two All-Star teams, one game each, aside), that is the season's length, and it's kept through the
 // playoffs, whose schedule is only the series. Otherwise it's the installed schedule's.
+//
+// Spring training is played from the same slot (mlbspr_1.dat: 30 teams, 22 games each), and must not be taken for a
+// 22-game season. Its loader (0x477500) empties the three minor-league schedules, which a season's loader (0x4775C0)
+// fills (2,160 games in AAA), so a majors' schedule only counts as a season when AAA's has games too. In spring
+// training the length is the installed schedule's: the season about to be loaded from it.
 namespace {
 bool InHeap(uint32_t va, uint32_t n) {
     return va >= 0x80000000u && va - 0x80000000u < mem::kPhysicalSize && n <= mem::kPhysicalSize - (va - 0x80000000u);
@@ -56,9 +61,9 @@ uint32_t CountSchedule(uint32_t records, uint32_t count) {
     return teams == 30 && length >= 12 && length <= 162 ? length : 0;
 }
 uint32_t SeasonGames() {
-    static uint32_t key[5] = {}, counted = 0, last_good = 0;
+    static uint32_t key[6] = {}, counted = 0, last_good = 0;
     uint32_t mgr = kernel::R32(0x6572A0), set = InHeap(mgr, 0x2C) ? kernel::R32(mgr + 0x28) : 0;
-    uint32_t sched = InHeap(set, 4) ? kernel::R32(set) : 0;
+    uint32_t sched = InHeap(set, 8) ? kernel::R32(set) : 0;
     if (!InHeap(sched, 12)) {  // no season in memory (the menus, an exhibition): nothing kept from the last one
         key[0] = 0;
         last_good = 0;
@@ -66,11 +71,17 @@ uint32_t SeasonGames() {
     }
     uint32_t count = kernel::R32(sched + 4), records = kernel::R32(sched + 8);
     if (count < 2 || count > 2600 || !InHeap(records, count * 28)) return last_good ? last_good : tools::g_season_games;
-    uint32_t now[5] = {sched, count, records, kernel::R32(records + 4) ^ kernel::R32(records + 0x10),
-                       kernel::R32(records + (count - 1) * 28 + 4) ^ kernel::R32(records + (count - 1) * 28 + 0x10)};
+    uint32_t aaa = kernel::R32(set + 4), minors = InHeap(aaa, 12) ? kernel::R32(aaa + 4) : 0;
+    uint32_t now[6] = {sched, count, records, kernel::R32(records + 4) ^ kernel::R32(records + 0x10),
+                       kernel::R32(records + (count - 1) * 28 + 4) ^ kernel::R32(records + (count - 1) * 28 + 0x10),
+                       minors};
     if (std::memcmp(now, key, sizeof key) != 0) {
         std::memcpy(key, now, sizeof key);
         counted = CountSchedule(records, count);
+        if (counted && (minors < 360 || minors > 2600)) {  // spring training: the season to come
+            counted = 0;
+            last_good = 0;
+        }
         if (counted && counted != last_good) {
             if (counted != tools::g_season_games)
                 LOGR("season length: the season being played has %u games a team (the installed schedule: %u, from "
@@ -351,6 +362,8 @@ X86_FUNC(sub_001B8C30) {
 X86_EXTERN_FUNC(__imp__sub_00462720);
 X86_FUNC(sub_00462720) {
     uint32_t self = ctx.ecx;
+    static uint32_t last_self = 0, last_bits[2] = {};  // what this left there last, so it's never scaled twice
+    uint32_t pre[2] = {self ? kernel::R32(self + 4) : 0, self ? kernel::R32(self + 8) : 0};
     __imp__sub_00462720(ctx, base);
     uint32_t pct = tools::g_contract_prices;
     uint32_t db = kernel::R32(0x657288);
@@ -359,16 +372,25 @@ X86_FUNC(sub_00462720) {
     auto setf = [](uint32_t va, float f) { uint32_t u; std::memcpy(&u, &f, 4); kernel::W32(va, u); };
     float step = getf(db + 0x1F8), add = getf(db + 0x1F4);
     if (!(step > 0.0f)) return;
+    // the call can leave without working a price out: then what's there is what was there (ours, when it's the same
+    // negotiation), and it's left alone. So is anything that isn't a salary (under the lowest, or not a number)
+    uint32_t post[2] = {kernel::R32(self + 4), kernel::R32(self + 8)};
+    if (self == last_self && post[0] == pre[0] && post[1] == pre[1] && post[0] == last_bits[0] && post[1] == last_bits[1])
+        return;
     float before[2], after[2];
     for (int k = 0; k < 2; k++) {
         float v = getf(self + 4 + 4 * k);
         before[k] = v;
+        if (!(v >= add) || !(v < add + step * float(0x2143 + 1))) return;
         float want = v * float(pct) / 100.0f;
         int steps = int((want - add) / step + 0.5f);
         steps = std::clamp(steps, 0, 0x2143);
         after[k] = float(steps) * step + add;
-        setf(self + 4 + 4 * k, after[k]);
     }
+    for (int k = 0; k < 2; k++) setf(self + 4 + 4 * k, after[k]);
+    last_self = self;
+    last_bits[0] = kernel::R32(self + 4);
+    last_bits[1] = kernel::R32(self + 8);
     static std::atomic<int> told{0};
     if (told.fetch_add(1) < 8)
         LOGR("contracts: asking %.0f -> %.0f, least %.0f -> %.0f (%u%%)", before[0], after[0], before[1], after[1], pct);
@@ -545,6 +567,53 @@ X86_FUNC(sub_0012D820) {
                  given[1].load(), given[2].load(), given[3].load());
     }
     __imp__sub_0012D820(ctx, base);
+}
+
+// Rain. The game has rain (EA's debug menu has "Rain Pattern" and "Draw Rain"), but it only makes the weather object
+// at four stadiums: the scene set-up at 0x128A32 calls 0x286A70 (cdecl: scene, the set-up's first argument, stadium
+// number) only when the scene is a game (scene+0x6F0 == 0) and the stadium number is 0x13 or 0x39 (SBC Park, day and
+// night), 0x3E (Safeco Field at night) or 0x23 (a002day); the numbers index the stadium file table at 0x62E4B0.
+// 0x286A70 makes the object (kept at 0x660384, freed with the scene at 0x271F10) and resets it with 0x283AB0, which
+// picks the pattern: a number 0..8, and 1 or 2 (a shower) when it is one of those, so 2 games in 9, else none (0x27CA60,
+// thiscall: pattern, start now). The rain is drawn as lines by the object itself (0x27D5B0), with nothing loaded from
+// the stadium, so it works anywhere.
+//
+// With rain = 1 every outdoor stadium gets the weather object, with the game's own odds. With rain = 2 every game has
+// pattern 3 (rain for the whole game) from the start: 0x27CA60 only keeps a 3 when the object's +0x3C is set, and
+// only starts at once when "start now" is. The object is made from the call just before the game's own check
+// (0x270950, returning to 0x128A23, where edi is the scene, esi the stadium's entry and ebp the set-up's frame), and
+// not in the four domes (astrdome, metrdome, olymdome, tropdome: 73 to 76).
+X86_EXTERN_FUNC(__imp__sub_00286A70);
+X86_FUNC(sub_00286A70) {
+    __imp__sub_00286A70(ctx, base);
+    uint32_t obj = kernel::R32(0x660384);
+    if (tools::g_rain == 2 && obj) {
+        uint32_t result = ctx.eax, ecx = ctx.ecx;
+        kernel::W32(obj + 0x3C, 1);
+        ctx.ecx = obj;
+        kernel::CallGuest(ctx, 0x27CA60, {3, 1});
+        ctx.ecx = ecx;
+        ctx.eax = result;
+        kernel::W32(0x663EC0, 3);
+        LOGR("weather: rain for the whole game");
+    } else if (obj) {
+        LOGR("weather: the game's own pattern, %u (0 none, 1 and 2 a shower)", kernel::R32(obj + 0x24));
+    }
+}
+
+X86_EXTERN_FUNC(__imp__sub_00270950);
+X86_FUNC(sub_00270950) {
+    bool setup = kernel::R32(ctx.esp) == 0x128A23;
+    __imp__sub_00270950(ctx, base);
+    if (!setup || !tools::g_rain) return;
+    uint32_t scene = ctx.edi, entry = ctx.esi;
+    if (!scene || !entry || kernel::R32(scene + 0x6F0) != 0 || kernel::R32(0x660384)) return;
+    uint32_t stadium = kernel::R32(entry);
+    bool own = stadium == 0x13 || stadium == 0x39 || stadium == 0x3E || stadium == 0x23;  // the game makes these
+    bool dome = stadium >= 73 && stadium <= 76;
+    if (own || dome || stadium > 84) return;
+    LOGR("weather: stadium %u given the game's rain", stadium);
+    kernel::CallGuest(ctx, 0x286A70, {scene, kernel::R32(ctx.ebp + 8), stadium});
 }
 
 // Things the Tools menu asks the game to do, run by the game's own thread at the end of a frame: the two functions

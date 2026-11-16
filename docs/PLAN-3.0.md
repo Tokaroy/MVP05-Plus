@@ -85,7 +85,8 @@ the Standings Projector (not needed; for dynasties stuck from an older version).
 memory capture to logs (the menu button is gone). A schedule switched mid-season: the hooks now take the length of the season in memory
 (the majors' schedule at [[[0x6572A0]+0x28]], 28-byte records, team ids at +4 and +0x10; checked against memory captures
 of 46- and 64-game dynasties), so the old season is played out at its own length and the new schedule starts with the next
-season. Limit: a dynasty loaded during the playoffs has only the series in memory, so the installed schedule's length is
+season. Spring training's schedule (30 teams, 22 games each, in the same slot) isn't taken for a season: it only counts
+when AAA's schedule has games too (the spring loader, 0x477500, empties the minors'). Limit: a dynasty loaded during the playoffs has only the series in memory, so the installed schedule's length is
 used there (as before); the dynasty goals: their counting targets are now
 scaled while the game reads them (hooks.cpp: the goal object, vtable 0x5B8BCC, 32 records of on/X/Y; readers 0x1DC8C0
 met?, 0x1DC960 progress, 0x1DCB10 text, 0x1F63E0 screen line, 0x1F6650 progress figure; WinPct checked as X * 486 =
