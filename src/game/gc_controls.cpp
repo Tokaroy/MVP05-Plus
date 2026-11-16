@@ -207,6 +207,22 @@ bool PlayerZHeld(uint32_t player, bool* gamecube) {
 
 std::array<bool, 4> g_port_gc_view() { return {g_port_gc[0], g_port_gc[1], g_port_gc[2], g_port_gc[3]}; }
 
+// A menu button event's player: whether his controller is a GameCube one, and that controller as it is now. For a
+// player the game can't place (no pad behind the number), a GameCube controller if any is plugged in, as before
+// this was decided player by player, and `pad` is the first of that kind.
+bool EventPlayer(uint32_t player, input::Pad& pad) {
+    int port = PortOfPlayer(player);
+    bool gamecube = port >= 0 && g_port_gc[port];
+    if (port < 0) {
+        for (int i = 0; i < 4 && !gamecube; i++)
+            if (g_port_gc[i]) gamecube = true, port = i;
+        for (int i = 0; i < 4 && port < 0; i++)
+            if (input::Poll(i).connected) port = i;
+    }
+    pad = port >= 0 ? input::Poll(port) : input::Pad{};
+    return gamecube;
+}
+
 // A PlayStation pad, as the PS2 release lays it out: every button where the Xbox has the one in the same place,
 // but its shoulders the other way round from SDL's Xbox-style mapping: L1 and R1 (SDL's shoulders) go on the
 // Xbox triggers' channels, L2 and R2 (SDL's triggers, with their travel) on White and Black. With the PS2's own
@@ -292,33 +308,39 @@ void AfterLayout(uint32_t self) {
 
 // Screens take menu button events through their vtable: slot 3 + n handles menu action n (0x001 A in slot 4, 0x002 B
 // in slot 5, 0x003 X/GameCube Y in slot 6, 0x005 Start in slot 8 ... 0x014 Black, repeating, in slot 23); 0x2BF340
-// is "not handled", 0x24C950 "handled, nothing to do". Where the GameCube release handles a screen's buttons
-// differently, its slots trade places while a GameCube controller is in use.
-constexpr uint32_t kNotHandled = 0x2BF340, kIgnore = 0x24C950;
-struct SlotSwap {
+// is "not handled" (returns 0), 0x24C950 "handled, nothing to do" (returns 1). A handler is thiscall on the screen
+// with one argument, the game's player number of whoever pressed (the replay screen's 0x21C480 compares it with
+// the player in charge of the replay, the number 0x198B00 and the rumble wrappers take).
+//
+// The GameCube release handles four screens' buttons differently. Each is decided for the player who pressed, by the
+// kind of controller he has (hooks at the end of this file), so a GameCube controller and another kind side by side
+// each work as on their own console:
+//  - Title screen (0x4BB110, A): the GameCube takes only Start.
+//  - Startup movies (0x5D1960): Start skips on both; the Xbox also skips on A, pressed or released (0x4BE0F0).
+//  - Replay (0x5BEDE8): the Xbox hides and shows the panel (0x21C480) from Black, which the GameCube table puts on
+//    C right, so the C stick hid it; the GameCube hides with Y.
+//  - Attract demo (cFEDemoMovie, 0x5D0990): the Xbox skips on A or B (0x4EABD0), the GameCube on Start.
+// For the last two the handler has to be reached from the GameCube's button as well, so its slot is given the
+// handler too (once), and the handler tells the two buttons apart by which is down on that player's controller.
+constexpr uint32_t kNotHandled = 0x2BF340;
+struct SlotAdd {
     uint32_t vtable;
     uint8_t slot;
-    uint32_t xbox, gamecube;
+    uint32_t handler;
 };
-constexpr SlotSwap kSlotSwaps[] = {
-    // Replay (0x5BEDE8): the Xbox hides and shows the panel (0x21C480) from Black, which the GameCube table puts on
-    // C right, so the C stick hid it; the GameCube hides with Y
-    {0x5BEDE8, 3 + 0x003, kNotHandled, 0x21C480},
-    {0x5BEDE8, 3 + 0x014, 0x21C480, kIgnore},
-    // Attract demo (cFEDemoMovie, 0x5D0990): the Xbox skips on A or B (0x4EABD0), the GameCube on Start
-    {0x5D0990, 3 + 0x001, 0x4EABD0, kIgnore},
-    {0x5D0990, 3 + 0x002, 0x4EABD0, kIgnore},
-    {0x5D0990, 3 + 0x005, kNotHandled, 0x4EABD0},
-    // Startup movies (the screen at 0x5D1960 that plays the EA Sports and intro movies, 0x4ED210): Start skips them
-    // (0x50C690) on both; the Xbox also skips on A, pressed or released (0x4BE0F0, menu actions 0x001 and 0x021)
-    {0x5D1960, 3 + 0x001, 0x4BE0F0, kIgnore},
-    {0x5D1960, 3 + 0x021, 0x4BE0F0, kIgnore},
+constexpr SlotAdd kSlotAdds[] = {
+    {0x5BEDE8, 3 + 0x003, 0x21C480},  // replay: Y
+    {0x5D0990, 3 + 0x005, 0x4EABD0},  // attract demo: Start
 };
 
-static void SwapScreenSlots(bool gamecube) {
-    for (const SlotSwap& s : kSlotSwaps) {
-        uint32_t at = s.vtable + 4 * s.slot, want = gamecube ? s.gamecube : s.xbox;
-        if (R32(at) != want) W32(at, want);
+static void AddScreenSlots() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    for (const SlotAdd& a : kSlotAdds) {
+        uint32_t at = a.vtable + 4 * a.slot;
+        if (R32(at) == kNotHandled) W32(at, a.handler);
+        else LOGR("gc: screen %08X slot %u isn't the one expected (%08X): left alone", a.vtable, a.slot, R32(at));
     }
 }
 
@@ -435,9 +457,7 @@ void Rumble(int port, uint16_t& left, uint16_t& right) {
 // after each poll: a controller plugged into or pulled from the port changes the table with it
 void AfterPoll(uint32_t self) {
     if (R32(self) != kPadVtable) return;
-    bool any = false;
-    for (auto& p : g_port_gc) any |= p.load();
-    SwapScreenSlots(any);
+    AddScreenSlots();
     std::lock_guard lock(g_lock);
     auto it = g_pads.find(self);
     if (it != g_pads.end()) Sync(self, it->second);
@@ -448,26 +468,42 @@ void AfterPoll(uint32_t self) {
 // The title screen (Press Start, and the intro movies before it). Its vtable slot 4 (0x4BB110 on Xbox) takes a menu
 // button event: the Xbox release passes it on to the generic menu handler (slot 44), which takes A as "accept" and
 // moves on; the GameCube release's same method (0x804E0EF4 in its front end overlay) is "return 1", so A does
-// nothing there and only Start (slot 8) leaves the screen. With a GameCube controller in use the Xbox one does
-// the same for it; another kind of controller's A still works.
+// nothing there and only Start (slot 8) leaves the screen. The same here when the A is a GameCube controller's.
 X86_EXTERN_FUNC(__imp__sub_004BB110);
 X86_FUNC(sub_004BB110) {
-    bool gamecube = false, other_a = false;
-    auto ports = gc::g_port_gc_view();
-    for (int port = 0; port < 4; port++) {
-        gamecube |= ports[port];
-        // the event doesn't say whose button it was, so: A down right now on a controller that isn't a GameCube
-        // one (an Xbox or PlayStation pad beside the adapter) is that controller's A, and works as on the Xbox
-        if (!ports[port]) {
-            input::Pad p = input::Poll(port);
-            other_a |= p.connected && !p.gc.present && p.analog[0] != 0;
-        }
-    }
-    if (!gamecube || other_a) {
-        __imp__sub_004BB110(ctx, base);
-        return;
-    }
-    ::kernel::Return(ctx, 1, 1);  // thiscall, one argument: handled
+    input::Pad pad;
+    if (gc::EventPlayer(R32(ctx.esp + 4), pad)) ::kernel::Return(ctx, 1, 1);  // thiscall, one argument: handled
+    else __imp__sub_004BB110(ctx, base);
+}
+
+// Startup movies: A (pressed or released) skips them on the Xbox, not on the GameCube
+X86_EXTERN_FUNC(__imp__sub_004BE0F0);
+X86_FUNC(sub_004BE0F0) {
+    input::Pad pad;
+    if (gc::EventPlayer(R32(ctx.esp + 4), pad)) ::kernel::Return(ctx, 1, 1);
+    else __imp__sub_004BE0F0(ctx, base);
+}
+
+// Replay: hide and show the panel. It's reached from Black (the Xbox's button for it; C right in the GameCube's
+// table) and from the X / GameCube Y action. A GameCube player's counts when his Y is down; anyone else's unless
+// his X is (the Xbox release doesn't take X here).
+X86_EXTERN_FUNC(__imp__sub_0021C480);
+X86_FUNC(sub_0021C480) {
+    input::Pad pad;
+    bool gamecube = gc::EventPlayer(R32(ctx.esp + 4), pad);
+    if (gamecube ? (pad.gc.buttons & input::GameCube::Y) != 0 : pad.analog[2] == 0) __imp__sub_0021C480(ctx, base);
+    else ::kernel::Return(ctx, gamecube ? 1 : 0, 1);  // the C stick: nothing; X: not handled
+}
+
+// Attract demo: skip. It's reached from A and B (the Xbox's) and from Start (the GameCube's). A GameCube player's
+// counts when his Start is down; anyone else's unless his Start is.
+X86_EXTERN_FUNC(__imp__sub_004EABD0);
+X86_FUNC(sub_004EABD0) {
+    input::Pad pad;
+    bool gamecube = gc::EventPlayer(R32(ctx.esp + 4), pad);
+    bool start = (pad.buttons & (1u << 4)) != 0;
+    if (gamecube == start) __imp__sub_004EABD0(ctx, base);
+    else ::kernel::Return(ctx, gamecube ? 1 : 0, 1);
 }
 
 // Sports Trax box. The Xbox release moves it with the right stick (actions 0x34 and 0x35, read for each player by

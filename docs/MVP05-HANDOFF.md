@@ -95,6 +95,7 @@ There's no `fixes` folder any more (it came from the v30 font attempt). Delete i
 
 ### 4.4 GameCube-only behaviour fixes
 These are hooks that apply only while a GameCube controller is in use:
+- **Beta 2.5: these four screens are decided per player (untested).** A menu button handler's one argument is the game's player number of whoever pressed (0x21C480 compares it with the replay's player, the number 0x198B00 takes). Hooks on 0x4BB110 (title), 0x4BE0F0 (startup movies), 0x21C480 (replay) and 0x4EABD0 (attract demo) follow the GameCube's rule only when that player's controller is a GameCube one, so an Xbox or PlayStation pad beside the adapter works as on its own console. The vtable slot swaps are gone: the replay's Y slot and the demo's Start slot are given the handlers once, and those two handlers tell the buttons apart by what's down (GameCube: Y / Start down; others: X / Start not down). A player number with no pad behind it falls back to the old rule (any GameCube controller plugged in).
 - **Title screen ("Press Start"):** A does nothing; only Start continues, as on the GameCube (hook on 0x4BB110).
 - **Attract demo and startup movies:** skip on Start only, not A/B (vtable slot swaps).
 - **Replay:** Y hides or shows the panel. On the Xbox it's Black, which the GameCube table puts on the C-stick, so the C-stick was hiding it.
