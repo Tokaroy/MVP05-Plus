@@ -133,11 +133,23 @@ uint32_t As162(uint32_t v) {
     return uint32_t(uint64_t(v) * 162 / games);
 }
 }  // namespace
+//
+// The two per-player goals count players in the same tracker: "X home runs by Y players" (goal 27, 0x49A2F8) reads
+// each player's home runs (0x1C9A00, returning to 0x49A33A) and "X wins by Y pitchers" (goal 28, 0x4999CD) each
+// pitcher's wins (0x1CA0D0, returning to 0x499A15), and compares them with the goal's X, which the tracker takes
+// straight from the goal object (0x4998C1), not through the readers above that scale it. So those two reads are
+// given as if over 162 games too: with X 20 shown as 8 in a 64-game season, 8 home runs count.
 X86_EXTERN_FUNC(__imp__sub_001C9A00);
 X86_FUNC(sub_001C9A00) {
     uint32_t ret = kernel::R32(ctx.esp);
     __imp__sub_001C9A00(ctx, base);
-    if (ret == 0x499987) ctx.eax = As162(ctx.eax);
+    if (ret == 0x499987 || ret == 0x49A33A) ctx.eax = As162(ctx.eax);
+}
+X86_EXTERN_FUNC(__imp__sub_001CA0D0);
+X86_FUNC(sub_001CA0D0) {
+    uint32_t ret = kernel::R32(ctx.esp);
+    __imp__sub_001CA0D0(ctx, base);
+    if (ret == 0x499A15) ctx.eax = As162(ctx.eax);
 }
 X86_EXTERN_FUNC(__imp__sub_001C98E0);
 X86_FUNC(sub_001C98E0) {

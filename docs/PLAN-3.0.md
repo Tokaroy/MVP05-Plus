@@ -81,5 +81,6 @@ memory capture to logs (the menu button is gone). **Still open:** a schedule swi
 while the old season is still played (switch between seasons, as the Schedule tab says); the dynasty goals: their counting targets are now
 scaled while the game reads them (hooks.cpp: the goal object, vtable 0x5B8BCC, 32 records of on/X/Y; readers 0x1DC8C0
 met?, 0x1DC960 progress, 0x1DCB10 text, 0x1F63E0 screen line, 0x1F6650 progress figure; WinPct checked as X * 486 =
-3 x 162 at 0x5B8C30). To check in game: the per-player goals (XWinsbyYP, XHRsYplayers) count players through the
-stat tracker (0x49B0C0 → 0x1ACCB0), which may use its own threshold.
+3 x 162 at 0x5B8C30). The per-player goals (XHRsYplayers, XWinsbyYP) are counted in the goal
+tracker (0x499730, cases 27 and 28) against the goal's X read straight from the object, so there the player's own
+home runs and wins are scaled instead (hooks.cpp).
