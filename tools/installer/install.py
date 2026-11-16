@@ -1987,71 +1987,93 @@ def make_schedule(parent, root, tk, ttk, on_saved):
     make()
 
 
+def _checkbox_images(tk):
+    """A ticked and an empty checkbox (13 x 13), drawn, for the rows of a list."""
+    imgs = []
+    for ticked in (False, True):
+        im = tk.PhotoImage(width=13, height=13)
+        im.put("#ffffff", to=(0, 0, 13, 13))
+        im.put("#333333", to=(0, 0, 13, 1)); im.put("#333333", to=(0, 12, 13, 13))
+        im.put("#333333", to=(0, 0, 1, 13)); im.put("#333333", to=(12, 0, 13, 13))
+        if ticked:  # a check mark
+            for x, y in ((3, 6), (4, 7), (5, 8), (6, 7), (7, 6), (8, 5), (9, 4)):
+                im.put("#111111", to=(x, y, x + 1, y + 2))
+        imgs.append(im)
+    return imgs
+
+
 def mods_tab(tabs, root, tk, ttk):
-    """Mods: import a mod's folder or files, name it, and a checkbox turns it on and off (mods.py)."""
+    """Mods: a list of the mods (a checkbox, name, version and author each), Add Mod, Refresh List and Configure
+    Mod (mods.py)."""
     import mods as MD
     from tkinter import filedialog
 
     frm = ttk.Frame(tabs, padding=12)
     tabs.add(frm, text="Mods")
     frm.columnconfigure(0, weight=1)
-    frm.rowconfigure(3, weight=1)
-    ttk.Label(frm, text="Mods", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w")
+    frm.rowconfigure(1, weight=1)
     ttk.Label(frm, foreground="#666", wraplength=600, justify="left", text=(
-        "Import a mod's folder or files, and each file takes the place of the game's file with the same name. "
-        "Tick a mod to use it. Your game files stay as they are. Changes take effect the next time the game "
-        "starts.")).grid(row=1, column=0, sticky="w", pady=(2, 8))
-    top = ttk.Frame(frm)
-    top.grid(row=2, column=0, sticky="we", pady=(0, 6))
-    ttk.Button(top, text="Import folder...", command=lambda: add(pick_folder)).pack(side="left")
-    ttk.Button(top, text="Import files...", command=lambda: add(pick_files)).pack(side="left", padx=6)
-    ttk.Button(top, text="Open mods folder", command=lambda: (os.makedirs(MD.mods_dir(root), exist_ok=True),
-                                                              os.startfile(MD.mods_dir(root))
-                                                              if os.name == "nt" else None)).pack(side="right")
+        "Tick a mod to use it. A mod's files take the place of the game's files of the same name; your game files "
+        "stay as they are. Changes take effect the next time the game starts.")).grid(
+        row=0, column=0, sticky="w", pady=(0, 8))
 
-    # the list: a checkbox a mod, scrolling when there are many
-    box = ttk.Frame(frm, relief="solid", borderwidth=1)
-    box.grid(row=3, column=0, sticky="nsew")
+    box = ttk.Frame(frm)
+    box.grid(row=1, column=0, sticky="nsew")
     box.columnconfigure(0, weight=1)
     box.rowconfigure(0, weight=1)
-    canvas = tk.Canvas(box, height=280, highlightthickness=0, borderwidth=0)
-    bar = ttk.Scrollbar(box, orient="vertical", command=canvas.yview)
-    canvas.configure(yscrollcommand=bar.set)
-    canvas.grid(row=0, column=0, sticky="nsew")
-    bar.grid(row=0, column=1, sticky="ns")
-    rows = ttk.Frame(canvas, padding=(10, 6))
-    rows.columnconfigure(0, weight=1)
-    win_id = canvas.create_window(0, 0, window=rows, anchor="nw")
-    rows.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-    canvas.bind("<Configure>", lambda e: canvas.itemconfigure(win_id, width=e.width))
-    canvas.bind("<MouseWheel>", lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+    tree = ttk.Treeview(box, columns=("version", "author"), selectmode="browse", height=12)
+    tree.heading("#0", text="Name", anchor="w")
+    tree.heading("version", text="Version", anchor="center")
+    tree.heading("author", text="Author", anchor="w")
+    tree.column("#0", width=300, minwidth=160, stretch=True)
+    tree.column("version", width=80, minwidth=60, anchor="center", stretch=False)
+    tree.column("author", width=180, minwidth=100, stretch=False)
+    tree.tag_configure("odd", background="#f3f3f3")
+    sb = ttk.Scrollbar(box, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=sb.set)
+    tree.grid(row=0, column=0, sticky="nsew")
+    sb.grid(row=0, column=1, sticky="ns")
+    boxes = _checkbox_images(tk)
+    tree._boxes = boxes  # kept, or Tk drops the images
+
+    buttons = ttk.Frame(frm)
+    buttons.grid(row=2, column=0, sticky="we", pady=(8, 0))
+    for c in range(3):
+        buttons.columnconfigure(c, weight=1, uniform="b")
+    add_btn = ttk.Button(buttons, text="Add Mod", command=lambda: add_menu())
+    add_btn.grid(row=0, column=0, sticky="we")
+    ttk.Button(buttons, text="Refresh List", command=lambda: (refresh(), say(""))).grid(
+        row=0, column=1, sticky="we", padx=6)
+    conf_btn = ttk.Button(buttons, text="Configure Mod", state="disabled", command=lambda: configure())
+    conf_btn.grid(row=0, column=2, sticky="we")
     note = ttk.Label(frm, text="", wraplength=600, justify="left")
-    note.grid(row=4, column=0, sticky="w", pady=(6, 0))
+    note.grid(row=3, column=0, sticky="w", pady=(6, 0))
     items = []
 
     def say(text, colour="#1a7f37"):
         note.configure(text=text, foreground=colour)
 
-    def refresh():
+    def refresh(select=None):
+        keep = select or (items[selected()][0] if selected() is not None else None)
         items[:] = MD.read_list(root)
-        clash = MD.clashes(root, items)
-        for w_ in rows.winfo_children():
-            w_.destroy()
-        if not items:
-            ttk.Label(rows, foreground="#777", text="No mods yet.").grid(row=0, column=0, sticky="w", pady=4)
+        tree.delete(*tree.get_children())
         for i, (name, on) in enumerate(items):
-            var = tk.BooleanVar(value=on)
-            ttk.Checkbutton(rows, text=name, variable=var, command=lambda i=i, v=var: set_on(i, v.get())).grid(
-                row=2 * i, column=0, sticky="w", pady=(3, 0))
-            ttk.Button(rows, text="Rename", width=8, command=lambda i=i: rename(i)).grid(
-                row=2 * i, column=1, pady=(3, 0))
-            ttk.Button(rows, text="Remove", width=8, command=lambda i=i: remove(i)).grid(
-                row=2 * i, column=2, padx=(4, 0), pady=(3, 0))
-            lost = [(o, c) for o, c, wins in clash.get(name, []) if not wins]
-            if lost:  # the files this one doesn't get, while an earlier mod has them too
-                ttk.Label(rows, foreground="#8a5a00", text="      " + "; ".join(
-                    f"{c} of its files come from {o} instead (added first)" for o, c in lost)).grid(
-                    row=2 * i + 1, column=0, columnspan=3, sticky="w")
+            info = MD.read_info(root, name)
+            iid = tree.insert("", "end", text="  " + name, image=boxes[on],
+                              values=(info.get("version", ""), info.get("author", "")),
+                              tags=("odd",) if i % 2 else ())
+            if name == keep:
+                tree.selection_set(iid)
+                tree.see(iid)
+        conf_btn.configure(state="normal" if selected() is not None else "disabled")
+        lost = [f"{name}: {c} of its files come from {o} instead (added first)"
+                for name, cl in MD.clashes(root, items).items() for o, c, wins in cl if not wins]
+        if lost:
+            say("\n".join(lost), "#8a5a00")
+
+    def selected():
+        sel = tree.selection()
+        return tree.index(sel[0]) if sel else None
 
     def set_on(i, on):
         items[i] = (items[i][0], on)
@@ -2059,8 +2081,37 @@ def mods_tab(tabs, root, tk, ttk):
             MD.write_list(root, items)
         except OSError as e:
             say(f"Couldn't save the mod list: {e}", "#a33")
-        refresh()
-        say(f"{items[i][0]} {'on' if on else 'off'}. Restart the game if it's running.")
+            return
+        say("")
+        refresh(items[i][0])
+        if not note.cget("text"):
+            say(f"{items[i][0]} {'on' if on else 'off'}. Restart the game if it's running.")
+
+    def click(event):
+        row = tree.identify_row(event.y)
+        if row and tree.identify_column(event.x) == "#0" and (
+                "image" in str(tree.identify_element(event.x, event.y)).lower() or event.x < 40):
+            i = tree.index(row)
+            set_on(i, not items[i][1])
+            return "break"
+
+    def space(_):
+        i = selected()
+        if i is not None:
+            set_on(i, not items[i][1])
+        return "break"
+
+    tree.bind("<Button-1>", click)
+    tree.bind("<space>", space)
+    tree.bind("<Double-1>", lambda e: configure() if tree.identify_row(e.y) else None)
+    tree.bind("<<TreeviewSelect>>", lambda e: conf_btn.configure(
+        state="normal" if selected() is not None else "disabled"))
+
+    def add_menu():
+        m = tk.Menu(frm, tearoff=0)
+        m.add_command(label="From a folder...", command=lambda: add(pick_folder))
+        m.add_command(label="From files or a zip...", command=lambda: add(pick_files))
+        m.tk_popup(add_btn.winfo_rootx(), add_btn.winfo_rooty() + add_btn.winfo_height())
 
     def ask_name(title, start, current=None):
         """The name typed in a small window (start in it, all selected); None if cancelled."""
@@ -2102,25 +2153,72 @@ def mods_tab(tabs, root, tk, ttk):
         win.wait_window()
         return result[0] if result else None
 
-    def rename(i):
-        old = items[i][0]
-        new = ask_name("Rename the mod", old, current=old)
-        if new is None or new == old:
+    def configure():
+        """A mod's name, version, author and description; and Remove."""
+        i = selected()
+        if i is None:
             return
-        problem = MD.rename(root, old, new)
-        if problem:
-            say(problem, "#a33")
-            return
-        refresh()
-        say(f"Renamed {old} to {new}.")
-
-    def remove(i):
         name = items[i][0]
-        from tkinter import messagebox
-        if messagebox.askyesno("Remove the mod?", f"Remove {name}? Your game files aren't touched.", parent=frm):
-            MD.remove(root, name)
-            refresh()
-            say(f"Removed {name}.")
+        info = MD.read_info(root, name)
+        w = frm.winfo_toplevel()
+        win = tk.Toplevel(w)
+        win.title("Configure " + name)
+        win.transient(w)
+        win.resizable(False, False)
+        f = ttk.Frame(win, padding=14)
+        f.grid()
+        vars_ = {}
+        for r, (key, label) in enumerate((("name", "Name"), ("version", "Version"), ("author", "Author"))):
+            ttk.Label(f, text=label).grid(row=r, column=0, sticky="w", pady=3)
+            vars_[key] = tk.StringVar(value=name if key == "name" else info.get(key, ""))
+            ttk.Entry(f, textvariable=vars_[key], width=44).grid(row=r, column=1, sticky="we", pady=3, padx=(8, 0))
+        ttk.Label(f, text="Description").grid(row=3, column=0, sticky="nw", pady=3)
+        desc = tk.Text(f, width=44, height=4, wrap="word", font=("Segoe UI", 9), relief="solid", borderwidth=1)
+        desc.insert("1.0", info.get("description", ""))
+        desc.grid(row=3, column=1, sticky="we", pady=3, padx=(8, 0))
+        n = len(MD.mod_files(root, name))
+        ttk.Label(f, foreground="#666", text=f"{n} game file{'s' if n != 1 else ''}, in mods\\{name}").grid(
+            row=4, column=1, sticky="w", padx=(8, 0))
+        err = ttk.Label(f, text="", foreground="#a33", wraplength=380, justify="left")
+        err.grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+        def save():
+            new = vars_["name"].get().strip()
+            if new != name:
+                problem = MD.rename(root, name, new)
+                if problem:
+                    err.configure(text=problem)
+                    return
+            try:
+                MD.write_info(root, new, {"title": info.get("title", ""), "version": vars_["version"].get(),
+                                          "author": vars_["author"].get(),
+                                          "description": " ".join(desc.get("1.0", "end").split())})
+            except OSError as e:
+                err.configure(text=f"Couldn't save it: {e}")
+                return
+            win.destroy()
+            refresh(new)
+            say(f"Saved {new}." if new == name else f"Renamed {name} to {new}.")
+
+        def remove():
+            from tkinter import messagebox
+            if messagebox.askyesno("Remove the mod?", f"Remove {name}? Your game files aren't touched.",
+                                   parent=win):
+                win.destroy()
+                MD.remove(root, name)
+                refresh()
+                say(f"Removed {name}.")
+
+        bar_ = ttk.Frame(f)
+        bar_.grid(row=6, column=0, columnspan=2, sticky="we", pady=(12, 0))
+        ttk.Button(bar_, text="Remove Mod...", command=remove).pack(side="left")
+        ttk.Button(bar_, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(bar_, text="Save", command=save).pack(side="right", padx=6)
+        win.bind("<Escape>", lambda e: win.destroy())
+        win.update_idletasks()
+        win.geometry(f"+{w.winfo_rootx() + (w.winfo_width() - win.winfo_width()) // 2}"
+                     f"+{w.winfo_rooty() + (w.winfo_height() - win.winfo_height()) // 3}")
+        win.grab_set()
 
     def pick_places(planned):
         """{path in the mod: [game paths]} for the files the game has in several places; None if cancelled."""
@@ -2182,37 +2280,39 @@ def mods_tab(tabs, root, tk, ttk):
         try:
             planned = MD.plan(assets, src)
             if not any(st != "unknown" for _, st, _ in planned):
-                say("None of those are game files, so there's nothing to import.", "#a33")
+                say("None of those are game files, so there's nothing to add.", "#a33")
                 return
-            start = MD.suggested_name(list(chosen))
+            info = MD.source_info(src)
+            start = info.get("title") or MD.suggested_name(list(chosen))
             name = ask_name("Name the mod", MD.unique_name(root, start) if MD.name_problem(root, start) else start)
             if name is None:
                 return
             picks = pick_places(planned)
             if picks is None:
-                say("Nothing imported.", "#555")
+                say("Nothing added.", "#555")
                 return
-            say("Importing...", "#555")
+            say("Adding...", "#555")
             frm.update_idletasks()
-            name, n = MD.install(root, src, planned, picks, name)
+            name, n = MD.install(root, src, planned, picks, name, info)
         except OSError as e:
-            say(f"Couldn't import the mod: {e}", "#a33")
+            say(f"Couldn't add the mod: {e}", "#a33")
             return
         finally:
             src.close()
         left = [p for p, st, _ in planned if st == "unknown"]
         new = [t[0] for _, st, t in planned if st == "new"]
-        refresh()
+        say("")
+        refresh(name)
         if not name:
-            say("Nothing imported.", "#555")
+            say("Nothing added.", "#555")
             return
         files = f"{n} file{'s' if n != 1 else ''}"
         if left or new:
-            say(f"Imported {name} ({files}), on, with {len(left) + len(new)} to look at. Restart the game if "
-                "it's running.", "#8a5a00")
+            say(f"Added {name} ({files}), on, with {len(left) + len(new)} to look at. Restart the game if it's "
+                "running.", "#8a5a00")
             import_report(name, files, left, new)
-        else:
-            say(f"Imported {name} ({files}), on. Restart the game if it's running.")
+        elif not note.cget("text"):
+            say(f"Added {name} ({files}), on. Restart the game if it's running.")
 
     def import_report(name, files, left, new):
         """After an import that wasn't all straight matches: every file left out, and every new one."""

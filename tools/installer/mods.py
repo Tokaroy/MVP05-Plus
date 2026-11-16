@@ -16,6 +16,7 @@ import zipfile
 
 DIR = "mods"
 LIST = "mods.txt"
+INFO = "mod.ini"  # a mod's own name, version, author and description, in its folder (not a game file)
 JUNK = {".ds_store", "thumbs.db", "desktop.ini"}
 NOT_MODDABLE = {"default.xbe"}  # MVP05-Plus runs its own copy of the game's code
 HEADER = ("# MVP05-Plus mods, the first in the list winning when two have the same file. Each line is \"on\" or "
@@ -72,13 +73,47 @@ def write_list(root, items):
 
 
 def mod_files(root, name):
-    """The mod's files as game paths (with "/"), as they're stored."""
+    """The mod's files as game paths (with "/"), as they're stored (not its mod.ini)."""
     base = os.path.join(mods_dir(root), name)
     out = []
     for dp, _, fns in os.walk(base):
         for fn in fns:
-            out.append(os.path.relpath(os.path.join(dp, fn), base).replace(os.sep, "/"))
+            rel = os.path.relpath(os.path.join(dp, fn), base).replace(os.sep, "/")
+            if rel.lower() != INFO:
+                out.append(rel)
     return sorted(out)
+
+
+# ---- a mod's info: mod.ini, "key = value" lines under [mod] (or none) -----------------------------------------
+
+INFO_KEYS = ("title", "version", "author", "description")
+
+
+def parse_info(text):
+    info = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line[0] in "#;[":
+            continue
+        k, sep, v = line.partition("=")
+        k = k.strip().lower()
+        if sep and k in INFO_KEYS:
+            info[k] = v.strip().strip('"')[:200]
+    return info
+
+
+def read_info(root, name):
+    try:
+        with open(os.path.join(mods_dir(root), name, INFO), encoding="utf-8", errors="replace") as f:
+            return parse_info(f.read())
+    except OSError:
+        return {}
+
+
+def write_info(root, name, info):
+    lines = ["[mod]"] + [f"{k} = {str(info[k]).strip()}" for k in INFO_KEYS if str(info.get(k, "")).strip()]
+    with open(os.path.join(mods_dir(root), name, INFO), "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines) + "\n")
 
 
 def clashes(root, items):
@@ -143,6 +178,22 @@ def rename(root, old, new):
         return f"Couldn't rename it: {e.strerror or e}"
     write_list(root, [(new if n == old else n, o) for n, o in items])
     return None
+
+
+def source_info(source):
+    """The mod.ini a mod comes with (the one nearest its top), as a dict; {} if none."""
+    best = None
+    for path, opener in source.entries:
+        if path.replace("\\", "/").split("/")[-1].lower() == INFO:
+            if best is None or path.count("/") < best[0].count("/"):
+                best = (path, opener)
+    if not best:
+        return {}
+    try:
+        with best[1]() as f:
+            return parse_info(f.read(65536).decode("utf-8", "replace"))
+    except Exception:
+        return {}
 
 
 def suggested_name(paths):
@@ -247,11 +298,12 @@ def from_zip(path):
 
 
 def plan(assets, source):
-    """[(path in the mod, status, [game paths])] for each of source's files."""
-    return [(p, *assets.match(p)) for p, _ in source.entries]
+    """[(path in the mod, status, [game paths])] for each of source's files (not its mod.ini)."""
+    return [(p, *assets.match(p)) for p, _ in source.entries
+            if p.replace("\\", "/").split("/")[-1].lower() != INFO]
 
 
-def install(root, source, planned, picks, name=None):
+def install(root, source, planned, picks, name=None, info=None):
     """The planned files copied into a new mod (picks: {path in the mod: [game paths]} for the "pick" ones; others
     of them are left out), added to the end of the list, on. Returns (name, files copied); none copied, no mod."""
     name = unique_name(root, name or source.name)
@@ -278,5 +330,7 @@ def install(root, source, planned, picks, name=None):
     if not done:
         shutil.rmtree(base, ignore_errors=True)
         return None, 0
+    if info:
+        write_info(root, name, info)
     write_list(root, [(n, o or n == name) for n, o in read_list(root)])  # new folders come last
     return name, len(done)
