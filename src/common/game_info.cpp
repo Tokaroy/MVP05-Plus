@@ -37,7 +37,6 @@ const app::GameInfo app::kGame = {
                 {"retirement", nullptr, &tools::g_retirement},
                 {"contract_prices", nullptr, &tools::g_contract_prices},
                 {"resign_chance", nullptr, &tools::g_resign_chance},
-                {"park_factors", nullptr, &tools::g_park_factors},
                 {"rookie_quality", nullptr, &tools::g_rookie_quality}},
     .load = nullptr,                      // reads more from the settings file's toml::table
     .save = nullptr,                      // writes more into it

@@ -15,8 +15,8 @@ extern bool g_player_full_detail;  // every player drawn with his most detailed 
 extern bool g_daylight_parks;  // day games in daylight at the parks EA lit as dusk (Fenway, ...)
 extern bool g_depth_of_field;  // EA's depth of field (xbox_render's DOF IsActive, off on the Xbox)
 // dynasty data tweaks (dynasty_data.cpp): percents of the game's own (100: as the game), resign_chance 100 +/- points,
-// park_factors 1 neutral, rookie_quality 1 better / 2 much better
-extern uint32_t g_dev_speed, g_aging, g_retirement, g_contract_prices, g_resign_chance, g_park_factors, g_rookie_quality;
+// rookie_quality 1 better / 2 much better
+extern uint32_t g_dev_speed, g_aging, g_retirement, g_contract_prices, g_resign_chance, g_rookie_quality;
 extern uint32_t g_rain;  // 0: the game's own weather, 1: rain in every game
 // asked for from the Tools menu, done by the game's own thread at the end of a frame (src/game/hooks.cpp)
 extern std::atomic<int> g_unlock_request;  // 1: asked, 2: done, 3: no profile signed in

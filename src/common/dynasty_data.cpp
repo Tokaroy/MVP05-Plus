@@ -86,25 +86,6 @@ std::string Contracts(const std::string& t, double x) {
     });
 }
 
-// stadium.csv: team,HR,Hit,3B,2B modifiers (each a fraction, 0 for none)
-std::string NeutralParks(const std::string& t) {
-    std::string out;
-    bool header = true;
-    std::istringstream in(t);
-    std::string line;
-    while (std::getline(in, line)) {
-        bool cr = !line.empty() && line.back() == '\r';
-        if (cr) line.pop_back();
-        if (!header && !line.empty()) {
-            auto c = line.find(',');
-            if (c != std::string::npos) line = line.substr(0, c) + ",0,0,0,0";
-        }
-        header = false;
-        out += line + (cr ? "\r\n" : "\n");
-    }
-    return out;
-}
-
 // resign.csv: Age,Star Level,Chance of re-signing (percent)
 std::string Resign(const std::string& t, int delta) {
     return EachRow(t, [&](std::vector<std::string>& f) {
@@ -189,7 +170,6 @@ void Apply() {
             for (const char* n : {"progbadj.csv", "progpadj.csv"})
                 edits.push_back({n, [=](const std::string& t) { return Development(t, up, down); }});
         if (price != 1) edits.push_back({"contract.csv", [=](const std::string& t) { return Contracts(t, price); }});
-        if (tools::g_park_factors == 1) edits.push_back({"stadium.csv", NeutralParks});
         if (!edits.empty()) any |= EditBig("progress.big", edits, done);
     }
     {

@@ -1219,23 +1219,8 @@ def desktop_resolution():
 # checkbox. The first choice is the game's own (what an unset key means).
 TWEAKS = {
     "Gameplay": [
-        ("pitcher_recovery", "Pitchers' rest",
-         "How fast pitchers get their stamina back between games. By default, a starter is ready again two days after "
-         "a full start and relievers are almost never tired.",
-         {"MVP 05 Default (100%): starters ready after about 2 days": 100,
-          "Quicker (75%): starters ready after about 3 days": 75,
-          "Five-man rotation (50%): starters ready after about 4 days": 50,
-          "Slow (35%): starters ready after about 6 days": 35}),
-        ("injury_length", "Injury length",
-         "How long injured players are out in a dynasty. How often they get hurt is the game's own Injury sliders.",
-         {"MVP 05 Default (100%)": 100, "Shorter (50%): half as long": 50,
-          "Longer (150%): half again as long": 150, "Much longer (200%): twice as long": 200}),
         ("rain", "Weather", "EA's rain, still in the game but rarely seen.",
          {"MVP 05 Default (the game's own weather)": 0, "Rain in every game (test)": 1}),
-        ("park_factors", "Park factors",
-         "How each park changes home runs, hits, doubles and triples in the games the computer simulates (Coors helps "
-         "hitters, Comerica hurts home runs). Games you play use the parks themselves.",
-         {"MVP 05 Default (EA's 2005 parks)": 0, "Neutral: every park plays the same": 1}),
     ],
     "Graphics": [
         ("player_full_detail", None, "Full detail: every player's best model, not only the ones in the play", None),
@@ -1249,6 +1234,17 @@ TWEAKS = {
           "Doubled (128 MB, 97 MB for the game): room for mods": 128}),
     ],
     "Dynasty": [
+        ("pitcher_recovery", "Pitchers' rest",
+         "How fast pitchers get their stamina back between games. By default, a starter is ready again two days after "
+         "a full start and relievers are almost never tired.",
+         {"MVP 05 Default (100%): starters ready after about 2 days": 100,
+          "Quicker (75%): starters ready after about 3 days": 75,
+          "Five-man rotation (50%): starters ready after about 4 days": 50,
+          "Slow (35%): starters ready after about 6 days": 35}),
+        ("injury_length", "Injury length",
+         "How long injured players are out in a dynasty. How often they get hurt is the game's own Injury sliders.",
+         {"MVP 05 Default (100%)": 100, "Shorter (50%): half as long": 50,
+          "Longer (150%): half again as long": 150, "Much longer (200%): twice as long": 200}),
         ("dev_speed", "Player development",
          "How often young players' ratings go up each season (EA: always at 18-19, half the time at 24).",
          {"MVP 05 Default": 100, "Slower (70%)": 70, "Much slower (50%)": 50, "Faster (130%)": 130}),
@@ -2383,15 +2379,14 @@ def tools_tab(tabs, root, tk, ttk):
          "Creator.", playoffs_tool),
         ("Standings Projector", "Every team's record projected to 162 games, keeping its winning percentage. Short "
          "seasons don't need it: they end on their own.", short_season_tool),
-        ("Gameplay adjustments", "Pitchers' rest, injury length, rain and park factors. Set here, used the next "
-         "time the game starts.", adjustments_tool("Gameplay", "Gameplay adjustments",
+        ("Gameplay adjustments", "Rain. Set here, used the next time the game starts.", adjustments_tool("Gameplay", "Gameplay adjustments",
                                                    "Changes to how games play, built into MVP05-Plus. Your game "
                                                    "files stay as they are.")),
-        ("Dynasty adjustments", "Player development, aging, retirement, contract prices, re-signing and rookies. "
-         "Set here, used the next time the game starts.",
+        ("Dynasty adjustments", "Pitchers' rest, injury length, player development, aging, retirement, contract "
+         "prices, re-signing and rookies. Set here, used the next time the game starts.",
          adjustments_tool("Dynasty", "Dynasty adjustments",
-                          "Changes to EA's dynasty tables (they're used between seasons), built into MVP05-Plus. "
-                          "Your game files stay as they are.")),
+                          "Changes to how a dynasty runs, built into MVP05-Plus. Your game files stay as they "
+                          "are.")),
     ]
     pages = {}
 

@@ -43,12 +43,11 @@ depth_of_field = false
 rain = 0
 # Dynasty tweaks (the game's data tables), as percents of the game's own (100: as the game):
 # how often ratings go up (dev_speed) and down (aging) each season, how often players retire, free agents' asking
-# prices; resign_chance 100 plus or minus points; park_factors 1 for neutral parks; rookie_quality 1 or 2 for more
+# prices; resign_chance 100 plus or minus points; rookie_quality 1 or 2 for more
 # star rookies.
 dev_speed = 100
 aging = 100
 retirement = 100
 contract_prices = 100
 resign_chance = 100
-park_factors = 0
 rookie_quality = 0
