@@ -12,6 +12,7 @@ extern uint32_t g_pitcher_recovery;  // percent of the game's own between-games 
 extern uint32_t g_injury_length;  // percent of the game's own injury lengths in a dynasty (100: as the game)
 extern uint32_t g_memory_mb;  // the Xbox's RAM: 64 (as the console) or 128, with the game's heap grown to match
 extern uint32_t g_rain;  // 0 the game's own (rain at SBC Park, Safeco at night), 1 at every outdoor park, 2 in every game
+extern bool g_daylight_parks;  // day games in daylight at the parks EA lit as dusk (Fenway, ...): lighting and sky
 extern bool g_player_full_detail;  // every player drawn with his most detailed model (the game drops distant ones to lower ones)
 extern bool g_depth_of_field;  // EA's depth of field (xbox_render's DOF IsActive, off on the Xbox)
 // dynasty data tweaks (dynasty_data.cpp): percents of the game's own (100: as the game), resign_chance 100 +/- points,

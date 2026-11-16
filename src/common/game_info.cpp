@@ -4,6 +4,7 @@
 #include "kernel/memory.h"
 #include "../game/gc_controls.h"
 #include "save_backup.h"
+#include "day_parks.h"
 #include "dynasty_data.h"
 #include "mods.h"
 #include "season_length.h"
@@ -31,6 +32,7 @@ const app::GameInfo app::kGame = {
                 {"memory_mb", nullptr, &tools::g_memory_mb},  // the Xbox's RAM: 64 or 128 MB
                 {"player_full_detail", &tools::g_player_full_detail, nullptr},  // every player's most detailed model
                 {"depth_of_field", &tools::g_depth_of_field, nullptr},
+                {"daylight_parks", &tools::g_daylight_parks, nullptr},  // day lighting and sky at the dusk-lit parks
                 {"rain", nullptr, &tools::g_rain},  // 1: the game's rain at every outdoor park, 2: in every game  // EA's depth of field, off on the Xbox
                 {"dev_speed", nullptr, &tools::g_dev_speed},  // dynasty data tweaks (dynasty_data.cpp)
                 {"aging", nullptr, &tools::g_aging},
@@ -45,10 +47,7 @@ const app::GameInfo app::kGame = {
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
         mods::Load();                      // the mods that are on (mods/mods.txt), for the tweaks to start from
-        {  // the daylight parks tweak (Beta 2.5 tests, taken out) left its copies here
-            std::error_code ec;
-            std::filesystem::remove_all(app::ExeDir() / "tweaks" / "data" / "stadium", ec);
-        }
+        dayparks::Apply();                 // day games in daylight at the dusk-lit parks, if asked (clears its last copies)
         tuning::Apply();                   // the game's tuning (datafile.big) as the Game Tweaks ask
         dynastydata::Apply();              // the dynasty's data tables (development, contracts, ...) as they ask
         mods::Mount();                     // then the mods' folders, after the tweaks' (which win)

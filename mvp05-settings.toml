@@ -33,6 +33,9 @@ injury_length = 100
 # The Xbox's RAM in MB: 64 (as the console) or 128, which grows the game's heap from 41 MB to 97 MB for mods that
 # load more than the Xbox could hold.
 memory_mb = 64
+# Day games in daylight (lighting and sky) at the parks EA lit as dusk: Fenway, Turner Field, Crosley, Forbes,
+# the Polo Grounds, ...
+daylight_parks = false
 # Rain: 0 as the game (showers in some games at SBC Park, and at Safeco Field at night), 1 the same at every
 # outdoor park, 2 rain in every game.
 rain = 0
