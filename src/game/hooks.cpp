@@ -244,6 +244,31 @@ X86_FUNC(sub_001A1CA0) {
     __imp__sub_001A1CA0(ctx, base);
 }
 
+// Auto Fix Roster without a way out. The roster fixer (0x4901D0, cdecl: team; run from the injury pop-up's Auto Fix
+// at 0x1C66AB, and for the computer's teams) fills the rotation in a loop: while the team has fewer than five
+// starters (0x1B8C30, returning to 0x4902A5) it picks a pitcher (0x4771B0) and adds him (0x1B8DA0). When no pitcher
+// can be picked (enough of the staff hurt at once, which longer injuries make likelier) nothing is added, the count
+// never reaches five and the loop never ends: the game freezes. Five passes is all the loop can need, so after
+// twelve the count is given as five and the fixer goes on with the starters it has.
+namespace {
+thread_local uint32_t g_rotation_passes = 0;
+}
+X86_EXTERN_FUNC(__imp__sub_004901D0);
+X86_FUNC(sub_004901D0) {
+    g_rotation_passes = 0;
+    __imp__sub_004901D0(ctx, base);
+}
+X86_EXTERN_FUNC(__imp__sub_001B8C30);
+X86_FUNC(sub_001B8C30) {
+    uint32_t ret = kernel::R32(ctx.esp), team = kernel::R32(ctx.esp + 4);
+    __imp__sub_001B8C30(ctx, base);
+    if (ret == 0x4902A5 && int32_t(ctx.eax) < 5 && ++g_rotation_passes > 12) {
+        LOGR("roster: Auto Fix couldn't find a fifth starter for team %u (%d in the rotation): going on without", team,
+             int32_t(ctx.eax));
+        ctx.eax = 5;
+    }
+}
+
 // Contract prices. What a player asks for (free agents and the dynasty's own players re-signing alike) comes from
 // 0x462720 (thiscall on the negotiation; ecx at entry), not from contract.csv's $ columns: the game never reads those
 // (only its years, at 0x636294..0x63629C). It blends the player's current salary toward a value from his ratings,
