@@ -37,7 +37,11 @@ player format and put in the 05 dynasty's draft pool. To work out first:
   year (`postconv.hist_merge`; FORMAT_NOTES 3.6). Tested on made-up rows only: the reference saves weren't on hand,
   so run tools/saves/mvp05/tests/run_tests.py; t1 may come out DIFFERENT (history bytes) and then needs a load in the game.
 - **Dynasty export to GameCube (Beta 2.5):** right-click a dynasty in *Saves > Your saves* > *Export to GameCube...*
-  (`export_to_gamecube` in install.py, over `dynasty05.xbox_to_gc`; built on a .gci of the user's own, which names it).
+  or *Export to PS2...* (`export_dynasty` in install.py, over `dynasty05.xbox_to_gc` and `ps2dynasty05.to_ps2`; built
+  on a save of the user's own from that console, which names it). The PS2 side is `convert_body` run the other way
+  (`convert_body_to_ps2`): on the matched Yankees pair, PS2 -> Xbox -> PS2 gives back the PS2 save byte for byte up to
+  the history, whose rows match and whose link words (runtime pointers, 4,513 non-zero in the real save) are written
+  as zero, as the Xbox import does. **Not loaded on a PS2 or PCSX2 yet:** the zero links are the thing to watch.
 - **Low latency for MVP06-Plus;** MVP 2004.
 
 # Done

@@ -975,7 +975,7 @@ def import_tool(frm, root, tk, ttk):
         "\u2022  rosters or a dynasty from the PC (.sav)\n"
         "\u2022  rosters or a dynasty from another Xbox (its data.dat)\n"
         "The save goes into one of your own saves of the same kind, which is backed up first. To take a dynasty the "
-        "other way, to the GameCube, right-click it in your saves.")).grid(
+        "other way, to the GameCube or the PS2, right-click it in your saves.")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 12))
 
     def step(row, n, text):
@@ -1153,59 +1153,92 @@ def import_tool(frm, root, tk, ttk):
     return refresh
 
 
-def export_to_gamecube(frm, folder, name):
-    """A dynasty of yours as a GameCube .gci (spy_jam's converter), built on one of your own GameCube dynasty saves:
-    it gives the .gci its name and its place on the memory card."""
+def export_dynasty(frm, folder, name, to, tk, ttk):
+    """A dynasty of yours as a GameCube .gci (spy_jam's converter) or a PS2 save (to: "GameCube" or "PS2"), built on
+    one of your own dynasty saves from that console: it gives the new file its name and its place on the card."""
     import dynasty05 as DY
+    import ps2card as PC
+    import ps2dynasty05 as PD
+    import rosters05 as RO
     from tkinter import filedialog, messagebox
+    title = f"Export to {to}"
+    errors = (OSError, DY.DynastyError, PD.Ps2DynastyError, RO.RosterError, PC.CardError)
     try:
         with open(os.path.join(folder, "data.dat"), "rb") as f:
             data = f.read()
         if len(data) != DY.XB_DYNASTY_SIZE:
-            raise DY.DynastyError("only dynasty saves go to the GameCube (not owner mode, rosters or the others)")
+            raise DY.DynastyError(f"only dynasty saves go to the {to} (not owner mode, rosters or the others)")
         DY.read_xbox(data)
-    except (OSError, DY.DynastyError) as e:
-        messagebox.showinfo("Export to GameCube", f"\"{name}\" can't be exported: {e}.", parent=frm)
+    except errors as e:
+        messagebox.showinfo(title, f"\"{name}\" can't be exported: {e}.", parent=frm)
         return
-    if not messagebox.askokcancel("Export to GameCube", (
-            f"\"{name}\" is written into a copy of one of your own GameCube dynasty saves.\n\n"
-            "If you don't have one: start a dynasty in the GameCube game and save it, then in Dolphin open "
-            "Tools > Memory Card Manager and export that save as a .gci file.\n\n"
-            "Choose that .gci next. It isn't changed: you get a new file to import with the Memory Card Manager.\n\n"
-            "The GameCube keeps each player's last 6 seasons of history, so older seasons are left out."),
-            parent=frm):
+    gc = to == "GameCube"
+    how = ("If you don't have one: start a dynasty in the GameCube game and save it, then in Dolphin open "
+           "Tools > Memory Card Manager and export that save as a .gci file.\n\n"
+           "Choose that .gci next. It isn't changed: you get a new file to import with the Memory Card Manager."
+           if gc else
+           "If you don't have one: start a dynasty in the PS2 game and save it. Then choose your PCSX2 memory card "
+           "(.ps2) next, or that save as a .psu.\n\n"
+           "It isn't changed: you get a new .psu to import (in PCSX2, with a memory card tool such as mymc; on a "
+           "console, with uLaunchELF).")
+    if not messagebox.askokcancel(title, (
+            f"\"{name}\" is written into a copy of one of your own {to} dynasty saves.\n\n{how}\n\n"
+            f"The {to} keeps each player's last 6 seasons of history, so older seasons are left out."), parent=frm):
         return
-    p = filedialog.askopenfilename(parent=frm, title="One of your GameCube dynasty saves (.gci)", filetypes=[
-        ("GameCube saves", "*.gci"), ("All files", "*.*")])
+    p = filedialog.askopenfilename(parent=frm, title=f"One of your {to} dynasty saves", filetypes=[
+        ("GameCube saves", "*.gci")] if gc else [("PS2 saves and memory cards", "*.psu *.ps2 *.sav")] + [
+        ("All files", "*.*")])
     if not p:
         return
     try:
         with open(p, "rb") as f:
             base = f.read()
-        fname, out = DY.xbox_to_gc(data, base)
-    except (OSError, DY.DynastyError) as e:
-        messagebox.showerror("Export to GameCube", f"Nothing was written: {e}.", parent=frm)
+        if gc:
+            fname, out = DY.xbox_to_gc(data, base)
+            stem, ext = (fname[:-4] if fname.endswith(".gci") else fname) + " (from MVP05-Plus)", ".gci"
+        else:
+            stem = os.path.splitext(os.path.basename(p))[0] + " (from MVP05-Plus)"
+            if base[:28] == PC.MAGIC:  # a memory card: its dynasty, as a .psu
+                found = []
+                for card_folder, files in PC.Card(base).saves().items():
+                    for n, b in files.items():
+                        if len(b) == PD.HEAD + PD.SIZE:
+                            try:
+                                found.append((card_folder, n, "dynasty", PD.read(b)))
+                            except PD.Ps2DynastyError:
+                                pass
+                if not found:
+                    raise PD.Ps2DynastyError("that memory card has no MVP 2005 dynasty on it")
+                which = found[0] if len(found) == 1 else choose_card_save(frm, tk, ttk, found)
+                if not which:
+                    return
+                base = PC.to_psu(which[0], PC.Card(base).saves()[which[0]])
+                stem = f"{which[0]} (from MVP05-Plus)"
+            ext, out = PD.to_ps2(data, base)
+    except errors as e:
+        messagebox.showerror(title, f"Nothing was written: {e}.", parent=frm)
         return
-    stem = fname[:-len(".gci")] if fname.endswith(".gci") else fname
-    to = filedialog.asksaveasfilename(parent=frm, title="Save the GameCube dynasty as", initialdir=os.path.dirname(p),
-                                      initialfile=stem + " (from MVP05-Plus).gci", defaultextension=".gci",
-                                      filetypes=[("GameCube saves", "*.gci")])
-    if not to:
+    dest = filedialog.asksaveasfilename(parent=frm, title=f"Save the {to} dynasty as", initialdir=os.path.dirname(p),
+                                        initialfile=stem + ext, defaultextension=ext,
+                                        filetypes=[(f"{to} saves", "*" + ext)])
+    if not dest:
         return
-    if os.path.abspath(to) == os.path.abspath(p) and not messagebox.askyesno(
-            "Export to GameCube", "That's the save you chose to build on. Replace it?", parent=frm):
+    if os.path.abspath(dest) == os.path.abspath(p) and not messagebox.askyesno(
+            title, "That's the save you chose to build on. Replace it?", parent=frm):
         return
     try:
-        with open(to + ".new", "wb") as f:
+        with open(dest + ".new", "wb") as f:
             f.write(out)
-        os.replace(to + ".new", to)
+        os.replace(dest + ".new", dest)
     except OSError as e:
-        messagebox.showerror("Export to GameCube", f"Nothing was written: {e}.", parent=frm)
+        messagebox.showerror(title, f"Nothing was written: {e}.", parent=frm)
         return
-    messagebox.showinfo("Export to GameCube", (
-        f"Saved {os.path.basename(to)}.\n\nIn Dolphin: Tools > Memory Card Manager > Import, and choose it. It takes "
-        "the place of the GameCube dynasty it was built on, so delete that one from the card first if Dolphin says "
-        "the save already exists."), parent=frm)
+    messagebox.showinfo(title, f"Saved {os.path.basename(dest)}.\n\n" + (
+        "In Dolphin: Tools > Memory Card Manager > Import, and choose it. It takes the place of the GameCube dynasty "
+        "it was built on, so delete that one from the card first if Dolphin says the save already exists."
+        if gc else
+        "Import it onto your memory card. It takes the place of the PS2 dynasty it was built on, so delete that one "
+        "from the card first if the tool says the save already exists."), parent=frm)
 
 
 def current_saves_tab(frm, root, tk, ttk):
@@ -1242,7 +1275,9 @@ def current_saves_tab(frm, root, tk, ttk):
     folders = {}
     right_click_menu(tree, lambda iid: [
         ("Open folder", lambda: open_in_explorer(folders[iid])),
-        ("Export to GameCube\u2026", lambda: export_to_gamecube(frm, folders[iid], tree.item(iid, "text")))])
+        ("Export to GameCube\u2026",
+         lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "GameCube", tk, ttk)),
+        ("Export to PS2\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PS2", tk, ttk))])
 
     bar = ttk.Frame(frm)
     bar.grid(row=2, column=0, sticky="we", pady=(8, 0))

@@ -5,6 +5,8 @@
   to_xbox(data, xbox_dynasty)   the PS2 dynasty as an Xbox data.dat, built on one of your own Xbox dynasty saves (it
                                 keeps that save's name, gives the Xbox's own platform words and the older real-life
                                 history seasons: the PS2 keeps 6 per player, the Xbox 16)
+  to_ps2(xbox_dynasty, ps2)     an Xbox dynasty as a PS2 save, built on one of your own PS2 dynasty saves: the same
+                                kind of file as the one given (.psu or .sav), under that save's name
 
 Learned on a matched pair (a new Yankees dynasty saved straight away on each platform). The PS2 stores the dynasty
 the way the Xbox does (little-endian, the same bitfield order), in the same stream of sections as the GameCube
@@ -271,3 +273,98 @@ def to_xbox(data, xbox_dynasty, name=None):
         out = C.build_xbox(xbox_dynasty, dict(name=name or t["name"], typ="Dynasty", flags=t["flags"], payload=new))
         _check(C.verify_xbox(out), "the converted save failed its signature check")
     return out
+
+
+GC_ROWS = 6  # the history seasons the PS2 keeps for a player
+
+
+def convert_body_to_ps2(xb, tpl):
+    """An Xbox dynasty body -> a PS2 dynasty body (SIZE bytes), built on tpl (one of your PS2 dynasties'):
+    convert_body the other way, with the PS2's own platform words, pad bytes and object records from tpl."""
+    _check(len(xb) == DY.XB_LEN and len(tpl) == SIZE, "the saves aren't the size MVP 2005 dynasties are")
+    try:
+        T, L = _layout(xb, False), _layout(tpl, True)
+    except (struct.error, IndexError):
+        raise Ps2DynastyError("the dynasty isn't one this reads")
+    _check(L["n"] == T["n"], "the two dynasties don't have the same number of managers")
+    n = T["n"]
+    out = bytearray()
+    # settings header: the 2 option ints the PS2 doesn't have left out, its 3 pad bytes and 5 unset bytes from tpl
+    out += xb[0:84] + xb[92:0x120]
+    out += bytes([xb[0x120]]) + tpl[0x119:0x11C] + bytes([xb[0x121]])
+    out += xb[0x122:0x2C8] + tpl[0x2C3:0x2C8] + xb[0x2CD:0x2CF]
+    _check(len(out) == 0x2CA, "the settings header came out the wrong size")
+    # rosters: the same bytes, the org records' 8 platform words the PS2's
+    roster = bytearray(xb[0x2CF:T["mgr"]])
+    for i in range(34):
+        o = 0x472 + 0x54 * i + 24
+        roster[o - 0x2CA:o - 0x2CA + 32] = tpl[o:o + 32]
+    out += roster
+    mgr = len(out)
+    _check(mgr == T["mgr"] - 5, "the rosters came out the wrong size")
+    for i in range(n):
+        rec = xb[T["mgr"] + 44 * i:T["mgr"] + 44 * (i + 1)]
+        new = RO.manager(rec, RO.XBOX, RO.PS2)
+        _check(RO.manager(new, RO.PS2, RO.XBOX) == rec, "a manager record holds something this can't carry over")
+        out += new
+    after = len(out)
+    shift = 5 - 4 * n - 8  # a PS2 offset from here on + shift = its Xbox offset
+    _check(after + 8 + shift == T["after"], "the managers came out the wrong size")
+    _check(xb[T["after"]:T["after"] + 88] == bytes(88), "the table after the managers isn't one this reads")
+    x = T["m"]
+    out += bytes(8) + xb[T["after"]:x[2]]
+    # the platform words: the PS2's
+    out[after + 104:after + 108] = tpl[L["after"] + 104:L["after"] + 108]
+    for k, offs in FIXED:
+        for o in offs:
+            at = T["tags"][k] - shift + o
+            out[at:at + 4] = tpl[L["tags"][k] + o:L["tags"][k] + o + 4]
+    # the player records: the pad byte from byte 31 to the end
+    p = T["players"] - shift
+    for i in range(PLAYERS):
+        rec = out[p + ROW * i:p + ROW * (i + 1)]
+        _check(rec[31] == 0, "a player record holds something this can't carry over")
+        out[p + ROW * i:p + ROW * (i + 1)] = rec[:31] + rec[32:] + b"\0"
+    # schedules, trades, roster moves, injuries: the same; the rest of the object records: the PS2 save's
+    out += xb[x[2]:T["tail"] + OBJECTS]
+    out += tpl[L["tail"] + OBJECTS:L["m"][3]]
+    out += xb[x[3]:x[5]]
+    # player history: each player's last 6 seasons
+    groups = _history(xb, x)
+    out += MARKER + struct.pack("<I", len(groups))
+    for k, rows in groups:
+        rows = rows[-GC_ROWS:]
+        out += struct.pack("<I", k) + bytes([len(rows)])
+        for r in rows:
+            out += bytes(4) + r[4:]
+    f = len(out) + 4
+    out += MARKER + struct.pack("<I", f)
+    _check(len(out) <= SIZE, "the converted dynasty doesn't fit a PS2 dynasty save")
+    out += bytes(0x55 if k % 2 == 0 else 0xBB for k in range(len(out), SIZE))
+    try:
+        _layout(bytes(out), True)
+    except (struct.error, IndexError):
+        raise Ps2DynastyError("the converted dynasty didn't come out as one the PS2 reads")
+    return bytes(out)
+
+
+def to_ps2(xbox_dynasty, ps2_save):
+    """An Xbox dynasty (data.dat) as a PS2 save, built on ps2_save (a .psu or the .sav from one, a dynasty of your
+    own): (kind, bytes), kind ".psu" or ".sav" as ps2_save was. It keeps that save's name, icon and place."""
+    try:
+        t = DY.read_xbox(xbox_dynasty)
+    except DY.DynastyError as e:
+        raise Ps2DynastyError(str(e))
+    data = bytes(ps2_save)
+    read(data)  # checked: a dynasty, its checksums good
+    if len(data) == HEAD + SIZE:
+        start, kind = 0, ".sav"
+    else:
+        start = [s for _, s, z in RO.psu_entries(data) if z == HEAD + SIZE][0]
+        kind = ".psu"
+    sav = bytearray(data[start:start + HEAD + SIZE])
+    sav[HEAD:] = convert_body_to_ps2(bytes(t["payload"]), bytes(sav[HEAD:]))
+    struct.pack_into("<I", sav, 4, RO.crc(bytes(sav[HEAD:])))
+    out = data[:start] + bytes(sav) + data[start + HEAD + SIZE:]
+    read(out)
+    return kind, out
