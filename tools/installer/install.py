@@ -1659,8 +1659,13 @@ def settings_tab(tabs, root, tk, ttk):
             note.configure(text=f"{w} x {h} is {'widescreen' if is_wide(w, h) else '4:3'}: pick that aspect ratio, or "
                                 f"another resolution.", foreground="#a33")
             return
-        fp = fps_names.get(fps.get(), 60) if fps.get() in fps_names else int(fps.get())
-        an = aniso_names.get(aniso.get(), 0) if aniso.get() in aniso_names else int(aniso.get().rstrip("x"))
+        try:
+            fp = fps_names[fps.get()] if fps.get() in fps_names else int(fps.get())
+            an = aniso_names[aniso.get()] if aniso.get() in aniso_names else int(aniso.get().rstrip("x"))
+        except ValueError:  # typed into the settings file by hand, and not a number
+            note.configure(text="Pick a frame rate cap and a texture filtering level from their lists.",
+                           foreground="#a33")
+            return
         ST.write(root, {"display_mode": mode.get().lower(), "width": w, "height": h, "render_percent": sc,
                         "fps_cap": fp, "vsync": vsync.get(), "low_latency": low_latency.get(),
                         "anisotropic_filtering": an,

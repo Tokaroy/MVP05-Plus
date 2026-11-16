@@ -81,8 +81,21 @@ void RemovePad(SDL_JoystickID id) {
     }
 }
 
+// a controller plugged in while all four ports were taken got none: it takes one when a port comes free (AddPad
+// passes over the ones already open)
+void AddWaiting() {
+    if (!g_sdl || FirstFree() < 0) return;
+    int count = 0;
+    if (SDL_JoystickID* ids = SDL_GetGamepads(&count)) {
+        for (int i = 0; i < count; i++) AddPad(ids[i]);
+        SDL_free(ids);
+    }
+}
+
 // GameCube controllers come and go with the adapter's own ports
-void UpdateGameCube() {
+void AddWaiting();
+bool UpdateGameCube() {  // true when a port came free
+    bool freed = false;
     GameCube gc;
     for (int slot = 0; slot < 4; slot++) {
         bool on = gcadapter::Read(slot, gc);
@@ -95,8 +108,10 @@ void UpdateGameCube() {
         } else if (!on && port < 4) {
             g_gc[port] = -1;
             LOGR("input: controller %d unplugged: GameCube controller (adapter port %d)", port + 1, slot + 1);
+            freed = true;
         }
     }
+    return freed;
 }
 
 // once a millisecond at most, however many ports and threads read
@@ -106,15 +121,16 @@ void UpdatePads() {
         std::chrono::steady_clock::now().time_since_epoch()).count());
     if (now == last) return;
     last = now;
-    UpdateGameCube();
+    bool freed = UpdateGameCube();
     if (!g_sdl) return;
     SDL_PumpEvents();
     SDL_Event e;
     while (SDL_PeepEvents(&e, 1, SDL_GETEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) == 1) {
         if (e.type == SDL_EVENT_GAMEPAD_ADDED) AddPad(e.gdevice.which);
         else if (e.type == SDL_EVENT_JOYSTICK_ADDED) LogUnmapped(e.jdevice.which);
-        else if (e.type == SDL_EVENT_GAMEPAD_REMOVED) RemovePad(e.gdevice.which);
+        else if (e.type == SDL_EVENT_GAMEPAD_REMOVED) RemovePad(e.gdevice.which), freed = true;
     }
+    if (freed) AddWaiting();
 }
 
 // Windows counts only the keyboard and mouse as activity, so with a controller alone the screen blanks and the PC

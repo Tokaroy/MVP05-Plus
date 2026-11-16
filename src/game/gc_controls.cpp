@@ -449,12 +449,21 @@ void AfterPoll(uint32_t self) {
 // button event: the Xbox release passes it on to the generic menu handler (slot 44), which takes A as "accept" and
 // moves on; the GameCube release's same method (0x804E0EF4 in its front end overlay) is "return 1", so A does
 // nothing there and only Start (slot 8) leaves the screen. With a GameCube controller in use the Xbox one does
-// the same.
+// the same for it; another kind of controller's A still works.
 X86_EXTERN_FUNC(__imp__sub_004BB110);
 X86_FUNC(sub_004BB110) {
-    bool gamecube = false;
-    for (auto& p : gc::g_port_gc_view()) gamecube |= p;
-    if (!gamecube) {
+    bool gamecube = false, other_a = false;
+    auto ports = gc::g_port_gc_view();
+    for (int port = 0; port < 4; port++) {
+        gamecube |= ports[port];
+        // the event doesn't say whose button it was, so: A down right now on a controller that isn't a GameCube
+        // one (an Xbox or PlayStation pad beside the adapter) is that controller's A, and works as on the Xbox
+        if (!ports[port]) {
+            input::Pad p = input::Poll(port);
+            other_a |= p.connected && !p.gc.present && p.analog[0] != 0;
+        }
+    }
+    if (!gamecube || other_a) {
         __imp__sub_004BB110(ctx, base);
         return;
     }
