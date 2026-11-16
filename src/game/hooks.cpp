@@ -304,75 +304,137 @@ X86_FUNC(sub_002D31E0) {
 //
 // With player_full_detail the level 1 pool is made 55 bodies (as many as levels 1 to 3 have between them; the table is
 // set before the pools are made, in the heap hook above) and a request for level 2 or 3 becomes one for level 1.
-// Level 0 stays six: its face slots can't be grown from here. The log counts the levels asked for.
-static void PlayerDetailPools() {
-    if (tools::g_player_full_detail && kernel::R32(0x59B358) == 6 && kernel::R32(0x59B35C) == 10) {
-        kernel::W32(0x59B35C, 55);
-        LOGR("player detail: level 1 pool 10 -> 55 bodies");
+//
+// With 128 MB of memory as well, the level 0 pool is made 40 bodies, and a request for any level becomes one for
+// level 0 while it has a body to spare. What kept level 0 at six is its face slots: 12 bytes each ({buffer, loaded
+// face, ?}) in an array of 6 inside the pools' owner at +0xAC, with the owner's next member straight after. A body
+// finds its slot by its number in the pool (body+0x468): owner + 0xAC + number * 12, worked out in 32 bits (0x11FE20
+// and 0x1266FE, the only two places). So the 34 extra bodies are given numbers that land that sum in a block of our
+// own (number = (distance / 4) * 0x2AAAAAAB, the inverse of 3, kept to 30 bits: times 12 it wraps to the distance),
+// and the three loops over "6 slots" are followed by ours over the extra ones: 0x1263D0 gives each slot its 0xCF08
+// byte buffer when a game is set up, 0x1262B0 lets go of the loaded faces and 0x126620 frees the buffers after it.
+namespace {
+constexpr uint32_t kFullBodies = 40, kOwnBodies = 6, kExtraBodies = kFullBodies - kOwnBodies;
+uint32_t g_extra_slots = 0;  // guest address of the extra face slots, once the pools are made with them
+
+bool WantFullPool() { return tools::g_player_full_detail && mem::kPhysicalSize >= (128u << 20); }
+
+void ReleaseExtraFaces(X86Context& ctx) {
+    if (!g_extra_slots) return;
+    uint32_t ecx = ctx.ecx, eax = ctx.eax;
+    for (uint32_t j = 0; j < kExtraBodies; j++) {
+        uint32_t slot = g_extra_slots + 12 * j, face = kernel::R32(slot + 4);
+        if (!face) continue;
+        ctx.ecx = face;
+        kernel::CallGuest(ctx, 0x300D80, {});                        // as 0x1263A6 does for the game's six
+        kernel::CallGuest(ctx, kernel::R32(0x644F0C), {face, 0x30});
+        kernel::W32(slot + 4, 0);
     }
+    ctx.ecx = ecx;
+    ctx.eax = eax;
+}
+}  // namespace
+
+static void PlayerDetailPools() {
+    if (!tools::g_player_full_detail || kernel::R32(0x59B358) != kOwnBodies || kernel::R32(0x59B35C) != 10) return;
+    kernel::W32(0x59B35C, 55);
+    if (WantFullPool()) kernel::W32(0x59B358, kFullBodies);
+    LOGR("player detail: pools %u, 55, 20, 25 bodies (the game's: 6, 10, 20, 25)", kernel::R32(0x59B358));
+}
+
+// the pools' owner made (thiscall, at boot): the extra level 0 bodies given their face slots
+X86_EXTERN_FUNC(__imp__sub_00129E20);
+X86_FUNC(sub_00129E20) {
+    uint32_t owner = ctx.ecx;
+    __imp__sub_00129E20(ctx, base);
+    if (kernel::R32(0x59B358) != kFullBodies || g_extra_slots) return;
+    uint32_t pool = kernel::R32(owner + 0x3C8);
+    uint32_t block = pool ? kernel::CallGuest(ctx, 0x2C6CB0, {12 * kExtraBodies + 16, 0}) : 0;
+    if (!block) {
+        LOGE("player detail: no memory for the extra face slots");
+        return;
+    }
+    block = (block + 3) & ~3u;
+    for (uint32_t i = 0; i < 12 * kExtraBodies; i += 4) kernel::W32(block + i, 0);
+    for (uint32_t k = kOwnBodies; k < kFullBodies; k++) {
+        uint32_t distance = block + 12 * (k - kOwnBodies) - (owner + 0xAC);  // a multiple of 4
+        kernel::W32(pool + k * 0x4B4 + 0x468, ((distance >> 2) * 0x2AAAAAABu) & 0x3FFFFFFFu);
+    }
+    g_extra_slots = block;
+    LOGR("player detail: %u full-detail bodies, the extra %u with face slots at %08X", kFullBodies, kExtraBodies, block);
+}
+
+// a game set up (thiscall, one byte argument): each face slot's buffer
+X86_EXTERN_FUNC(__imp__sub_001263D0);
+X86_FUNC(sub_001263D0) {
+    __imp__sub_001263D0(ctx, base);
+    if (!g_extra_slots) return;
+    uint32_t eax = ctx.eax, flags = kernel::R32(0x6747BC) | 0x400, got = 0;
+    for (uint32_t j = 0; j < kExtraBodies; j++) {
+        uint32_t slot = g_extra_slots + 12 * j;
+        if (kernel::R32(slot)) continue;
+        uint32_t buf = kernel::CallGuest(ctx, 0x2DA9D9, {0x59C788, 0xCF08, flags});
+        if (!buf) buf = kernel::CallGuest(ctx, 0x2DA9C0, {0x59C788, 0xCF08, flags});
+        kernel::W32(slot, buf);
+        got += buf != 0;
+    }
+    ctx.eax = eax;
+    LOGR("player detail: %u face buffers for the extra bodies", got);
+}
+
+// every body let go of (thiscall): the loaded faces too
+X86_EXTERN_FUNC(__imp__sub_001262B0);
+X86_FUNC(sub_001262B0) {
+    __imp__sub_001262B0(ctx, base);
+    ReleaseExtraFaces(ctx);
+}
+
+// a game torn down (thiscall): the face buffers freed
+X86_EXTERN_FUNC(__imp__sub_00126620);
+X86_FUNC(sub_00126620) {
+    ReleaseExtraFaces(ctx);
+    if (g_extra_slots) {
+        uint32_t eax = ctx.eax;
+        for (uint32_t j = 0; j < kExtraBodies; j++) {
+            uint32_t slot = g_extra_slots + 12 * j, buf = kernel::R32(slot);
+            if (buf) kernel::CallGuest(ctx, 0x2DA38A, {buf});
+            kernel::W32(slot, 0);
+        }
+        ctx.eax = eax;
+    }
+    __imp__sub_00126620(ctx, base);
 }
 
 X86_EXTERN_FUNC(__imp__sub_0012D820);
 X86_FUNC(sub_0012D820) {
-    uint32_t level = kernel::R32(ctx.esp + 8);
-    static std::atomic<uint32_t> asked[5], calls{0};
-    if (level < 5 && calls.load() < 5000) {
+    uint32_t owner = ctx.ecx, who = kernel::R32(ctx.esp + 4), level = kernel::R32(ctx.esp + 8), give = level;
+    if (tools::g_player_full_detail && level >= 1 && level <= 3 && kernel::R32(0x59B35C) >= 55) {
+        give = 1;
+        uint32_t pool = kernel::R32(owner + 0x3C8);
+        if (g_extra_slots && pool) {  // level 0 if he has one of its bodies already, or it has some to spare
+            uint32_t spare = 0;
+            bool has = false;
+            for (uint32_t k = 0; k < kFullBodies; k++) {
+                uint32_t body = pool + k * 0x4B4;
+                if (kernel::R32(body + 0x464) & 0xFF) continue;
+                if (kernel::R32(body + 0x440) == who) has = true;
+                if (!kernel::R32(body + 0x46C)) spare++;
+            }
+            if (has || spare > 2) give = 0;
+        }
+        if (give != level) kernel::W32(ctx.esp + 8, give);
+    }
+    static std::atomic<uint32_t> asked[5], given[5], calls{0};
+    if (level < 5 && give < 5 && calls.load() < 5000) {
         asked[level]++;
+        given[give]++;
         if (calls.fetch_add(1) + 1 == 5000)
-            LOGR("player detail: levels asked over 5000 requests: 0 %u, 1 %u, 2 %u, 3 %u, none %u%s", asked[0].load(),
-                 asked[1].load(), asked[2].load(), asked[3].load(), asked[4].load(),
-                 tools::g_player_full_detail ? " (2 and 3 given 1)" : "");
+            LOGR("player detail: over 5000 requests, asked for levels 0 to 3: %u, %u, %u, %u (none %u); given: %u, %u, "
+                 "%u, %u",
+                 asked[0].load(), asked[1].load(), asked[2].load(), asked[3].load(), asked[4].load(), given[0].load(),
+                 given[1].load(), given[2].load(), given[3].load());
     }
-    if (tools::g_player_full_detail && (level == 2 || level == 3) && kernel::R32(0x59B35C) >= 55)
-        kernel::W32(ctx.esp + 8, 1);
     __imp__sub_0012D820(ctx, base);
-}
-
-// Rain. The game has rain (EA's debug menu has "Rain Pattern" and "Draw Rain"), but it only makes the weather object
-// at four stadiums: the scene set-up at 0x128A32 calls 0x286A70 (cdecl: scene, the set-up's first argument, stadium
-// number) only when the scene is a game (scene+0x6F0 == 0) and the stadium number is 0x13 or 0x39 (SBC Park, day and
-// night), 0x3E (Safeco Field at night) or 0x23 (a002day); the numbers index the stadium file table at 0x62E4B0.
-// 0x286A70 makes the object (kept at 0x660384, freed with the scene at 0x271F10) and resets it with 0x283AB0, which
-// picks the pattern: a number 0..8, and 1 or 2 (a shower) when it is one of those, so 2 games in 9, else none (0x27CA60,
-// thiscall: pattern, start now). The rain is drawn as lines by the object itself (0x27D5B0), with nothing loaded from
-// the stadium, so it works anywhere.
-//
-// With rain = 1 every outdoor stadium gets the weather object, with the game's own odds. With rain = 2 every game has
-// pattern 3 (rain for the whole game) from the start: 0x27CA60 only keeps a 3 when the object's +0x3C is set, and
-// only starts at once when "start now" is. The object is made from the call just before the game's own check
-// (0x270950, returning to 0x128A23, where edi is the scene, esi the stadium's entry and ebp the set-up's frame), and
-// not in the four domes (astrdome, metrdome, olymdome, tropdome: 73 to 76).
-X86_EXTERN_FUNC(__imp__sub_00286A70);
-X86_FUNC(sub_00286A70) {
-    __imp__sub_00286A70(ctx, base);
-    uint32_t obj = kernel::R32(0x660384);
-    if (tools::g_rain == 2 && obj) {
-        uint32_t result = ctx.eax, ecx = ctx.ecx;
-        kernel::W32(obj + 0x3C, 1);
-        ctx.ecx = obj;
-        kernel::CallGuest(ctx, 0x27CA60, {3, 1});
-        ctx.ecx = ecx;
-        ctx.eax = result;
-        kernel::W32(0x663EC0, 3);
-        LOGR("weather: rain for the whole game");
-    } else if (obj) {
-        LOGR("weather: the game's own pattern, %u (0 none, 1 and 2 a shower)", kernel::R32(obj + 0x24));
-    }
-}
-
-X86_EXTERN_FUNC(__imp__sub_00270950);
-X86_FUNC(sub_00270950) {
-    bool setup = kernel::R32(ctx.esp) == 0x128A23;
-    __imp__sub_00270950(ctx, base);
-    if (!setup || !tools::g_rain) return;
-    uint32_t scene = ctx.edi, entry = ctx.esi;
-    if (!scene || !entry || kernel::R32(scene + 0x6F0) != 0 || kernel::R32(0x660384)) return;
-    uint32_t stadium = kernel::R32(entry);
-    bool own = stadium == 0x13 || stadium == 0x39 || stadium == 0x3E || stadium == 0x23;  // the game makes these
-    bool dome = stadium >= 73 && stadium <= 76;
-    if (own || dome || stadium > 84) return;
-    LOGR("weather: stadium %u given the game's rain", stadium);
-    kernel::CallGuest(ctx, 0x286A70, {scene, kernel::R32(ctx.ebp + 8), stadium});
 }
 
 // Things the Tools menu asks the game to do, run by the game's own thread at the end of a frame: the two functions

@@ -40,7 +40,7 @@ daylight_parks = false
 # outdoor park, 2 rain in every game.
 rain = 0
 # Nobody on the field drawn with the game's two simplest player models: umpires and fielders away from the play
-# get the second-best one (the game keeps its six full-detail players as they are).
+# get the second-best one. With memory_mb = 128 as well, up to 40 are at full detail (the game has room for 6).
 player_full_detail = false
 # EA's depth of field (background blur), which the Xbox version has turned off (being tested).
 depth_of_field = false

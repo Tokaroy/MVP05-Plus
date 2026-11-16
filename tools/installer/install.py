@@ -1219,7 +1219,8 @@ def desktop_resolution():
 # checkbox. The first choice is the game's own (what an unset key means).
 TWEAKS = {
     "Graphics": [
-        ("player_full_detail", None, "More detail: nobody on the field drops to the game's two simplest player models (test)", None),
+        ("player_full_detail", None, "More detail: nobody on the field drops to the game's two simplest player models; with memory "
+                                     "doubled below, up to 40 at full detail where the game has 6 (test)", None),
         ("daylight_parks", None, "Daylight day games: day lighting and sky at Fenway, Turner Field and the other "
                                  "parks EA lit as dusk (test)", None),
         ("rain", "Rain",
