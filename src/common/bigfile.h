@@ -1,6 +1,6 @@
 #pragma once
 // EA BIG archives (BIGF) and RefPack, for the Game Tweaks that put changed copies of the game's data files in the
-// "tweaks" overlay folder beside the exe (tuning.cpp, dynasty_data.cpp, day_parks.cpp).
+// "tweaks" overlay folder beside the exe (tuning.cpp, dynasty_data.cpp).
 #include <cstdint>
 #include <filesystem>
 #include <initializer_list>

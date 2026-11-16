@@ -1214,18 +1214,12 @@ def desktop_resolution():
         return None
 
 
-# Game Tweaks, by group (Gameplay and Dynasty are pages in the Tools tab, Graphics a window from Settings): (key in
+# Game Tweaks, by group (Dynasty a page in the Tools tab, Graphics a window from Settings): (key in
 # mvp05-settings.toml, title, explanation, {choice: value}) for a dropdown, or (key, None, text, None) for a
 # checkbox. The first choice is the game's own (what an unset key means).
 TWEAKS = {
-    "Gameplay": [
-        ("rain", "Weather", "EA's rain, still in the game but rarely seen.",
-         {"MVP 05 Default (the game's own weather)": 0, "Rain in every game (test)": 1}),
-    ],
     "Graphics": [
         ("player_full_detail", None, "Full detail: every player's best model, not only the ones in the play", None),
-        ("daylight_parks", None, "Daylight day games at Fenway, Turner Field and the other parks EA lit as dusk",
-         None),
         ("depth_of_field", None, "Depth of field: EA's background blur, turned off on the Xbox (test)", None),
         ("memory_mb", "Memory",
          "Room for what the game loads: stadiums, players, crowds. The Xbox had 64 MB, and the game keeps about 41 MB "
@@ -1999,8 +1993,8 @@ def _checkbox_images(tk):
 
 
 def mods_tab(tabs, root, tk, ttk):
-    """Mods: a list of the mods (a checkbox, name, file types and size each), Add Mod, Refresh List and Configure
-    Mod (mods.py)."""
+    """Mods: a list of the mods (a checkbox, name, file types and size each), Add Mod and Open Mods Folder; a right
+    click on a mod renames, opens, exports or removes it (mods.py)."""
     import mods as MD
     from tkinter import filedialog
 
@@ -2010,7 +2004,8 @@ def mods_tab(tabs, root, tk, ttk):
     frm.rowconfigure(1, weight=1)
     ttk.Label(frm, foreground="#666", wraplength=600, justify="left", text=(
         "Tick a mod to use it. A mod's files take the place of the game's files of the same name; your game files "
-        "stay as they are. Changes take effect the next time the game starts.")).grid(
+        "stay as they are. Right-click a mod to rename, open, export or remove it. Changes take effect the next "
+        "time the game starts.")).grid(
         row=0, column=0, sticky="w", pady=(0, 8))
 
     box = ttk.Frame(frm)
@@ -2034,14 +2029,12 @@ def mods_tab(tabs, root, tk, ttk):
 
     buttons = ttk.Frame(frm)
     buttons.grid(row=2, column=0, sticky="we", pady=(8, 0))
-    for c in range(3):
+    for c in range(2):
         buttons.columnconfigure(c, weight=1, uniform="b")
     add_btn = ttk.Button(buttons, text="Add Mod", command=lambda: add_menu())
     add_btn.grid(row=0, column=0, sticky="we")
-    ttk.Button(buttons, text="Refresh List", command=lambda: (refresh(), say(""))).grid(
-        row=0, column=1, sticky="we", padx=6)
-    conf_btn = ttk.Button(buttons, text="Configure Mod", state="disabled", command=lambda: configure())
-    conf_btn.grid(row=0, column=2, sticky="we")
+    ttk.Button(buttons, text="Open Mods Folder", command=lambda: open_folder(MD.mods_dir(root))).grid(
+        row=0, column=1, sticky="we", padx=(6, 0))
     note = ttk.Label(frm, text="", wraplength=600, justify="left")
     note.grid(row=3, column=0, sticky="w", pady=(6, 0))
     items = []
@@ -2060,7 +2053,6 @@ def mods_tab(tabs, root, tk, ttk):
             if name == keep:
                 tree.selection_set(iid)
                 tree.see(iid)
-        conf_btn.configure(state="normal" if selected() is not None else "disabled")
         lost = [f"{name}: {c} of its files come from {o} instead (added first)"
                 for name, cl in MD.clashes(root, items).items() for o, c, wins in cl if not wins]
         if lost:
@@ -2098,9 +2090,39 @@ def mods_tab(tabs, root, tk, ttk):
 
     tree.bind("<Button-1>", click)
     tree.bind("<space>", space)
-    tree.bind("<Double-1>", lambda e: configure() if tree.identify_row(e.y) else None)
-    tree.bind("<<TreeviewSelect>>", lambda e: conf_btn.configure(
-        state="normal" if selected() is not None else "disabled"))
+    def double(event):  # on a name (not its checkbox): rename
+        row = tree.identify_row(event.y)
+        if row and event.x >= 40:
+            rename(tree.index(row))
+
+    tree.bind("<Double-1>", double)
+
+    def open_folder(path):
+        os.makedirs(path, exist_ok=True)
+        if os.name == "nt":
+            os.startfile(path)
+
+    def context(event):
+        row = tree.identify_row(event.y)
+        if not row:
+            return
+        tree.selection_set(row)
+        i = tree.index(row)
+        name, on = items[i]
+        m = tk.Menu(frm, tearoff=0)
+        m.add_command(label="Turn off" if on else "Turn on", command=lambda: set_on(i, not on))
+        m.add_separator()
+        m.add_command(label="Rename...", command=lambda: rename(i))
+        m.add_command(label="Open Folder", command=lambda: open_folder(os.path.join(MD.mods_dir(root), name)))
+        m.add_command(label="Export as Zip...", command=lambda: export(i))
+        m.add_separator()
+        m.add_command(label="Remove...", command=lambda: remove(i))
+        try:
+            m.tk_popup(event.x_root, event.y_root)
+        finally:
+            m.grab_release()
+
+    tree.bind("<Button-3>", context)
 
     def add_menu():
         m = tk.Menu(frm, tearoff=0)
@@ -2148,62 +2170,38 @@ def mods_tab(tabs, root, tk, ttk):
         win.wait_window()
         return result[0] if result else None
 
-    def configure():
-        """Rename or remove a mod."""
-        i = selected()
-        if i is None:
+    def rename(i):
+        old = items[i][0]
+        new = ask_name("Rename the mod", old, current=old)
+        if new is None or new == old:
             return
+        problem = MD.rename(root, old, new)
+        if problem:
+            say(problem, "#a33")
+            return
+        refresh(new)
+        say(f"Renamed {old} to {new}.")
+
+    def export(i):
         name = items[i][0]
-        w = frm.winfo_toplevel()
-        win = tk.Toplevel(w)
-        win.title("Configure " + name)
-        win.transient(w)
-        win.resizable(False, False)
-        f = ttk.Frame(win, padding=14)
-        f.grid()
-        ttk.Label(f, text="Name").grid(row=0, column=0, sticky="w")
-        var = tk.StringVar(value=name)
-        entry = ttk.Entry(f, textvariable=var, width=44)
-        entry.grid(row=1, column=0, sticky="we", pady=(2, 0))
-        types, size = MD.summary(root, name)
-        n = len(MD.mod_files(root, name))
-        ttk.Label(f, foreground="#666", text=f"{n} file{'s' if n != 1 else ''} ({types}), {MD.size_text(size)}, "
-                                              f"in mods\\{name}").grid(row=2, column=0, sticky="w", pady=(4, 0))
-        err = ttk.Label(f, text="", foreground="#a33", wraplength=380, justify="left")
-        err.grid(row=3, column=0, sticky="w", pady=(4, 0))
+        dest = filedialog.asksaveasfilename(title="Export " + name, parent=frm, initialfile=name + ".zip",
+                                            defaultextension=".zip", filetypes=[("Zip", "*.zip")])
+        if not dest:
+            return
+        try:
+            n = MD.export_zip(root, name, dest)
+        except OSError as e:
+            say(f"Couldn't export {name}: {e}", "#a33")
+            return
+        say(f"Exported {name} ({n} file{'s' if n != 1 else ''}) to {dest}.")
 
-        def save(_=None):
-            new = var.get().strip()
-            if new != name:
-                problem = MD.rename(root, name, new)
-                if problem:
-                    err.configure(text=problem)
-                    return
-            win.destroy()
-            refresh(new)
-            say("" if new == name else f"Renamed {name} to {new}.")
-
-        def remove():
-            from tkinter import messagebox
-            if messagebox.askyesno("Remove the mod?", f"Remove {name}? Your game files aren't touched.",
-                                   parent=win):
-                win.destroy()
-                MD.remove(root, name)
-                refresh()
-                say(f"Removed {name}.")
-
-        bar_ = ttk.Frame(f)
-        bar_.grid(row=4, column=0, sticky="we", pady=(12, 0))
-        ttk.Button(bar_, text="Remove Mod...", command=remove).pack(side="left")
-        ttk.Button(bar_, text="Cancel", command=win.destroy).pack(side="right")
-        ttk.Button(bar_, text="Save", command=save).pack(side="right", padx=6)
-        entry.bind("<Return>", save)
-        win.bind("<Escape>", lambda e: win.destroy())
-        win.update_idletasks()
-        win.geometry(f"+{w.winfo_rootx() + (w.winfo_width() - win.winfo_width()) // 2}"
-                     f"+{w.winfo_rooty() + (w.winfo_height() - win.winfo_height()) // 3}")
-        entry.focus_set()
-        win.grab_set()
+    def remove(i):
+        name = items[i][0]
+        from tkinter import messagebox
+        if messagebox.askyesno("Remove the mod?", f"Remove {name}? Your game files aren't touched.", parent=frm):
+            MD.remove(root, name)
+            refresh()
+            say(f"Removed {name}.")
 
     def pick_places(planned):
         """{path in the mod: [game paths]} for the files the game has in several places; None if cancelled."""
@@ -2379,9 +2377,6 @@ def tools_tab(tabs, root, tk, ttk):
          "Creator.", playoffs_tool),
         ("Standings Projector", "Every team's record projected to 162 games, keeping its winning percentage. Short "
          "seasons don't need it: they end on their own.", short_season_tool),
-        ("Gameplay adjustments", "Rain. Set here, used the next time the game starts.", adjustments_tool("Gameplay", "Gameplay adjustments",
-                                                   "Changes to how games play, built into MVP05-Plus. Your game "
-                                                   "files stay as they are.")),
         ("Dynasty adjustments", "Pitchers' rest, injury length, player development, aging, retirement, contract "
          "prices, re-signing and rookies. Set here, used the next time the game starts.",
          adjustments_tool("Dynasty", "Dynasty adjustments",

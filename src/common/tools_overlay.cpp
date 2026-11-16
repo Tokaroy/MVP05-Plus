@@ -26,8 +26,6 @@ uint32_t g_pitcher_recovery = 100;
 uint32_t g_injury_length = 100;
 uint32_t g_memory_mb = 64;
 bool g_player_full_detail = false;
-uint32_t g_rain = 0;
-bool g_daylight_parks = false;
 bool g_depth_of_field = false;
 uint32_t g_dev_speed = 100, g_aging = 100, g_retirement = 100, g_contract_prices = 100, g_resign_chance = 100,
          g_rookie_quality = 0;

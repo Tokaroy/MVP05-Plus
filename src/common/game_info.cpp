@@ -1,8 +1,9 @@
+#include <filesystem>
+
 #include "app/app.h"
 #include "kernel/memory.h"
 #include "../game/gc_controls.h"
 #include "save_backup.h"
-#include "day_parks.h"
 #include "dynasty_data.h"
 #include "mods.h"
 #include "season_length.h"
@@ -29,8 +30,6 @@ const app::GameInfo app::kGame = {
                 {"injury_length", nullptr, &tools::g_injury_length},  // % of the game's injury lengths
                 {"memory_mb", nullptr, &tools::g_memory_mb},  // the Xbox's RAM: 64 or 128 MB
                 {"player_full_detail", &tools::g_player_full_detail, nullptr},  // every player's most detailed model
-                {"rain", nullptr, &tools::g_rain},  // 1: rain in every game
-                {"daylight_parks", &tools::g_daylight_parks, nullptr},  // day games in daylight at the dusk-lit parks
                 {"depth_of_field", &tools::g_depth_of_field, nullptr},  // EA's depth of field, off on the Xbox
                 {"dev_speed", nullptr, &tools::g_dev_speed},  // dynasty data tweaks (dynasty_data.cpp)
                 {"aging", nullptr, &tools::g_aging},
@@ -45,7 +44,10 @@ const app::GameInfo app::kGame = {
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
         mods::Load();                      // the mods that are on (mods/mods.txt), for the tweaks to start from
-        dayparks::Apply();                 // day games in daylight at the parks EA lit as dusk, if asked
+        {  // the daylight parks tweak (Beta 2.5 tests, taken out) left its copies here
+            std::error_code ec;
+            std::filesystem::remove_all(app::ExeDir() / "tweaks" / "data" / "stadium", ec);
+        }
         tuning::Apply();                   // the game's tuning (datafile.big) as the Game Tweaks ask
         dynastydata::Apply();              // the dynasty's data tables (development, contracts, ...) as they ask
         mods::Mount();                     // then the mods' folders, after the tweaks' (which win)

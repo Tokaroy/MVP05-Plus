@@ -226,6 +226,22 @@ def suggested_name(paths):
     return os.path.basename(os.path.dirname(os.path.normpath(paths[0]))) or "New mod"
 
 
+def export_zip(root, name, dest):
+    """The mod's files (and its mod.ini, if any) in a zip at dest, laid out like the game's folders, so it adds
+    back as it is. Returns the count of files."""
+    base = os.path.join(mods_dir(root), name)
+    n = 0
+    tmp = dest + ".tmp"
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+        for dp, _, fns in os.walk(base):
+            for fn in sorted(fns):
+                full = os.path.join(dp, fn)
+                zf.write(full, os.path.relpath(full, base).replace(os.sep, "/"))
+                n += 1
+    os.replace(tmp, dest)
+    return n
+
+
 def remove(root, name):
     shutil.rmtree(os.path.join(mods_dir(root), name), ignore_errors=True)
     write_list(root, [(n, o) for n, o in read_list(root) if n != name])
