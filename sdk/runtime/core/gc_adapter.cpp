@@ -34,6 +34,7 @@ void Rumble(int, bool) {}
 #include <memory>
 #include <vector>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cwchar>
 #include <cwctype>
@@ -646,7 +647,16 @@ int16_t Stick(int v, int full) { return int16_t(std::clamp(v * 32768 / full, -32
 
 void Start() {
     static std::once_flag once;
-    std::call_once(once, [] { std::thread(Run).detach(); });
+    std::call_once(once, [] {
+        std::thread(Run).detach();
+        // a motor running when the game closes would run on: the adapter keeps its last rumble report. So they're
+        // switched off at exit, with a moment for the reading thread to send it (it sends after each report, 8 ms)
+        std::atexit([] {
+            bool any = false;
+            for (auto& r : g_rumble) any |= r.exchange(false);
+            if (any) std::this_thread::sleep_for(std::chrono::milliseconds(60));
+        });
+    });
 }
 
 bool Read(int slot, input::GameCube& gc) {
@@ -670,6 +680,9 @@ bool Read(int slot, input::GameCube& gc) {
         g_recal_since[slot] = now + std::chrono::hours(24);  // once per hold
         LOGR("gcadapter: port %d recentred (X + Y + Start)", slot + 1);
     }
+    // (an adapter's first reports for a controller just plugged in can have every axis 0, which no controller rests
+    // at: both sticks would be hard down and left. Not taken as the resting point; the port waits for a real one)
+    if (!o.set && !p[3] && !p[4] && !p[5] && !p[6]) return false;
     if (!o.set) o = {true, p[3], p[4], p[5], p[6], p[7], p[8]};
     using G = input::GameCube;
     constexpr uint16_t kLow[8] = {G::A, G::B, G::X, G::Y, G::Left, G::Right, G::Down, G::Up};

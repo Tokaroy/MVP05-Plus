@@ -251,7 +251,10 @@ void Pad(int port, input::Pad& p) {
     g_port_ps[port] = p.connected && !p.gc.present && p.playstation && g_ps_enabled;
     if (g_booting) return;  // the stick mode below is the game's memory, not there yet
     if (g_port_ps[port]) PlayStation(p);
-    if (!g_port_gc[port]) return;
+    if (!g_port_gc[port]) {
+        g_z_held[port] = false;  // (a controller pulled with Z held mustn't leave it held)
+        return;
+    }
     using G = input::GameCube;
     const input::GameCube& c = p.gc;
     auto on = [&](uint16_t b) { return (c.buttons & b) != 0; };

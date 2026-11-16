@@ -227,6 +227,9 @@ static int open_adapter(void) {
 
 static void close_adapter(int fd) {
     unsigned int ifno = 0;
+    unsigned char off[5] = {0x11, 0, 0, 0, 0};  /* a motor left running would run on */
+    struct usbdevfs_bulktransfer bt = {EP_OUT, 5, 100, off};
+    ioctl(fd, USBDEVFS_BULK, &bt);
     ioctl(fd, USBDEVFS_RELEASEINTERFACE, &ifno);
     struct usbdevfs_ioctl cn = {0, USBDEVFS_CONNECT, NULL};  /* the HID driver back */
     ioctl(fd, USBDEVFS_IOCTL, &cn);
