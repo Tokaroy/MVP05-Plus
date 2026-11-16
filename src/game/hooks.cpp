@@ -277,17 +277,23 @@ X86_FUNC(sub_00274D90) {
 }
 
 // Weather. When a game's stadium is set up (0x283B10..), its weather pattern is picked at random and handed to
-// 0x27CA60 (thiscall: pattern, flag; returning to 0x283B71): 0 none, 1 and 2 a shower starting some minutes in
-// (2 lasting longer), 3 rain from the start for the whole game (only offered at one setting, 0x3E). The rain is drawn
-// (0x27D5B0, when EA's "Draw Rain" switch 0x63B200 is on, as it is) from the pattern's timing and strength. With
-// rain = 1 every game gets pattern 3.
+// 0x27CA60 (thiscall: pattern, start now; returning to 0x283B71): 0 none, 1 and 2 a shower, 3 rain for the game.
+// Two things in 0x27CA60 keep a plain 3 from raining at once: it turns 3 into 2 unless the weather object's
+// "rain allowed" flag (+0x3C) is set (only at weather setting 0x3E, the game's own all-game rain), and without
+// "start now" the rain starts at a random time up to 600 seconds in. With rain = 1 every game gets pattern 3 with
+// both set, as EA's debug menu weather does (0x2A5C80: the pattern kept at 0x663EC0, start now). The pattern is
+// kept at 0x663EC0 too (the caller writes its own after the call), so the debug menu shows the game's pick.
 X86_EXTERN_FUNC(__imp__sub_0027CA60);
 X86_FUNC(sub_0027CA60) {
     uint32_t ret = kernel::R32(ctx.esp);
     if (ret == 0x283B71) {
         uint32_t pattern = kernel::R32(ctx.esp + 4);
-        if (tools::g_rain == 1) kernel::W32(ctx.esp + 4, 3);
-        LOGR("weather: pattern %u%s", pattern, tools::g_rain == 1 ? " (rain in every game: 3)" : "");
+        if (tools::g_rain == 1) {
+            kernel::W32(ctx.esp + 4, 3);
+            kernel::W32(ctx.esp + 8, 1);       // start now
+            kernel::W32(ctx.ecx + 0x3C, 1);    // rain allowed: keeps 3 a 3
+        }
+        LOGR("weather: pattern %u%s", pattern, tools::g_rain == 1 ? " (rain in every game: 3, from the start)" : "");
     }
     __imp__sub_0027CA60(ctx, base);
 }
