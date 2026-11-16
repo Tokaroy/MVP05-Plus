@@ -509,6 +509,28 @@ void RunToolRequests(X86Context& ctx) {
         }
         ctx.ecx = saved_ecx;
     }
+    if (tools::g_debug_menu_request.load() == 1) {
+        // EA's debug menu is built in the released game (root 0x26D280: Restart, Quit, Debug_Hit, Camera,
+        // ScriptMenu, Scenario, Replay, RealReplay, Debug_FielderAI, Teleport_Fielder, Fielding, Player_Render,
+        // Stadium Render, Render, Create-A-Venue, Misc, Mudlark, Batting, Tuning, Debug_Audio, Controllers) and so
+        // is its controller (0x2BD600, kept at 0x65A714; the front end makes its own, 0x232FE4). What's off is the
+        // controller's reading of the pads: its update (0x2BD760) only polls them (0x2A3050) while the byte at
+        // 0x63D068 is 1, and the constructor clears that when the debug flag 0x65A720 (never set in this build) is
+        // 0. Event 11 to its handler (0x2AF310, thiscall on controller + 0x24) shows or hides the menu and pauses
+        // the game as it does; with the byte set, the pads then work it.
+        uint32_t controller = kernel::R32(0x65A714);
+        if (!controller) {
+            tools::g_debug_menu_request = 3;
+        } else {
+            uint32_t saved_ecx = ctx.ecx;
+            *static_cast<uint8_t*>(kernel::HostPtr(0x63D068)) = 1;
+            ctx.ecx = controller + 0x24;
+            kernel::CallGuest(ctx, 0x2AF310, {11});
+            ctx.ecx = saved_ecx;
+            tools::g_debug_menu_request = 2;
+            LOGR("extras: EA's debug menu %s", kernel::R32(0x663AB0) & 0xFF ? "shown" : "hidden");
+        }
+    }
 }
 }  // namespace
 X86_EXTERN_FUNC(__imp__sub_002F9320);

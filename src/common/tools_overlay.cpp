@@ -33,6 +33,7 @@ uint32_t g_dev_speed = 100, g_aging = 100, g_retirement = 100, g_contract_prices
          g_rookie_quality = 0;
 std::atomic<int> g_unlock_request{0};
 std::atomic<int> g_points_request{0};
+std::atomic<int> g_debug_menu_request{0};
 std::atomic<uint32_t> g_points_amount{10000};
 
 namespace {
@@ -375,6 +376,19 @@ void Extras() {
     }
     if (pt == 2) ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1), "Added. Save your profile to keep them.");
     if (pt == 3) ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "Sign in with a profile first, then try again.");
+    ImGui::Separator();
+    Help("EA's own debug menu, left in the game: cameras, replays, rendering, fielding and more, as its developers "
+         "had it. Nothing in it was meant for players: it can break a game in progress, so try it in an exhibition "
+         "game and don't save afterwards. Close this menu, then use the controller (the same button opens and "
+         "closes it here).");
+    int dm = g_debug_menu_request.load();
+    if (dm == 1) {
+        ImGui::TextUnformatted("Opening...");
+    } else if (ImGui::Button("Open or close EA's debug menu")) {
+        g_debug_menu_request = 1;
+    }
+    if (dm == 2) ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1), "Done. Close this menu (F10) to use it.");
+    if (dm == 3) ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "The game hasn't made its debug menu yet: try from a menu or a game.");
 }
 
 // Dynasty: EA's debug menu's Owner Bank Balance and Override Manager Rating, on the dynasty loaded
