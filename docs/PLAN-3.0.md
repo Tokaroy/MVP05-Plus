@@ -1,12 +1,7 @@
 # MVP05-Plus 3.0: plan
 
-3.0 is **owner mode save imports**, once everything in Beta 2.5 tests out. Everything else that was planned for Beta 3
+3.0 is **owner mode save imports**, once everything in Beta 2.5 tests out (the mod manager went into Beta 2.5). Everything else that was planned for Beta 3
 has moved to *Future* below. Beta 2 was released on 2026-11-13.
-
-## Mod manager (3.0)
-A first version is on the `mods` branch, left out of Beta 2.5: the Launcher's Mods tab (one checkbox a mod, added
-from a zip or files, each file matched to the game's by path or name) and the game loading the mods that are on as
-replacement folders, with the Game Tweaks working from a mod's copy of a file. Its layout is still to be settled.
 
 ## Owner mode imports (3.0)
 Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are now. Owner mode is its own mode with its own save type. It needs matched pairs: a new owner mode save with the same team on each platform, saved straight away.
