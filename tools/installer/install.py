@@ -975,7 +975,7 @@ def import_tool(frm, root, tk, ttk):
         "\u2022  rosters or a dynasty from the PC (.sav)\n"
         "\u2022  rosters or a dynasty from another Xbox (its data.dat)\n"
         "The save goes into one of your own saves of the same kind, which is backed up first. To take a dynasty the "
-        "other way, to the GameCube or the PS2, right-click it in your saves.")).grid(
+        "other way, to the GameCube, the PS2 or the PC, right-click it in your saves.")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 12))
 
     def step(row, n, text):
@@ -1154,15 +1154,16 @@ def import_tool(frm, root, tk, ttk):
 
 
 def export_dynasty(frm, folder, name, to, tk, ttk):
-    """A dynasty of yours as a GameCube .gci (spy_jam's converter) or a PS2 save (to: "GameCube" or "PS2"), built on
-    one of your own dynasty saves from that console: it gives the new file its name and its place on the card."""
+    """A dynasty of yours as a GameCube .gci (spy_jam's converter), a PS2 save or a PC .sav (to: "GameCube", "PS2" or
+    "PC"), built on one of your own dynasty saves from there: it gives the new file its name and its place."""
     import dynasty05 as DY
+    import pcdynasty05 as PCD
     import ps2card as PC
     import ps2dynasty05 as PD
     import rosters05 as RO
     from tkinter import filedialog, messagebox
     title = f"Export to {to}"
-    errors = (OSError, DY.DynastyError, PD.Ps2DynastyError, RO.RosterError, PC.CardError)
+    errors = (OSError, DY.DynastyError, PD.Ps2DynastyError, RO.RosterError, PC.CardError, PCD.PcDynastyError)
     try:
         with open(os.path.join(folder, "data.dat"), "rb") as f:
             data = f.read()
@@ -1177,17 +1178,23 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
            "Tools > Memory Card Manager and export that save as a .gci file.\n\n"
            "Choose that .gci next. It isn't changed: you get a new file to import with the Memory Card Manager."
            if gc else
+           "If you don't have one: start a dynasty in the PC game and save it. Choose that save next "
+           "(<name>_Dynasty.sav, where the PC game keeps its saves).\n\n"
+           "It isn't changed: you get a new .sav to put in that folder."
+           if to == "PC" else
            "If you don't have one: start a dynasty in the PS2 game and save it. Then choose your PCSX2 memory card "
            "(.ps2) next, or that save as a .psu.\n\n"
            "It isn't changed: you get a new .psu to import (in PCSX2, with a memory card tool such as mymc; on a "
            "console, with uLaunchELF).")
     if not messagebox.askokcancel(title, (
-            f"\"{name}\" is written into a copy of one of your own {to} dynasty saves.\n\n{how}\n\n"
-            f"The {to} keeps each player's last 6 seasons of history, so older seasons are left out."), parent=frm):
+            f"\"{name}\" is written into a copy of one of your own {to} dynasty saves.\n\n{how}"
+            + ("" if to == "PC" else
+               f"\n\nThe {to} keeps each player's last 6 seasons of history, so older seasons are left out.")),
+            parent=frm):
         return
     p = filedialog.askopenfilename(parent=frm, title=f"One of your {to} dynasty saves", filetypes=[
-        ("GameCube saves", "*.gci")] if gc else [("PS2 saves and memory cards", "*.psu *.ps2 *.sav")] + [
-        ("All files", "*.*")])
+        ("GameCube saves", "*.gci") if gc else ("PC saves", "*.sav") if to == "PC" else
+        ("PS2 saves and memory cards", "*.psu *.ps2 *.sav"), ("All files", "*.*")])
     if not p:
         return
     try:
@@ -1196,6 +1203,10 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         if gc:
             fname, out = DY.xbox_to_gc(data, base)
             stem, ext = (fname[:-4] if fname.endswith(".gci") else fname) + " (from MVP05-Plus)", ".gci"
+        elif to == "PC":
+            out, ext = PCD.to_pc(data, base), ".sav"
+            stem = os.path.splitext(os.path.basename(p))[0]
+            stem = (stem[:-8] + "2_Dynasty") if stem.endswith("_Dynasty") else stem + " (from MVP05-Plus)"
         else:
             stem = os.path.splitext(os.path.basename(p))[0] + " (from MVP05-Plus)"
             if base[:28] == PC.MAGIC:  # a memory card: its dynasty, as a .psu
@@ -1237,6 +1248,9 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         "In Dolphin: Tools > Memory Card Manager > Import, and choose it. It takes the place of the GameCube dynasty "
         "it was built on, so delete that one from the card first if Dolphin says the save already exists."
         if gc else
+        "Put it in the PC game's saves folder and load it there. If it doesn't show in the game's list, save it over "
+        "the dynasty it was built on instead (keep a copy of that one first)."
+        if to == "PC" else
         "Import it onto your memory card. It takes the place of the PS2 dynasty it was built on, so delete that one "
         "from the card first if the tool says the save already exists."), parent=frm)
 
@@ -1277,7 +1291,8 @@ def current_saves_tab(frm, root, tk, ttk):
         ("Open folder", lambda: open_in_explorer(folders[iid])),
         ("Export to GameCube\u2026",
          lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "GameCube", tk, ttk)),
-        ("Export to PS2\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PS2", tk, ttk))])
+        ("Export to PS2\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PS2", tk, ttk)),
+        ("Export to PC\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PC", tk, ttk))])
 
     bar = ttk.Frame(frm)
     bar.grid(row=2, column=0, sticky="we", pady=(8, 0))

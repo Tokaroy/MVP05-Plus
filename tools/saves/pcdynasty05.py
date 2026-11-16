@@ -4,6 +4,8 @@
   read(data)                    a PC dynasty, checked: {name, body}
   to_xbox(data, xbox_dynasty)   the PC dynasty as an Xbox data.dat, built on one of your own Xbox dynasty saves (it
                                 keeps that save's name and gives the Xbox's own platform words)
+  to_pc(xbox_dynasty, pc_save)  an Xbox dynasty as a PC .sav, built on one of your own PC dynasty saves (it keeps
+                                that save's name and gives the PC's own platform words and PC-only settings)
 
 The PC stores a dynasty the way the Xbox does: the same body size, 44-byte managers, the same player records, 16
 history seasons per player, the same object records after the schedules (as its rosters are the Xbox's, in Mad Dog's
@@ -130,3 +132,52 @@ def to_xbox(data, xbox_dynasty, name=None):
         out = C.build_xbox(xbox_dynasty, dict(name=name or t["name"], typ="Dynasty", flags=t["flags"], payload=new))
         _check(C.verify_xbox(out), "the converted save failed its signature check")
     return out
+
+
+def convert_body_to_pc(xb, tpl):
+    """An Xbox dynasty body -> a PC dynasty body, built on tpl (one of your PC dynasties'): convert_body the other
+    way, with the PC's own 14 settings ints, platform words and object records from tpl."""
+    _check(len(xb) == DY.XB_LEN and len(tpl) == SIZE, "the saves aren't the size MVP 2005 dynasties are")
+    try:
+        T, L = PD._layout(xb, False), _layout(tpl)
+    except (struct.error, IndexError, PD.Ps2DynastyError) as e:
+        raise PcDynastyError(f"the dynasty isn't one this reads ({e})")
+    _check(L["n"] == T["n"], "the two dynasties don't have the same number of managers")
+    out = bytearray(xb[0:84] + xb[92:0x2C8] + tpl[0x2C0:0x2C5] + xb[0x2CD:0x2CF] + tpl[0x2C7:PC_HEAD])
+    _check(len(out) == PC_HEAD, "the settings header came out the wrong size")
+    out += xb[0x2CF:T["m"][6]]
+    for i in range(34):
+        o = 0x477 + 0x54 * i + 24 - SHIFT
+        out[o:o + 32] = tpl[o:o + 32]
+    at = T["after"] - SHIFT + 96
+    out[at:at + 4] = tpl[L["after"] + 96:L["after"] + 100]
+    for k, offs in PD.FIXED:
+        for o in offs:
+            at = T["tags"][k] - SHIFT + o
+            out[at:at + 4] = tpl[L["tags"][k] + o:L["tags"][k] + o + 4]
+    a = T["tail"] - SHIFT + OBJECTS
+    out[a:T["m"][3] - SHIFT] = tpl[L["tail"] + OBJECTS:L["m"][3]]
+    f = len(out) + 4
+    out += PD.MARKER + struct.pack("<I", f)
+    _check(len(out) <= SIZE, "the converted dynasty doesn't fit a PC dynasty save")
+    out += bytes(0x55 if k % 2 == 0 else 0xBB for k in range(len(out), SIZE))
+    try:
+        _layout(bytes(out))
+    except (struct.error, IndexError, PD.Ps2DynastyError):
+        raise PcDynastyError("the converted dynasty didn't come out as one the PC reads")
+    return bytes(out)
+
+
+def to_pc(xbox_dynasty, pc_save):
+    """An Xbox dynasty (data.dat) as a PC .sav, built on pc_save (a dynasty of your own, whose name it keeps)."""
+    try:
+        t = DY.read_xbox(xbox_dynasty)
+    except DY.DynastyError as e:
+        raise PcDynastyError(str(e))
+    data = bytes(pc_save)
+    read(data)
+    body = convert_body_to_pc(bytes(t["payload"]), data[HEAD:])
+    out = bytearray(data[:HEAD] + body)
+    struct.pack_into("<I", out, 4, RO.crc(body))
+    read(bytes(out))
+    return bytes(out)

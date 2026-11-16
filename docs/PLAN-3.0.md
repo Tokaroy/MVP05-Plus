@@ -42,6 +42,11 @@ player format and put in the 05 dynasty's draft pool. To work out first:
   (`convert_body_to_ps2`): on the matched Yankees pair, PS2 -> Xbox -> PS2 gives back the PS2 save byte for byte up to
   the history, whose rows match and whose link words (runtime pointers, 4,513 non-zero in the real save) are written
   as zero, as the Xbox import does. **Not loaded on a PS2 or PCSX2 yet:** the zero links are the thing to watch.
+  *Export to PC...* is `pcdynasty05.to_pc` (`convert_body_to_pc`): the PC's 14 settings ints, platform words and
+  object records from the user's PC save, everything else the Xbox's bytes (history included, all 16 seasons). On
+  RESOX_Dynasty.sav, PC -> Xbox -> PC is byte for byte the PC save, and Xbox -> PC -> Xbox gives back the Xbox
+  dynasty. **Not loaded in the PC game yet;** whether the game lists a .sav under a new file name isn't known (the
+  file is named <name>2_Dynasty.sav, the name inside it still the base save's).
 - **Low latency for MVP06-Plus;** MVP 2004.
 
 # Done
