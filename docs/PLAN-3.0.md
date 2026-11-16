@@ -33,7 +33,6 @@ player format and put in the 05 dynasty's draft pool. To work out first:
   the pool takes).
 
 ## Also open
-- **Stamina Changer:** tywiggins' spot (data + 0x231420) holds heap headers on the Xbox, so it needs its own search.
 - **GameCube dynasty converter:** history merge by overlap rather than by year (see the save conversion notes, 4.4).
 - **Dynasty export to GameCube** from the Launcher (the converter already does it).
 - **Low latency for MVP06-Plus;** MVP 2004.
