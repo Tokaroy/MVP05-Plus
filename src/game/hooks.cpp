@@ -259,12 +259,21 @@ X86_FUNC(sub_002D31E0) {
 // game's "lod" tuning (datafile.big's datafile.txt: PLAYER_LOD_0..2_INGAME/OUTOFGAME/HRD/JUMBOTRON_MIN_IMPORTANCE):
 // 0x274D90 (lod tuning, importance, out of game, home run derby, jumbotron) returns the first level whose threshold
 // the importance beats, else 3. The Xbox uses the "xboxlod" set (in play 40/20/10: level 0 above 40, 1 above 20, 2
-// above 10); the file also has the GameCube's, the PS2's and three PC detail levels. With player_full_detail, levels
-// 1 and 2 become 0 (3, the game's least for the least important players, is kept in case it hides as well).
+// above 10); the file also has the GameCube's, the PS2's and three PC detail levels. With player_full_detail every
+// level becomes 0. Level 3 is a lower model, not a hidden one: it's what the umpires and the fielders away from the
+// play get while the pitcher pitches (first tests, with only 1 and 2 changed, showed them at it). The log counts the
+// levels asked for over the first calls, to see which ones the game uses.
 X86_EXTERN_FUNC(__imp__sub_00274D90);
 X86_FUNC(sub_00274D90) {
     __imp__sub_00274D90(ctx, base);
-    if (tools::g_player_full_detail && (ctx.eax == 1 || ctx.eax == 2)) ctx.eax = 0;
+    static uint32_t asked[4], calls;
+    if (calls < 20000) {
+        if (ctx.eax < 4) asked[ctx.eax]++;
+        if (++calls == 20000)
+            LOGR("player detail: levels asked over 20000 calls: 0 %u, 1 %u, 2 %u, 3 %u%s", asked[0], asked[1],
+                 asked[2], asked[3], tools::g_player_full_detail ? " (all drawn at 0: full detail)" : "");
+    }
+    if (tools::g_player_full_detail && ctx.eax <= 3) ctx.eax = 0;
 }
 
 // Weather. When a game's stadium is set up (0x283B10..), its weather pattern is picked at random and handed to
