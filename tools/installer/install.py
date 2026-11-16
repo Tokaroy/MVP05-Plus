@@ -1243,24 +1243,24 @@ TWEAKS = {
           "Longer (150%): a 10-day injury lasts 15 days": 150,
           "Much longer (200%): a 10-day injury lasts 20 days": 200}),
         ("dev_speed", "Player development",
-         "How often players' ratings go up between seasons. By default, a 25-year-old 3-star improves 6 years in "
-         "10, and 3-stars and better improve every year until 23.",
-         {"MVP 05 Default (100%): a 25-year-old 3-star improves 6 years in 10": 100,
-          "Slower (70%): about 4 years in 10": 70,
-          "Much slower (50%): 3 years in 10": 50,
-          "Faster (130%): about 8 years in 10": 130}),
+         "The chance a player's ratings go up in the off-season, by his age and star level. By default, a "
+         "25-year-old 3-star has a 60% chance, and 3-stars and better always go up until 23.",
+         {"MVP 05 Default (100%): a 25-year-old 3-star, 60%": 100,
+          "Slower (70%): a 25-year-old 3-star, 42%": 70,
+          "Much slower (50%): a 25-year-old 3-star, 30%": 50,
+          "Faster (130%): a 25-year-old 3-star, 78%": 130}),
         ("aging", "Aging",
-         "How often players' ratings go down between seasons. By default, a 34-year-old 3-star declines half the "
-         "time, and a 37-year-old 8 years in 10.",
-         {"MVP 05 Default (100%): a 34-year-old 3-star declines 5 years in 10": 100,
-          "Gentler (70%): about 3 or 4 years in 10": 70,
-          "Harsher (130%): about 6 or 7 years in 10": 130}),
+         "The chance a player's ratings go down in the off-season, by his age and star level. By default, a "
+         "34-year-old 3-star has a 50% chance, and a 37-year-old 80%.",
+         {"MVP 05 Default (100%): a 34-year-old 3-star, 50%": 100,
+          "Gentler (70%): a 34-year-old 3-star, 35%": 70,
+          "Harsher (130%): a 34-year-old 3-star, 65%": 130}),
         ("retirement", "Retirement",
-         "How often players retire after a season. By default, a 37-year-old 2-star retires 3 times in 10, stars "
-         "never retire before 40, and everyone has retired by 45.",
-         {"MVP 05 Default (100%): a 37-year-old 2-star retires 3 times in 10": 100,
-          "Later (50%): about 1 or 2 times in 10": 50,
-          "Earlier (150%): about 4 or 5 times in 10": 150}),
+         "The chance a player retires in the off-season, by his age and star level. By default, a 37-year-old "
+         "2-star has a 30% chance, stars never retire before 40, and everyone has retired by 45.",
+         {"MVP 05 Default (100%): a 37-year-old 2-star, 30%": 100,
+          "Later (50%): a 37-year-old 2-star, 15%": 50,
+          "Earlier (150%): a 37-year-old 2-star, 45%": 150}),
         ("contract_prices", "Contract prices",
          "What players ask for in a new contract, free agents and your own players alike. By default, it comes "
          "from the player's ratings and what he's paid now.",
@@ -1269,13 +1269,14 @@ TWEAKS = {
           "Much higher (150%): a $4M asking price becomes $6M": 150,
           "Lower (75%): a $4M asking price becomes $3M": 75}),
         ("resign_chance", "Re-signing",
-         "The chance your players agree to re-sign with you. By default, most 1-star players re-sign half the time "
-         "and stars almost always.",
-         {"MVP 05 Default: a 1-star re-signs 5 times in 10": 100,
-          "Easier (+15 points): a 1-star re-signs about 6 or 7 times in 10": 115,
-          "Harder (-15 points): a 1-star re-signs about 3 or 4 times in 10": 85}),
+         "The chance your players agree to re-sign with you, by age and star level. By default, a 1-star over 25 "
+         "has a 50% chance and a 5-star 98%.",
+         {"MVP 05 Default: a 1-star over 25, 50%": 100,
+          "Easier (+15 points): a 1-star over 25, 65%": 115,
+          "Harder (-15 points): a 1-star over 25, 35%": 85}),
         ("rookie_quality", "Rookies",
-         "How good the generated rookies are. By default, half are 1-stars and 1 in 25 is a 5-star.",
+         "The star levels of the rookies the game makes up each year. By default, 52% are 1-stars and 4% are "
+         "5-stars.",
          {"MVP 05 Default: 52% 1-stars, 4% 5-stars": 0,
           "Better: 40% 1-stars, 7% 5-stars": 1,
           "Much better: 30% 1-stars, 10% 5-stars": 2}),
