@@ -232,6 +232,38 @@ X86_FUNC(sub_001A1CA0) {
     __imp__sub_001A1CA0(ctx, base);
 }
 
+// Contract prices. What a player asks for (free agents and the dynasty's own players re-signing alike) comes from
+// 0x462720 (thiscall on the negotiation; ecx at entry), not from contract.csv's $ columns: the game never reads those
+// (only its years, at 0x636294..0x63629C). It blends the player's current salary toward a value from his ratings,
+// rounds it to the game's salary steps (0x1AC660: step * [db+0x1F8] + [db+0x1F4], db = [0x657288]) and caps it at
+// step 0x2143, then writes the asking price at +4 and the least he'll take at +8. With contract_prices those two are
+// made that percent of themselves, rounded to a step and capped as the game does.
+X86_EXTERN_FUNC(__imp__sub_00462720);
+X86_FUNC(sub_00462720) {
+    uint32_t self = ctx.ecx;
+    __imp__sub_00462720(ctx, base);
+    uint32_t pct = tools::g_contract_prices;
+    uint32_t db = kernel::R32(0x657288);
+    if (pct == 100 || pct == 0 || !self || !db) return;
+    auto getf = [](uint32_t va) { uint32_t u = kernel::R32(va); float f; std::memcpy(&f, &u, 4); return f; };
+    auto setf = [](uint32_t va, float f) { uint32_t u; std::memcpy(&u, &f, 4); kernel::W32(va, u); };
+    float step = getf(db + 0x1F8), add = getf(db + 0x1F4);
+    if (!(step > 0.0f)) return;
+    float before[2], after[2];
+    for (int k = 0; k < 2; k++) {
+        float v = getf(self + 4 + 4 * k);
+        before[k] = v;
+        float want = v * float(pct) / 100.0f;
+        int steps = int((want - add) / step + 0.5f);
+        steps = std::clamp(steps, 0, 0x2143);
+        after[k] = float(steps) * step + add;
+        setf(self + 4 + 4 * k, after[k]);
+    }
+    static std::atomic<int> told{0};
+    if (told.fetch_add(1) < 8)
+        LOGR("contracts: asking %.0f -> %.0f, least %.0f -> %.0f (%u%%)", before[0], after[0], before[1], after[1], pct);
+}
+
 // More memory. The game puts nearly all it loads (stadiums, players, crowds) in one heap it makes at start (0x2C3BD0):
 // XPhysicalAlloc (0x2D31E0) of 41 MB (40.75 MB with HD video modes), cleared and handed to the heap (0x2DB06A) with
 // the size still in esi. With memory_mb = 128 the Xbox's RAM is doubled (src/common/game_info.cpp) and the heap grows

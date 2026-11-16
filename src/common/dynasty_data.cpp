@@ -79,13 +79,6 @@ std::string Development(const std::string& t, double up_x, double down_x) {
     });
 }
 
-// contract.csv: Age,Star Level,$ asking low,$ asking high,$ acceptable,Years...
-std::string Contracts(const std::string& t, double x) {
-    return EachRow(t, [&](std::vector<std::string>& f) {
-        for (size_t i = 2; i <= 4 && i < f.size(); i++) f[i] = Num(D(f[i]) * x);
-    });
-}
-
 // resign.csv: Age,Star Level,Chance of re-signing (percent)
 std::string Resign(const std::string& t, int delta) {
     return EachRow(t, [&](std::vector<std::string>& f) {
@@ -159,7 +152,7 @@ void Apply() {
     std::error_code rm;
     for (const char* n : {"progress.big", "rookie.big", "resign.csv"})  // last time's, if any
         fs::remove(app::ExeDir() / "tweaks" / "data" / "database" / n, rm);
-    const double up = tools::g_dev_speed / 100.0, down = tools::g_aging / 100.0, price = tools::g_contract_prices / 100.0,
+    const double up = tools::g_dev_speed / 100.0, down = tools::g_aging / 100.0,
                  retire = tools::g_retirement / 100.0;
     const int resign = int(tools::g_resign_chance) - 100;
     std::string done;
@@ -169,7 +162,6 @@ void Apply() {
         if (up != 1 || down != 1)
             for (const char* n : {"progbadj.csv", "progpadj.csv"})
                 edits.push_back({n, [=](const std::string& t) { return Development(t, up, down); }});
-        if (price != 1) edits.push_back({"contract.csv", [=](const std::string& t) { return Contracts(t, price); }});
         if (!edits.empty()) any |= EditBig("progress.big", edits, done);
     }
     {
