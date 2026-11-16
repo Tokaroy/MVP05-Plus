@@ -24,7 +24,7 @@ MVP Baseball 2005 on Windows, and on SteamOS (Linux) through Proton, built on [M
 * **Xbox 360, Xbox One and Xbox Series controllers** — Xbox button art and controls, as the original
 * **Other controllers** (Switch Pro and most others SDL supports) — Xbox button art and controls
 
-Button art follows the controller connected when the game starts. Without the art sets, PlayStation and GameCube controllers still use their own control layouts, with Xbox buttons shown.
+Button icons match the controller connected when the game starts. Without the art sets, PlayStation and GameCube controllers still use their own control layouts, with Xbox buttons shown.
 
 ## Coming from Beta 1 or Mad Dog's MVP05
 
