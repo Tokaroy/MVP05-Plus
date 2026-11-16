@@ -116,6 +116,28 @@ def write_info(root, name, info):
         f.write("\n".join(lines) + "\n")
 
 
+def summary(root, name):
+    """(file types, total size in bytes) of a mod's files: types as "BIG, CSV", most files first."""
+    base = os.path.join(mods_dir(root), name)
+    kinds, size = {}, 0
+    for rel in mod_files(root, name):
+        ext = os.path.splitext(rel)[1].lstrip(".").upper() or "file"
+        kinds[ext] = kinds.get(ext, 0) + 1
+        try:
+            size += os.path.getsize(os.path.join(base, *rel.split("/")))
+        except OSError:
+            pass
+    return ", ".join(k for k, _ in sorted(kinds.items(), key=lambda x: (-x[1], x[0]))), size
+
+
+def size_text(n):
+    for unit, d in (("GB", 1 << 30), ("MB", 1 << 20), ("KB", 1 << 10)):
+        if n >= d:
+            v = n / d
+            return f"{v:.1f} {unit}" if v < 100 else f"{v:.0f} {unit}"
+    return f"{n} bytes"
+
+
 def clashes(root, items):
     """{name: [(other, files in both, this one wins)]} among the mods that are on."""
     owners = {}

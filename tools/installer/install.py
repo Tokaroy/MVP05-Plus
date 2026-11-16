@@ -2003,7 +2003,7 @@ def _checkbox_images(tk):
 
 
 def mods_tab(tabs, root, tk, ttk):
-    """Mods: a list of the mods (a checkbox, name, version and author each), Add Mod, Refresh List and Configure
+    """Mods: a list of the mods (a checkbox, name, file types and size each), Add Mod, Refresh List and Configure
     Mod (mods.py)."""
     import mods as MD
     from tkinter import filedialog
@@ -2021,13 +2021,13 @@ def mods_tab(tabs, root, tk, ttk):
     box.grid(row=1, column=0, sticky="nsew")
     box.columnconfigure(0, weight=1)
     box.rowconfigure(0, weight=1)
-    tree = ttk.Treeview(box, columns=("version", "author"), selectmode="browse", height=12)
+    tree = ttk.Treeview(box, columns=("types", "size"), selectmode="browse", height=12)
     tree.heading("#0", text="Name", anchor="w")
-    tree.heading("version", text="Version", anchor="center")
-    tree.heading("author", text="Author", anchor="w")
-    tree.column("#0", width=300, minwidth=160, stretch=True)
-    tree.column("version", width=80, minwidth=60, anchor="center", stretch=False)
-    tree.column("author", width=180, minwidth=100, stretch=False)
+    tree.heading("types", text="File type", anchor="w")
+    tree.heading("size", text="Size", anchor="e")
+    tree.column("#0", width=320, minwidth=160, stretch=True)
+    tree.column("types", width=160, minwidth=80, stretch=False)
+    tree.column("size", width=90, minwidth=70, anchor="e", stretch=False)
     tree.tag_configure("odd", background="#f3f3f3")
     sb = ttk.Scrollbar(box, orient="vertical", command=tree.yview)
     tree.configure(yscrollcommand=sb.set)
@@ -2058,9 +2058,8 @@ def mods_tab(tabs, root, tk, ttk):
         items[:] = MD.read_list(root)
         tree.delete(*tree.get_children())
         for i, (name, on) in enumerate(items):
-            info = MD.read_info(root, name)
-            iid = tree.insert("", "end", text="  " + name, image=boxes[on],
-                              values=(info.get("version", ""), info.get("author", "")),
+            types, size = MD.summary(root, name)
+            iid = tree.insert("", "end", text="  " + name, image=boxes[on], values=(types, MD.size_text(size)),
                               tags=("odd",) if i % 2 else ())
             if name == keep:
                 tree.selection_set(iid)
@@ -2154,12 +2153,11 @@ def mods_tab(tabs, root, tk, ttk):
         return result[0] if result else None
 
     def configure():
-        """A mod's name, version, author and description; and Remove."""
+        """Rename or remove a mod."""
         i = selected()
         if i is None:
             return
         name = items[i][0]
-        info = MD.read_info(root, name)
         w = frm.winfo_toplevel()
         win = tk.Toplevel(w)
         win.title("Configure " + name)
@@ -2167,38 +2165,27 @@ def mods_tab(tabs, root, tk, ttk):
         win.resizable(False, False)
         f = ttk.Frame(win, padding=14)
         f.grid()
-        vars_ = {}
-        for r, (key, label) in enumerate((("name", "Name"), ("version", "Version"), ("author", "Author"))):
-            ttk.Label(f, text=label).grid(row=r, column=0, sticky="w", pady=3)
-            vars_[key] = tk.StringVar(value=name if key == "name" else info.get(key, ""))
-            ttk.Entry(f, textvariable=vars_[key], width=44).grid(row=r, column=1, sticky="we", pady=3, padx=(8, 0))
-        ttk.Label(f, text="Description").grid(row=3, column=0, sticky="nw", pady=3)
-        desc = tk.Text(f, width=44, height=4, wrap="word", font=("Segoe UI", 9), relief="solid", borderwidth=1)
-        desc.insert("1.0", info.get("description", ""))
-        desc.grid(row=3, column=1, sticky="we", pady=3, padx=(8, 0))
+        ttk.Label(f, text="Name").grid(row=0, column=0, sticky="w")
+        var = tk.StringVar(value=name)
+        entry = ttk.Entry(f, textvariable=var, width=44)
+        entry.grid(row=1, column=0, sticky="we", pady=(2, 0))
+        types, size = MD.summary(root, name)
         n = len(MD.mod_files(root, name))
-        ttk.Label(f, foreground="#666", text=f"{n} game file{'s' if n != 1 else ''}, in mods\\{name}").grid(
-            row=4, column=1, sticky="w", padx=(8, 0))
+        ttk.Label(f, foreground="#666", text=f"{n} file{'s' if n != 1 else ''} ({types}), {MD.size_text(size)}, "
+                                              f"in mods\\{name}").grid(row=2, column=0, sticky="w", pady=(4, 0))
         err = ttk.Label(f, text="", foreground="#a33", wraplength=380, justify="left")
-        err.grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        err.grid(row=3, column=0, sticky="w", pady=(4, 0))
 
-        def save():
-            new = vars_["name"].get().strip()
+        def save(_=None):
+            new = var.get().strip()
             if new != name:
                 problem = MD.rename(root, name, new)
                 if problem:
                     err.configure(text=problem)
                     return
-            try:
-                MD.write_info(root, new, {"title": info.get("title", ""), "version": vars_["version"].get(),
-                                          "author": vars_["author"].get(),
-                                          "description": " ".join(desc.get("1.0", "end").split())})
-            except OSError as e:
-                err.configure(text=f"Couldn't save it: {e}")
-                return
             win.destroy()
             refresh(new)
-            say(f"Saved {new}." if new == name else f"Renamed {name} to {new}.")
+            say("" if new == name else f"Renamed {name} to {new}.")
 
         def remove():
             from tkinter import messagebox
@@ -2210,14 +2197,16 @@ def mods_tab(tabs, root, tk, ttk):
                 say(f"Removed {name}.")
 
         bar_ = ttk.Frame(f)
-        bar_.grid(row=6, column=0, columnspan=2, sticky="we", pady=(12, 0))
+        bar_.grid(row=4, column=0, sticky="we", pady=(12, 0))
         ttk.Button(bar_, text="Remove Mod...", command=remove).pack(side="left")
         ttk.Button(bar_, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar_, text="Save", command=save).pack(side="right", padx=6)
+        entry.bind("<Return>", save)
         win.bind("<Escape>", lambda e: win.destroy())
         win.update_idletasks()
         win.geometry(f"+{w.winfo_rootx() + (w.winfo_width() - win.winfo_width()) // 2}"
                      f"+{w.winfo_rooty() + (w.winfo_height() - win.winfo_height()) // 3}")
+        entry.focus_set()
         win.grab_set()
 
     def pick_places(planned):
