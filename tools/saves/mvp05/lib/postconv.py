@@ -17,6 +17,20 @@ def sched_rep(gc,xb,shift=0):
     rows=rows.ljust(28*nx,b'\0')   # GC keeps the section a fixed size: count shrinks, zero fill stays
     return (x[2],x[2]+8+28*nx,b'\x0d\xf0\xef\xbe'+struct.pack('<I',n)+rows)
 import histrow as _HR
+def hist_merge(older,new):
+    """A player's rows: the GameCube's (its last 6, converted) after the ones before them in the Xbox save. A list
+    isn't always in year order and a traded player has two rows for one year, so the GameCube's rows are found where
+    they start in the Xbox list (the longest run at its end that the GameCube's begin with); only when the two share
+    nothing are the Xbox rows from before the GameCube's first year put in front, as before."""
+    if not new: return older[-16:]
+    a=[r[4:] for r in older]; b=[r[4:] for r in new]
+    j=len(a)
+    for i in range(len(a)):
+        if a[i:]==b[:len(a)-i]: j=i; break
+    if j==len(a):
+        first=min(struct.unpack_from('<H',r,4)[0] for r in new)
+        older=[r for r in older if struct.unpack_from('<H',r,4)[0]<first]; j=len(older)
+    return (older[:j]+new)[-16:]
 def hist_rep(gc,xb):
     g=_markers(gc,False); x=_markers(xb,True)
     gg=H.parse('GC',gc[g[5]+8:g[6]]); xg=H.parse('XB',xb[x[5]+8:x[6]])
@@ -24,10 +38,8 @@ def hist_rep(gc,xb):
     yG=lambda r:struct.unpack_from('>H',r,0)[0]    # r = 16 bytes after link
     for k,rs in gg:
         seen.add(k); drs=[r[4:] for r in rs]
-        miny=min(yG(d) for d in drs)
-        old=[r for r in xd.get(k,[]) if struct.unpack_from('<H',r,4)[0]<miny]
         new=[_HR.gc2xb(r) for r in rs]          # exact struct layout (histrow.py)
-        rows=(old+new)[-16:]
+        rows=hist_merge(xd.get(k,[]),new)
         out.append((k,rows))
     for k,rs in xg:
         if k not in seen: out.append((k,rs))

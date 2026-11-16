@@ -100,8 +100,12 @@ field converted with the wrong one of these (4-byte swap over bytes or u16 pairs
   platforms, and matches all 5757 shared rows in the fresh pair exactly:
   - batter: (10,8,7,7) (9,8,8,7) (9,8,8,7)
   - pitcher: (8,8,9,7) (9,2,6,6,9) (7,25). The last 25 bits look like filler on both platforms.
-- The converter keeps template rows older than the oldest GC row (pre-2005 real history is the same in every
-  dynasty) and appends template-only groups.
+- The converter puts the GC rows after the template's rows that come before them, found by overlap: the longest run
+  at the end of the template's list that the GC rows begin with (`postconv.hist_merge`). A list isn't always in year
+  order, and a traded player has two rows for one year, which the earlier by-year rule could drop. Only when the two
+  lists share no row does it fall back to that rule (template rows older than the oldest GC year; pre-2005 real
+  history is the same in every dynasty). Template-only groups are appended. This can change a converted save's
+  history bytes, so tests/test_vectors.json's t1 hash may need regenerating from a save checked in the game.
 
 ### 3.7 Team / budget / user identification
 - User team: the key in the marker-4 section (only place that differs between fresh saves of different teams).

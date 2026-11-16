@@ -974,7 +974,8 @@ def import_tool(frm, root, tk, ttk):
         "\u2022  rosters or a dynasty from the GameCube (the .gci file Dolphin exports)\n"
         "\u2022  rosters or a dynasty from the PC (.sav)\n"
         "\u2022  rosters or a dynasty from another Xbox (its data.dat)\n"
-        "The save goes into one of your own saves of the same kind, which is backed up first.")).grid(
+        "The save goes into one of your own saves of the same kind, which is backed up first. To take a dynasty the "
+        "other way, to the GameCube, right-click it in your saves.")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 12))
 
     def step(row, n, text):
@@ -1152,6 +1153,61 @@ def import_tool(frm, root, tk, ttk):
     return refresh
 
 
+def export_to_gamecube(frm, folder, name):
+    """A dynasty of yours as a GameCube .gci (spy_jam's converter), built on one of your own GameCube dynasty saves:
+    it gives the .gci its name and its place on the memory card."""
+    import dynasty05 as DY
+    from tkinter import filedialog, messagebox
+    try:
+        with open(os.path.join(folder, "data.dat"), "rb") as f:
+            data = f.read()
+        if len(data) != DY.XB_DYNASTY_SIZE:
+            raise DY.DynastyError("only dynasty saves go to the GameCube (not owner mode, rosters or the others)")
+        DY.read_xbox(data)
+    except (OSError, DY.DynastyError) as e:
+        messagebox.showinfo("Export to GameCube", f"\"{name}\" can't be exported: {e}.", parent=frm)
+        return
+    if not messagebox.askokcancel("Export to GameCube", (
+            f"\"{name}\" is written into a copy of one of your own GameCube dynasty saves.\n\n"
+            "If you don't have one: start a dynasty in the GameCube game and save it, then in Dolphin open "
+            "Tools > Memory Card Manager and export that save as a .gci file.\n\n"
+            "Choose that .gci next. It isn't changed: you get a new file to import with the Memory Card Manager.\n\n"
+            "The GameCube keeps each player's last 6 seasons of history, so older seasons are left out."),
+            parent=frm):
+        return
+    p = filedialog.askopenfilename(parent=frm, title="One of your GameCube dynasty saves (.gci)", filetypes=[
+        ("GameCube saves", "*.gci"), ("All files", "*.*")])
+    if not p:
+        return
+    try:
+        with open(p, "rb") as f:
+            base = f.read()
+        fname, out = DY.xbox_to_gc(data, base)
+    except (OSError, DY.DynastyError) as e:
+        messagebox.showerror("Export to GameCube", f"Nothing was written: {e}.", parent=frm)
+        return
+    stem = fname[:-len(".gci")] if fname.endswith(".gci") else fname
+    to = filedialog.asksaveasfilename(parent=frm, title="Save the GameCube dynasty as", initialdir=os.path.dirname(p),
+                                      initialfile=stem + " (from MVP05-Plus).gci", defaultextension=".gci",
+                                      filetypes=[("GameCube saves", "*.gci")])
+    if not to:
+        return
+    if os.path.abspath(to) == os.path.abspath(p) and not messagebox.askyesno(
+            "Export to GameCube", "That's the save you chose to build on. Replace it?", parent=frm):
+        return
+    try:
+        with open(to + ".new", "wb") as f:
+            f.write(out)
+        os.replace(to + ".new", to)
+    except OSError as e:
+        messagebox.showerror("Export to GameCube", f"Nothing was written: {e}.", parent=frm)
+        return
+    messagebox.showinfo("Export to GameCube", (
+        f"Saved {os.path.basename(to)}.\n\nIn Dolphin: Tools > Memory Card Manager > Import, and choose it. It takes "
+        "the place of the GameCube dynasty it was built on, so delete that one from the card first if Dolphin says "
+        "the save already exists."), parent=frm)
+
+
 def current_saves_tab(frm, root, tk, ttk):
     import backups as B
 
@@ -1184,7 +1240,9 @@ def current_saves_tab(frm, root, tk, ttk):
         note.configure(text="" if saves else "No saves yet: they appear here once you save in the game.")
 
     folders = {}
-    right_click_menu(tree, lambda iid: [("Open folder", lambda: open_in_explorer(folders[iid]))])
+    right_click_menu(tree, lambda iid: [
+        ("Open folder", lambda: open_in_explorer(folders[iid])),
+        ("Export to GameCube\u2026", lambda: export_to_gamecube(frm, folders[iid], tree.item(iid, "text")))])
 
     bar = ttk.Frame(frm)
     bar.grid(row=2, column=0, sticky="we", pady=(8, 0))

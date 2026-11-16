@@ -33,8 +33,11 @@ player format and put in the 05 dynasty's draft pool. To work out first:
   the pool takes).
 
 ## Also open
-- **GameCube dynasty converter:** history merge by overlap rather than by year (see the save conversion notes, 4.4).
-- **Dynasty export to GameCube** from the Launcher (the converter already does it).
+- **GameCube dynasty converter (Beta 2.5, untested against real saves here):** history merged by overlap rather than by
+  year (`postconv.hist_merge`; FORMAT_NOTES 3.6). Tested on made-up rows only: the reference saves weren't on hand,
+  so run tools/saves/mvp05/tests/run_tests.py; t1 may come out DIFFERENT (history bytes) and then needs a load in the game.
+- **Dynasty export to GameCube (Beta 2.5):** right-click a dynasty in *Saves > Your saves* > *Export to GameCube...*
+  (`export_to_gamecube` in install.py, over `dynasty05.xbox_to_gc`; built on a .gci of the user's own, which names it).
 - **Low latency for MVP06-Plus;** MVP 2004.
 
 # Done
