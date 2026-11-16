@@ -269,12 +269,14 @@ X86_FUNC(sub_00462720) {
 // the size still in esi. With memory_mb = 128 the Xbox's RAM is doubled (src/common/game_info.cpp) and the heap grows
 // by 56 MB of the extra 64, the rest left for what the game allocates outside it; esi is given the new size when the
 // call returns, so the clearing and the heap use it too.
+static void PlayerDetailPools();
 X86_EXTERN_FUNC(__imp__sub_002D31E0);
 X86_FUNC(sub_002D31E0) {
     uint32_t ret = kernel::R32(ctx.esp), size = kernel::R32(ctx.esp + 4);
     bool heap = ret == 0x2C3BFA && mem::kPhysicalSize >= (128u << 20) && (size == 0x2900000 || size == 0x28C0000);
     uint32_t grown = size + (56u << 20);
     if (heap) kernel::W32(ctx.esp + 4, grown);
+    if (ret == 0x2C3BFA) PlayerDetailPools();  // at boot, before the pools are made
     __imp__sub_002D31E0(ctx, base);
     if (heap) {
         if (ctx.eax) {
@@ -286,26 +288,44 @@ X86_FUNC(sub_002D31E0) {
     }
 }
 
-// Player detail. Each player model has levels of detail 0 (the most detailed) to 2, and 3 for the least. Which one a
-// player gets comes from his "importance" (how close and how central to the play he is) against thresholds in the
-// game's "lod" tuning (datafile.big's datafile.txt: PLAYER_LOD_0..2_INGAME/OUTOFGAME/HRD/JUMBOTRON_MIN_IMPORTANCE):
-// 0x274D90 (lod tuning, importance, out of game, home run derby, jumbotron) returns the first level whose threshold
-// the importance beats, else 3. The Xbox uses the "xboxlod" set (in play 40/20/10: level 0 above 40, 1 above 20, 2
-// above 10); the file also has the GameCube's, the PS2's and three PC detail levels. With player_full_detail every
-// level becomes 0. Level 3 is a lower model, not a hidden one: it's what the umpires and the fielders away from the
-// play get while the pitcher pitches (first tests, with only 1 and 2 changed, showed them at it). The log counts the
-// levels asked for over the first calls, to see which ones the game uses.
-X86_EXTERN_FUNC(__imp__sub_00274D90);
-X86_FUNC(sub_00274D90) {
-    __imp__sub_00274D90(ctx, base);
-    static uint32_t asked[4], calls;
-    if (calls < 20000) {
-        if (ctx.eax < 4) asked[ctx.eax]++;
-        if (++calls == 20000)
-            LOGR("player detail: levels asked over 20000 calls: 0 %u, 1 %u, 2 %u, 3 %u%s", asked[0], asked[1],
-                 asked[2], asked[3], tools::g_player_full_detail ? " (all drawn at 0: full detail)" : "");
+// Player detail. Every character on the field (players, umpires, coaches) is drawn with a "body" from one of four
+// pools, one a level of detail: 0 the most detailed (the only one with the player's own face: its six face slots are
+// an array of 6 in the pool's owner, at +0xAC), then 1, 2 and 3. The pools' sizes are the table at 0x59B358: 6, 10,
+// 20 and 25 bodies. A character asks for a level (0x81AC0, a virtual of his) and gets a body from that pool through
+// 0x12D820 (thiscall on the pools at [0x653EA0]+0x11D54: character, level, keys); when the pool has none free that
+// call goes on to the next level down, and at level 0 takes the least recently used body from whoever has it. So
+// only six characters are ever at full detail, ten more at level 1, and the umpires and the fielders away from the
+// play are at 2 or 3 while the pitcher pitches.
+//
+// The "importance" thresholds in datafile.big's lod tuning (xboxlod's PLAYER_LOD_*_MIN_IMPORTANCE) and the chooser
+// that reads them (0x274D90, through 0x274DE0) are not what decides: nothing in the game calls that chooser (the two
+// pointers to its object, 0x6603C0 and 0x65DFE4, are only read to load and to free it), which is why the first two
+// tries at this, a hook on it and the thresholds at -1, changed nothing.
+//
+// With player_full_detail the level 1 pool is made 55 bodies (as many as levels 1 to 3 have between them; the table is
+// set before the pools are made, in the heap hook above) and a request for level 2 or 3 becomes one for level 1.
+// Level 0 stays six: its face slots can't be grown from here. The log counts the levels asked for.
+static void PlayerDetailPools() {
+    if (tools::g_player_full_detail && kernel::R32(0x59B358) == 6 && kernel::R32(0x59B35C) == 10) {
+        kernel::W32(0x59B35C, 55);
+        LOGR("player detail: level 1 pool 10 -> 55 bodies");
     }
-    if (tools::g_player_full_detail && ctx.eax <= 3) ctx.eax = 0;
+}
+
+X86_EXTERN_FUNC(__imp__sub_0012D820);
+X86_FUNC(sub_0012D820) {
+    uint32_t level = kernel::R32(ctx.esp + 8);
+    static std::atomic<uint32_t> asked[5], calls{0};
+    if (level < 5 && calls.load() < 5000) {
+        asked[level]++;
+        if (calls.fetch_add(1) + 1 == 5000)
+            LOGR("player detail: levels asked over 5000 requests: 0 %u, 1 %u, 2 %u, 3 %u, none %u%s", asked[0].load(),
+                 asked[1].load(), asked[2].load(), asked[3].load(), asked[4].load(),
+                 tools::g_player_full_detail ? " (2 and 3 given 1)" : "");
+    }
+    if (tools::g_player_full_detail && (level == 2 || level == 3) && kernel::R32(0x59B35C) >= 55)
+        kernel::W32(ctx.esp + 8, 1);
+    __imp__sub_0012D820(ctx, base);
 }
 
 // Things the Tools menu asks the game to do, run by the game's own thread at the end of a frame: the two functions

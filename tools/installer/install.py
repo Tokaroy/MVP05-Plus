@@ -1219,7 +1219,7 @@ def desktop_resolution():
 # checkbox. The first choice is the game's own (what an unset key means).
 TWEAKS = {
     "Graphics": [
-        ("player_full_detail", None, "Full detail: every player's best model, not only the ones in the play", None),
+        ("player_full_detail", None, "More detail: nobody on the field drops to the game's two simplest player models (test)", None),
         ("depth_of_field", None, "Depth of field: EA's background blur, turned off on the Xbox (test)", None),
         ("memory_mb", "Memory",
          "Room for what the game loads: stadiums, players, crowds. The Xbox had 64 MB, and the game keeps about 41 MB "

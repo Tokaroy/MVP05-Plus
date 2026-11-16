@@ -83,17 +83,6 @@ int EditText(std::string& text, const std::vector<Edit>& edits) {
 void Apply() {
     std::vector<Edit> edits;
     if (tools::g_depth_of_field) edits.push_back({"xbox_render", "IsActive", "1"});
-    if (tools::g_player_full_detail) {
-        // the Xbox's player detail thresholds (xboxlod: a player gets level 0, the best model, when his importance
-        // beats PLAYER_LOD_0_..._MIN_IMPORTANCE, 40 in play): none, so every player beats them all. The hook on
-        // 0x274D90 (hooks.cpp) does the same; this way it also holds wherever the game reads them itself.
-        static const char* kLod[] = {"PLAYER_LOD_0_INGAME_MIN_IMPORTANCE",    "PLAYER_LOD_1_INGAME_MIN_IMPORTANCE",
-                                     "PLAYER_LOD_2_INGAME_MIN_IMPORTANCE",    "PLAYER_LOD_0_OUTOFGAME_MIN_IMPORTANCE",
-                                     "PLAYER_LOD_1_OUTOFGAME_MIN_IMPORTANCE", "PLAYER_LOD_2_OUTOFGAME_MIN_IMPORTANCE",
-                                     "PLAYER_LOD_0_HRD_MIN_IMPORTANCE",       "PLAYER_LOD_1_HRD_MIN_IMPORTANCE",
-                                     "PLAYER_LOD_2_HRD_MIN_IMPORTANCE"};
-        for (const char* f : kLod) edits.push_back({"xboxlod", f, "-1"});
-    }
     std::error_code rm;
     fs::remove(app::ExeDir() / "tweaks" / "data" / "datafile" / "datafile.big", rm);  // last time's, if any
     if (edits.empty()) return;
