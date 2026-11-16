@@ -1220,6 +1220,12 @@ def desktop_resolution():
 TWEAKS = {
     "Graphics": [
         ("player_full_detail", None, "More detail: nobody on the field drops to the game's two simplest player models (test)", None),
+        ("rain", "Rain",
+         "The game has rain, but only at SBC Park (day and night) and at Safeco Field at night, as a shower in about "
+         "2 games in 9. (test)",
+         {"MVP 05 Default: showers at SBC Park and Safeco Field": 0,
+          "Showers at every outdoor park, about 2 games in 9": 1,
+          "Rain in every game, at every outdoor park": 2}),
         ("depth_of_field", None, "Depth of field: EA's background blur, turned off on the Xbox (test)", None),
         ("memory_mb", "Memory",
          "Room for what the game loads: stadiums, players, crowds. The Xbox had 64 MB, and the game keeps about 41 MB "

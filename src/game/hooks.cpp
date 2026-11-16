@@ -328,6 +328,53 @@ X86_FUNC(sub_0012D820) {
     __imp__sub_0012D820(ctx, base);
 }
 
+// Rain. The game has rain (EA's debug menu has "Rain Pattern" and "Draw Rain"), but it only makes the weather object
+// at four stadiums: the scene set-up at 0x128A32 calls 0x286A70 (cdecl: scene, the set-up's first argument, stadium
+// number) only when the scene is a game (scene+0x6F0 == 0) and the stadium number is 0x13 or 0x39 (SBC Park, day and
+// night), 0x3E (Safeco Field at night) or 0x23 (a002day); the numbers index the stadium file table at 0x62E4B0.
+// 0x286A70 makes the object (kept at 0x660384, freed with the scene at 0x271F10) and resets it with 0x283AB0, which
+// picks the pattern: a number 0..8, and 1 or 2 (a shower) when it is one of those, so 2 games in 9, else none (0x27CA60,
+// thiscall: pattern, start now). The rain is drawn as lines by the object itself (0x27D5B0), with nothing loaded from
+// the stadium, so it works anywhere.
+//
+// With rain = 1 every outdoor stadium gets the weather object, with the game's own odds. With rain = 2 every game has
+// pattern 3 (rain for the whole game) from the start: 0x27CA60 only keeps a 3 when the object's +0x3C is set, and
+// only starts at once when "start now" is. The object is made from the call just before the game's own check
+// (0x270950, returning to 0x128A23, where edi is the scene, esi the stadium's entry and ebp the set-up's frame), and
+// not in the four domes (astrdome, metrdome, olymdome, tropdome: 73 to 76).
+X86_EXTERN_FUNC(__imp__sub_00286A70);
+X86_FUNC(sub_00286A70) {
+    __imp__sub_00286A70(ctx, base);
+    uint32_t obj = kernel::R32(0x660384);
+    if (tools::g_rain == 2 && obj) {
+        uint32_t result = ctx.eax, ecx = ctx.ecx;
+        kernel::W32(obj + 0x3C, 1);
+        ctx.ecx = obj;
+        kernel::CallGuest(ctx, 0x27CA60, {3, 1});
+        ctx.ecx = ecx;
+        ctx.eax = result;
+        kernel::W32(0x663EC0, 3);
+        LOGR("weather: rain for the whole game");
+    } else if (obj) {
+        LOGR("weather: the game's own pattern, %u (0 none, 1 and 2 a shower)", kernel::R32(obj + 0x24));
+    }
+}
+
+X86_EXTERN_FUNC(__imp__sub_00270950);
+X86_FUNC(sub_00270950) {
+    bool setup = kernel::R32(ctx.esp) == 0x128A23;
+    __imp__sub_00270950(ctx, base);
+    if (!setup || !tools::g_rain) return;
+    uint32_t scene = ctx.edi, entry = ctx.esi;
+    if (!scene || !entry || kernel::R32(scene + 0x6F0) != 0 || kernel::R32(0x660384)) return;
+    uint32_t stadium = kernel::R32(entry);
+    bool own = stadium == 0x13 || stadium == 0x39 || stadium == 0x3E || stadium == 0x23;  // the game makes these
+    bool dome = stadium >= 73 && stadium <= 76;
+    if (own || dome || stadium > 84) return;
+    LOGR("weather: stadium %u given the game's rain", stadium);
+    kernel::CallGuest(ctx, 0x286A70, {scene, kernel::R32(ctx.ebp + 8), stadium});
+}
+
 // Things the Tools menu asks the game to do, run by the game's own thread at the end of a frame: the two functions
 // that hand a finished frame to D3D (0x2F9320 and 0x2F8D00, around D3DDevice_Swap).
 namespace {
