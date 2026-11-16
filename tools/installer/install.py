@@ -2201,14 +2201,68 @@ def mods_tab(tabs, root, tk, ttk):
         finally:
             src.close()
         left = [p for p, st, _ in planned if st == "unknown"]
+        new = [t[0] for _, st, t in planned if st == "new"]
         refresh()
         if not name:
             say("Nothing imported.", "#555")
             return
-        extra = (f" Left out, not game files: {', '.join(os.path.basename(p) for p in left[:5])}"
-                 f"{', ...' if len(left) > 5 else ''}." if left else "")
-        say(f"Imported {name} ({n} file{'s' if n != 1 else ''}), on.{extra} Restart the game if it's running.",
-            "#8a5a00" if left else "#1a7f37")
+        files = f"{n} file{'s' if n != 1 else ''}"
+        if left or new:
+            say(f"Imported {name} ({files}), on, with {len(left) + len(new)} to look at. Restart the game if "
+                "it's running.", "#8a5a00")
+            import_report(name, files, left, new)
+        else:
+            say(f"Imported {name} ({files}), on. Restart the game if it's running.")
+
+    def import_report(name, files, left, new):
+        """After an import that wasn't all straight matches: every file left out, and every new one."""
+        w = frm.winfo_toplevel()
+        win = tk.Toplevel(w)
+        win.title("Imported " + name)
+        win.transient(w)
+        f = ttk.Frame(win, padding=14)
+        f.grid(sticky="nsew")
+        win.columnconfigure(0, weight=1)
+        win.rowconfigure(0, weight=1)
+        f.columnconfigure(0, weight=1)
+        f.rowconfigure(1, weight=1)
+        parts = []
+        if left:
+            parts.append(f"{len(left)} left out")
+        if new:
+            parts.append(f"{len(new)} new")
+        ttk.Label(f, text=f"{name}: {files} imported, {' and '.join(parts)}.",
+                  font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        text = tk.Text(f, width=78, height=min(18, 4 + len(left) + len(new) + (3 if left and new else 0)),
+                       wrap="word", relief="solid", borderwidth=1, padx=8, pady=6, font=("Segoe UI", 9))
+        sb = ttk.Scrollbar(f, orient="vertical", command=text.yview)
+        text.configure(yscrollcommand=sb.set)
+        text.grid(row=1, column=0, sticky="nsew")
+        sb.grid(row=1, column=1, sticky="ns")
+        text.tag_configure("head", font=("Segoe UI", 9, "bold"))
+        text.tag_configure("why", foreground="#555")
+        if left:
+            text.insert("end", "Left out\n", "head")
+            text.insert("end", "The game has no file with these names, so they weren't imported. A readme or a "
+                               "picture is fine to leave out. If one should be a game file, its name may be "
+                               "misspelled.\n", "why")
+            for p in left:
+                text.insert("end", "    " + p + "\n")
+        if new:
+            text.insert("end", ("\n" if left else "") + "New files\n", "head")
+            text.insert("end", "These are in the game's folders, but the game has no file of that name there. "
+                               "They were imported, but the game only uses one if another file asks for it. If "
+                               "one should replace a game file, its name or folder may be wrong.\n", "why")
+            for p in new:
+                text.insert("end", "    " + p + "\n")
+        text.configure(state="disabled")
+        ttk.Button(f, text="OK", command=win.destroy).grid(row=2, column=0, columnspan=2, sticky="e", pady=(10, 0))
+        win.bind("<Return>", lambda e: win.destroy())
+        win.bind("<Escape>", lambda e: win.destroy())
+        win.update_idletasks()
+        win.geometry(f"+{w.winfo_rootx() + (w.winfo_width() - win.winfo_width()) // 2}"
+                     f"+{w.winfo_rooty() + (w.winfo_height() - win.winfo_height()) // 4}")
+        win.grab_set()
 
     def pick_folder():
         p = filedialog.askdirectory(title="The mod's folder", parent=frm)
