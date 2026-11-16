@@ -2135,50 +2135,43 @@ def _checkbox_images(tk):
 
 
 def mods_tab(tabs, root, tk, ttk):
-    """Mods: a list of the mods (a checkbox, name, file types and size each), Add Mod and Open Mods Folder; a right
+    """Mods: a list of the mods (a checkbox, name, file types and size each), Add a mod and Open mods folder; a right
     click on a mod renames, opens, exports or removes it (mods.py)."""
     import mods as MD
     from tkinter import filedialog
 
+    # laid out as the Saves tab is: a bold heading, a line about the list, the list, a bar of buttons, a note
     frm = ttk.Frame(tabs, padding=12)
     tabs.add(frm, text="Mods")
     frm.columnconfigure(0, weight=1)
-    frm.rowconfigure(1, weight=1)
-    ttk.Label(frm, foreground="#666", wraplength=600, justify="left", text=(
-        "Tick a mod to use it. A mod's files take the place of the game's files of the same name; your game files "
-        "stay as they are. Right-click a mod to rename, open, export or remove it. Changes take effect the next "
-        "time the game starts.")).grid(
-        row=0, column=0, sticky="w", pady=(0, 8))
+    ttk.Label(frm, text="Mods", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 6))
+    ttk.Label(frm, wraplength=520, justify="left", text=(
+        "Tick a mod to use it: its files take the place of the game's files of the same name, the next time the "
+        "game starts. Your game files stay as they are.")).grid(row=1, column=0, sticky="w", pady=(0, 8))
 
     box = ttk.Frame(frm)
-    box.grid(row=1, column=0, sticky="nsew")
+    box.grid(row=2, column=0, sticky="we")
     box.columnconfigure(0, weight=1)
-    box.rowconfigure(0, weight=1)
-    tree = ttk.Treeview(box, columns=("types", "size"), selectmode="browse", height=12)
-    tree.heading("#0", text="Name", anchor="w")
-    tree.heading("types", text="File type", anchor="w")
-    tree.heading("size", text="Size", anchor="e")
-    tree.column("#0", width=320, minwidth=160, stretch=True)
-    tree.column("types", width=160, minwidth=80, stretch=False)
-    tree.column("size", width=90, minwidth=70, anchor="e", stretch=False)
-    tree.tag_configure("odd", background="#f3f3f3")
+    tree = ttk.Treeview(box, columns=("types", "size"), show="tree headings", selectmode="browse", height=12)
+    tree.heading("#0", text="Mod")
+    tree.heading("types", text="File type")
+    tree.heading("size", text="Size")
+    tree.column("#0", width=330, anchor="w")
+    tree.column("types", width=160, anchor="w")
+    tree.column("size", width=80, anchor="e")
     sb = ttk.Scrollbar(box, orient="vertical", command=tree.yview)
     tree.configure(yscrollcommand=sb.set)
-    tree.grid(row=0, column=0, sticky="nsew")
-    sb.grid(row=0, column=1, sticky="ns")
+    tree.grid(row=0, column=0, sticky="we")
     boxes = _checkbox_images(tk)
     tree._boxes = boxes  # kept, or Tk drops the images
 
-    buttons = ttk.Frame(frm)
-    buttons.grid(row=2, column=0, sticky="we", pady=(8, 0))
-    for c in range(2):
-        buttons.columnconfigure(c, weight=1, uniform="b")
-    add_btn = ttk.Button(buttons, text="Add Mod", command=lambda: add_menu())
-    add_btn.grid(row=0, column=0, sticky="we")
-    ttk.Button(buttons, text="Open Mods Folder", command=lambda: open_folder(MD.mods_dir(root))).grid(
-        row=0, column=1, sticky="we", padx=(6, 0))
-    note = ttk.Label(frm, text="", wraplength=600, justify="left")
-    note.grid(row=3, column=0, sticky="w", pady=(6, 0))
+    bar = ttk.Frame(frm)
+    bar.grid(row=3, column=0, sticky="we", pady=(8, 0))
+    add_btn = ttk.Button(bar, text="Add a mod\u2026", command=lambda: add_menu())
+    add_btn.pack(side="left")
+    ttk.Button(bar, text="Open mods folder", command=lambda: open_folder(MD.mods_dir(root))).pack(side="right")
+    note = ttk.Label(frm, text="", foreground="#666", wraplength=560, justify="left")
+    note.grid(row=4, column=0, sticky="w", pady=(6, 0))
     items = []
 
     def say(text, colour="#1a7f37"):
@@ -2190,11 +2183,18 @@ def mods_tab(tabs, root, tk, ttk):
         tree.delete(*tree.get_children())
         for i, (name, on) in enumerate(items):
             types, size = MD.summary(root, name)
-            iid = tree.insert("", "end", text="  " + name, image=boxes[on], values=(types, MD.size_text(size)),
-                              tags=("odd",) if i % 2 else ())
+            iid = tree.insert("", "end", text="  " + name, image=boxes[on], values=(types, MD.size_text(size)))
             if name == keep:
                 tree.selection_set(iid)
                 tree.see(iid)
+        if len(items) > 12:  # a scrollbar only when the list is longer than it shows
+            sb.grid(row=0, column=1, sticky="ns")
+        else:
+            sb.grid_remove()
+        if not items:
+            say("No mods yet: add one, or put a mod's folder in the mods folder.", "#666")
+        elif note.cget("text").startswith("No mods yet"):
+            say("")
         lost = [f"{name}: {c} of its files come from {o} instead (added first)"
                 for name, cl in MD.clashes(root, items).items() for o, c, wins in cl if not wins]
         if lost:
@@ -2254,11 +2254,11 @@ def mods_tab(tabs, root, tk, ttk):
         m = tk.Menu(frm, tearoff=0)
         m.add_command(label="Turn off" if on else "Turn on", command=lambda: set_on(i, not on))
         m.add_separator()
-        m.add_command(label="Rename...", command=lambda: rename(i))
-        m.add_command(label="Open Folder", command=lambda: open_folder(os.path.join(MD.mods_dir(root), name)))
-        m.add_command(label="Export as Zip...", command=lambda: export(i))
+        m.add_command(label="Rename\u2026", command=lambda: rename(i))
+        m.add_command(label="Open folder", command=lambda: open_folder(os.path.join(MD.mods_dir(root), name)))
+        m.add_command(label="Export as zip\u2026", command=lambda: export(i))
         m.add_separator()
-        m.add_command(label="Remove...", command=lambda: remove(i))
+        m.add_command(label="Remove\u2026", command=lambda: remove(i))
         try:
             m.tk_popup(event.x_root, event.y_root)
         finally:
@@ -2268,8 +2268,8 @@ def mods_tab(tabs, root, tk, ttk):
 
     def add_menu():
         m = tk.Menu(frm, tearoff=0)
-        m.add_command(label="From a folder...", command=lambda: add(pick_folder))
-        m.add_command(label="From files or a zip...", command=lambda: add(pick_files))
+        m.add_command(label="From a folder\u2026", command=lambda: add(pick_folder))
+        m.add_command(label="From files or a zip\u2026", command=lambda: add(pick_files))
         m.tk_popup(add_btn.winfo_rootx(), add_btn.winfo_rooty() + add_btn.winfo_height())
 
     def ask_name(title, start, current=None):
