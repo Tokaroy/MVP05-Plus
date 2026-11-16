@@ -509,6 +509,36 @@ void RunToolRequests(X86Context& ctx) {
         }
         ctx.ecx = saved_ecx;
     }
+    // The payroll budget is the team's org_budget (field 21 of org.dat's table), in the game's $100,000 steps: set to
+    // 110% of the payroll when a dynasty starts (0x471670) and moved each off-season by how the team did (0x49C0C0).
+    // Read and set through the game's own accessors on the database (0x657288): 0x1ADF50 (0) is the dynasty's own
+    // team, 0x1ACCB0 (field, team) reads, 0x1ACCE0 (field, team, value) sets; a step is [db+0x204] dollars on top
+    // of [db+0x1F4] (0x1AC6E0). Kept up to date only while the Tools menu is open with a dynasty loaded.
+    if (tools::Open() && kernel::R32(0x658250) && kernel::R32(0x657288)) {
+        uint32_t db = kernel::R32(0x657288), saved_ecx = ctx.ecx, saved_eax = ctx.eax;
+        auto f = [](uint32_t va) { uint32_t u = kernel::R32(va); float x; std::memcpy(&x, &u, 4); return x; };
+        float step = f(db + 0x204), add = f(db + 0x1F4);
+        ctx.ecx = db;
+        uint32_t team = kernel::CallGuest(ctx, 0x1ADF50, {0});
+        if (step > 0 && team < 64) {
+            if (tools::g_budget_request.load() == 1) {
+                int steps = std::clamp(int((tools::g_budget_want.load() - add) / step + 0.5f), 0, 0x7FFF);
+                ctx.ecx = db;
+                kernel::CallGuest(ctx, 0x1ACCE0, {0x15, team, uint32_t(steps)});
+                LOGR("dynasty: team %u's payroll budget set to $%.1f million", team, (steps * step + add) / 1e6f);
+            }
+            ctx.ecx = db;
+            uint32_t steps = kernel::CallGuest(ctx, 0x1ACCB0, {0x15, team});
+            tools::g_budget_now = steps < 0x100000 ? float(steps) * step + add : -1.0f;
+        } else {
+            tools::g_budget_now = -1.0f;
+        }
+        tools::g_budget_request = 0;
+        ctx.ecx = saved_ecx;
+        ctx.eax = saved_eax;
+    } else if (!tools::Open()) {
+        tools::g_budget_request = 0;
+    }
     if (tools::g_debug_menu_request.load() == 1) {
         // EA's debug menu is built in the released game (root 0x26D280: Restart, Quit, Debug_Hit, Camera,
         // ScriptMenu, Scenario, Replay, RealReplay, Debug_FielderAI, Teleport_Fielder, Fielding, Player_Render,

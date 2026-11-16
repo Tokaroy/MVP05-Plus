@@ -20,6 +20,10 @@ extern bool g_depth_of_field;  // EA's depth of field (xbox_render's DOF IsActiv
 extern uint32_t g_dev_speed, g_aging, g_retirement, g_contract_prices, g_resign_chance, g_rookie_quality;
 // asked for from the Tools menu, done by the game's own thread at the end of a frame (src/game/hooks.cpp)
 extern std::atomic<int> g_unlock_request;  // 1: asked, 2: done, 3: no profile signed in
+// the payroll budget of the dynasty's own team, kept by the game thread while the menu is open (hooks.cpp): dollars now
+// (below 0: none to show), and a new figure to set when the request is 1
+extern std::atomic<float> g_budget_now, g_budget_want;
+extern std::atomic<int> g_budget_request;
 extern std::atomic<int> g_debug_menu_request;  // EA's debug menu: 1 asked, 2 done, 3 not made yet
 extern std::atomic<int> g_points_request;  // MVP points: 1 asked, 2 done, 3 no profile signed in
 extern std::atomic<uint32_t> g_points_amount;

@@ -34,6 +34,8 @@ uint32_t g_dev_speed = 100, g_aging = 100, g_retirement = 100, g_contract_prices
 std::atomic<int> g_unlock_request{0};
 std::atomic<int> g_points_request{0};
 std::atomic<int> g_debug_menu_request{0};
+std::atomic<float> g_budget_now{-1.0f}, g_budget_want{0.0f};
+std::atomic<int> g_budget_request{0};
 std::atomic<uint32_t> g_points_amount{10000};
 
 namespace {
@@ -396,6 +398,7 @@ void Dynasty() {
     // the Owner Mode bank balance: [[[profiles 0x657288] + 0x34] + 4] + 0x12B7C, a float of dollars (the game adds
     // each game's revenue to it, db_sec 0x450766)
     uint32_t a = Ptr(0x657288), b = a ? Ptr(a + 0x34) : 0, c = b ? Ptr(b + 4) : 0;
+    uint32_t d0 = Ptr(0x658250);  // the dynasty object: none, no dynasty loaded
     Help("Owner Mode bank balance: your team's money in an Owner Mode dynasty.");
     if (!c) {
         ImGui::TextDisabled("Load an Owner Mode dynasty first.");
@@ -408,6 +411,25 @@ void Dynasty() {
         want = std::clamp(want, -1000.0f, 10000.0f);
         ImGui::SameLine();
         if (ImGui::Button("Set the balance")) SetF(c + 0x12B7C, want * 1e6f);
+    }
+    ImGui::Separator();
+    // the payroll budget: the team's org_budget, read and set by the game thread through the game's own accessors
+    Help("Payroll budget: what your team may spend on salaries in a dynasty. The game sets it to 110% of your payroll "
+         "when the dynasty starts and moves it each off-season with how the team did.");
+    float now = g_budget_now.load();
+    if (!d0 || now < 0) {
+        ImGui::TextDisabled("Load a dynasty first.");
+    } else {
+        ImGui::Text("Now: $%.1f million", now / 1e6f);
+        static float budget = 100.0f;
+        ImGui::SetNextItemWidth(160 * g_scale);
+        ImGui::InputFloat("million##budget", &budget, 1.0f, 10.0f, "%.1f");
+        budget = std::clamp(budget, 0.1f, 1000.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Set the budget") && g_budget_request.load() == 0) {
+            g_budget_want = budget * 1e6f;
+            g_budget_request = 1;
+        }
     }
     ImGui::Separator();
     // the manager rating (job security): the dynasty object at 0x658250, +0x718 its override switch and +0x714 the

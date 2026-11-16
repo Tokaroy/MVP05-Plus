@@ -10,12 +10,6 @@ Goes with it: tywiggins' ChangeMoney (owner mode money) and the Owner Mode bank 
 
 # Future
 
-## Payroll budget (dynasty)
-Not the Owner Mode bank balance. In memory the org table (vtable 0x5B13C0, 34 records of 0x54 bytes, SetField
-0x444B60) has a dword at +0x38 that looks like payroll in dollars ($38.3M for one team, $173.2M for another); to
-confirm against a team's budget screen. org.dat's CSV has org_budget.
-From the save side: every team has a budget in dynasty mode. In a save, org record halfword s21 is the budget in $100K units (FORMAT_NOTES 3.7). Needs the other money figures from the budget screen. tywiggins' ChangeMoney is for owner mode and goes with the owner mode work.
-
 ## Stats editor
 EA's Stat Pumper from their debug menu (constructor 0x4E5FF0, Execute 0x4B64E0; setters on 0x657288: 0x1ACBC0,
 0x1AC250, 0x1AC210, 0x1AC310, 0x1ACC50, 0x1AC390, 0x1AC350; is-pitcher 0x1B8150): 7 stat categories, 0..10000.
