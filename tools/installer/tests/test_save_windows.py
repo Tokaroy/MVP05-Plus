@@ -156,6 +156,20 @@ for i, (k, to, base, ok) in enumerate(exports):
     if not good:
         BAD.append(f"export {k} to {to} on {os.path.basename(base)}")
 
+# copy and rename (right-click in Saves)
+if "xb_dyn.dat" in folders:
+    names = iter(["COPIED", "RENAMED"])
+    sys.modules["tkinter"].simpledialog.askstring.side_effect = lambda *a, **k: next(names)
+    install.copy_or_rename(MagicMock(), root, folders["xb_dyn.dat"], False, lambda: None)
+    copied = [x for x in S5.list_saves(root) if x["name"] == "COPIED"]
+    install.copy_or_rename(MagicMock(), root, copied[0]["folder"] if copied else folders["xb_dyn.dat"], True,
+                           lambda: None)
+    have = {x["name"]: os.path.basename(x["folder"]) for x in S5.list_saves(root)}
+    good = "COPIED" not in have and have.get("RENAMED") == S5.folder_id("RENAMED", "Dynasty") and "KCRTEST" in have
+    print(f"{'ok ' if good else 'BAD'} copy a save, then rename the copy | {sorted(have)}")
+    if not good:
+        BAD.append("copy and rename")
+
 shutil.rmtree(work, ignore_errors=True)
 print("No problems." if not BAD else f"PROBLEMS: {', '.join(BAD)}")
 sys.exit(1 if BAD else 0)
