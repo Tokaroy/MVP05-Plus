@@ -213,8 +213,7 @@ def read_xbox(data):
         except Exception as e:
             raise OwnerError(f"not an Xbox MVP 2005 save this reads ({e})")
         meta["verified"] = bool(C.verify_xbox(data))
-    _check(meta.get("typ") == TYP, f"that's a{'n' if str(meta.get('typ'))[:1] in 'AEIOU' else ''} "
-                                   f"{meta.get('typ') or 'different'} save, not an owner mode")
+    _check(meta.get("typ") == TYP, f"that's {DY.a_kind(meta.get('typ'))} save, not an owner mode")
     _check(len(meta["payload"]) == XB_LEN and is_owner_body(meta["payload"]),
            "not an Xbox owner mode save this reads")
     return meta
@@ -238,7 +237,7 @@ def read_pc(data):
     data = bytes(data)
     _check(len(data) == PCD.HEAD + XB_LEN, "not a PC MVP 2005 owner mode save")
     typ = data[0x48:0x88].decode("utf-16-le", "replace").split("\0")[0]
-    _check(typ == TYP, f"that's a {typ or 'different'} save, not an owner mode")
+    _check(typ == TYP, f"that's {DY.a_kind(typ)} save, not an owner mode")
     _check(struct.unpack_from("<I", data, 0)[0] == RO.crc(data[16:PCD.HEAD]) and
            struct.unpack_from("<I", data, 4)[0] == RO.crc(data[PCD.HEAD:]),
            "the PC save's checksums don't match: it's damaged or edited")
@@ -309,7 +308,7 @@ def read_ps2(data):
     start, _ = _ps2_sav(data)
     b = data[start:start + PD.HEAD + PS2_LEN]
     typ = b[0x48:0x88].decode("utf-16-le", "replace").split("\0")[0]
-    _check(typ == TYP, f"that's a {typ or 'different'} save, not an owner mode")
+    _check(typ == TYP, f"that's {DY.a_kind(typ)} save, not an owner mode")
     _check(struct.unpack_from("<I", b, 0)[0] == RO.crc(b[16:PD.HEAD]) and
            struct.unpack_from("<I", b, 4)[0] == RO.crc(b[PD.HEAD:]),
            "the PS2 save's checksums don't match: it's damaged or edited")
@@ -362,7 +361,7 @@ def read_gc(data):
         except Exception as e:
             raise OwnerError(f"not a GameCube save this reads ({e})")
     _check(good, "the GameCube save's checksums don't match: it's damaged or edited")
-    _check(meta.get("typ") == TYP, f"that's a {meta.get('typ') or 'different'} save, not an owner mode")
+    _check(meta.get("typ") == TYP, f"that's {DY.a_kind(meta.get('typ'))} save, not an owner mode")
     body = meta["payload"]
     _check(len(body) == PS2_LEN and is_owner_body(body, True), "not a GameCube owner mode save this reads")
     return dict(name=meta["name"], body=body, flags=meta["flags"])
@@ -377,7 +376,7 @@ def gc_to_xbox(gci, xbox, name=None):
         try:
             dyn, _, _ = G.convert(d, td, sched=True, hist=True)
         except Exception as e:
-            raise OwnerError(f"this owner mode couldn't be converted ({e})")
+            raise OwnerError(DY.conversion_error(e, "this owner mode"))
     body = join(dyn, move(s4, S4, GC, t4, XB, BOOLS4), move(s5, S5, GC, t5, XB), XB_LEN)
     return _build_xbox(xbox, name or t["name"], t["flags"], body)
 
@@ -392,7 +391,7 @@ def xbox_to_gc(xbox, gci):
         try:
             dyn = R.convert(d, td)
         except Exception as e:
-            raise OwnerError(f"this owner mode couldn't be converted ({e})")
+            raise OwnerError(DY.conversion_error(e, "this owner mode"))
         body = join(dyn, move(s4, S4, XB, t4, GC, BOOLS4), move(s5, S5, XB, t5, GC), PS2_LEN, True, base["body"])
         out = bytearray(gci)
         out[C.GC_PAYLOAD:C.GC_PAYLOAD + len(body)] = body

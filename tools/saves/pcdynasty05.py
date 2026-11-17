@@ -77,8 +77,8 @@ def read(data):
     data = bytes(data)
     _check(is_dynasty(data), "not a PC MVP 2005 dynasty save")
     typ = data[0x48:0x88].decode("utf-16-le", "replace").split("\0")[0]
-    _check(typ == "Dynasty", f"that's a{'n' if typ[:1] in 'AEIOU' else ''} {typ or 'different'} save: only "
-                             "dynasties convert (owner mode is coming later)")
+    _check(typ == "Dynasty", f"that's {DY.a_kind(typ)} save: only "
+                             "dynasties convert here")
     _check(_u32(data, 0) == RO.crc(data[16:HEAD]) and _u32(data, 4) == RO.crc(data[HEAD:]),
            "the PC save's checksums don't match: it's damaged or edited")
     body = data[HEAD:]

@@ -40,8 +40,7 @@ def read_gc(data):
         except Exception:
             good = False
     if meta.get("typ") != "Rosters":
-        typ = meta.get("typ") or "different"
-        raise GcRosterError(f"that's {'an' if typ[:1] in 'AEIOU' else 'a'} {typ} save, not rosters")
+        raise GcRosterError(f"that's {DY.a_kind(meta.get('typ'))} save, not rosters")
     if not good:
         raise GcRosterError("the GameCube save's checksums don't match: it's damaged or edited")
     p = bytes(meta["payload"])
@@ -108,7 +107,7 @@ def convert_body(gc_body, xb_body):
         except GcRosterError:
             raise
         except Exception as e:
-            raise GcRosterError(f"this roster couldn't be converted ({e})")
+            raise GcRosterError(DY.conversion_error(e, "this roster"))
     new = bytearray(xb)
     delta = 0
     for a, b, c in sorted(reps, key=lambda r: -r[0]):
@@ -162,7 +161,7 @@ def convert_body_to_gc(xb_body, gc_body):
             reps = [X.orgs(xb, gt), X.teamflags(xb, gt), X.teamtable(xb, gt), X.rosters_and_post(xb, gt)]
             reps += X.tagged(xb, gt)
         except Exception as e:
-            raise GcRosterError(f"this roster couldn't be converted ({e})")
+            raise GcRosterError(DY.conversion_error(e, "this roster"))
     reps.sort(key=lambda r: r[0])
     for (a, b, _), (c, d, _) in zip(reps, reps[1:]):
         if c < b:

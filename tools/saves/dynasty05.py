@@ -14,6 +14,7 @@ import contextlib
 import os
 import sys
 import threading
+import traceback
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # beside this file, or in the Launcher exe, where the modules and their .json tables are bundled
@@ -26,6 +27,37 @@ _lock = threading.Lock()
 
 class DynastyError(Exception):
     pass
+
+
+# the converter's sections, by the function that does each, in plain words for its error messages
+_PARTS = {"header": "settings", "header_rep": "settings", "orgs": "organizations", "early_reps": "organizations",
+          "teamflags": "team records", "teamflags_rep": "team records", "teamtable": "team table",
+          "_blocks": "rosters", "rosters_and_post": "rosters", "players": "players", "players_x2g": "players",
+          "tagged": "player tables", "table_reps": "player tables", "region16": "player tables",
+          "region16_rep": "player tables", "small_reps": "player tables", "tags": "player tables",
+          "schedules": "schedules", "sched_rep": "schedules", "sched_rep_all": "schedules",
+          "after_schedules": "season records", "tail_rep": "season records", "user": "your team's section",
+          "user_rep": "your team's section", "history": "player history", "hist_rep": "player history",
+          "hist_merge": "player history", "parse": "player history"}
+
+
+def a_kind(typ):
+    """A save type as the game names it ("Dynasty", "Owner Mode", "Rosters", ...) in a sentence: "a dynasty"."""
+    t = (typ or "different").lower()
+    return ("an " if t[:1] in "aeiou" else "a ") + t
+
+
+def conversion_error(e, what="this dynasty"):
+    """A converter's exception as a message that says which part of the save it was in (an assert has no text of
+    its own: it showed as "()")."""
+    part = None
+    for f in reversed(traceback.extract_tb(e.__traceback__)):
+        if f.name in _PARTS:
+            part = _PARTS[f.name]
+            break
+    detail = str(e) or type(e).__name__
+    return f"{what} couldn't be converted" + (f": its {part} didn't come out as expected" if part else "") + \
+        f" ({detail})"
 
 
 @contextlib.contextmanager
@@ -71,7 +103,7 @@ def read_gc(data):
         if not good:
             raise DynastyError("the GameCube save's checksums don't match: it's damaged or edited")
     if meta.get("typ") != "Dynasty":
-        raise DynastyError(f"that's {'an owner mode' if meta.get('typ') == 'Owner Mode' else 'a ' + (meta.get('typ') or 'different')} save: only dynasties convert here")
+        raise DynastyError(f"that's {a_kind(meta.get('typ'))} save: only dynasties convert here")
     return meta
 
 
@@ -84,7 +116,7 @@ def read_xbox(data):
             raise DynastyError(f"not an Xbox MVP 2005 save this reads ({e})")
         meta["verified"] = bool(C.verify_xbox(data))
     if meta.get("typ") != "Dynasty":
-        raise DynastyError(f"that's {'an owner mode' if meta.get('typ') == 'Owner Mode' else 'a ' + (meta.get('typ') or 'different')} save: only dynasties convert here")
+        raise DynastyError(f"that's {a_kind(meta.get('typ'))} save: only dynasties convert here")
     return meta
 
 
@@ -98,7 +130,7 @@ def gc_to_xbox(gci, xbox_dynasty, name=None):
             new, _, _ = G.convert(gci[GC_OFF:GC_OFF + GC_LEN], xbox_dynasty[XB_OFF:XB_OFF + XB_LEN], sched=True,
                                   hist=True)
         except Exception as e:
-            raise DynastyError(f"this dynasty couldn't be converted ({e})")
+            raise DynastyError(conversion_error(e))
         out = C.build_xbox(xbox_dynasty, dict(name=name or t["name"], typ="Dynasty", flags=t["flags"], payload=new))
         if not C.verify_xbox(out):
             raise DynastyError("the converted save failed its signature check")
@@ -136,7 +168,7 @@ def xbox_to_gc(data, gc_dynasty, name=None):
         try:
             payload = R.convert(meta["payload"], gc_dynasty[GC_OFF:GC_OFF + GC_LEN])
         except Exception as e:
-            raise DynastyError(f"this dynasty couldn't be converted ({e})")
+            raise DynastyError(conversion_error(e))
         out = C.build_gc(gc_dynasty, dict(name=name, typ="Dynasty", flags=g["flags"], payload=payload))
         if not GCS.check(bytearray(out)):
             raise DynastyError("the converted .gci failed its checksum check")

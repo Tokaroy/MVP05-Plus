@@ -1276,6 +1276,17 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
     try:
         with open(p, "rb") as f:
             base = f.read()
+        if base[:28] != PC.MAGIC:  # (a PS2 card's saves are looked through below)
+            check = {("GameCube", "dynasty"): DY.read_gc, ("GameCube", "owner mode"): OW.read_gc,
+                     ("GameCube", "roster"): GR.read_gc, ("PC", "dynasty"): PCD.read, ("PC", "owner mode"): OW.read_pc,
+                     ("PC", "roster"): RO.read, ("PS2", "dynasty"): PD.read, ("PS2", "owner mode"): OW.read_ps2,
+                     ("PS2", "roster"): RO.read}[(to, mode)]
+            try:
+                check(base)
+            except errors as e:
+                messagebox.showinfo(title, f"{os.path.basename(p)} can't be built on: {e}.\n\nChoose one of your own "
+                                           f"{to} {mode} saves.", parent=frm)
+                return
         if gc:
             fname, out = (OW.xbox_to_gc if owner else GR.xbox_to_gc if roster else DY.xbox_to_gc)(data, base)
             stem, ext = (fname[:-4] if fname.endswith(".gci") else fname) + " (from MVP05-Plus)", ".gci"

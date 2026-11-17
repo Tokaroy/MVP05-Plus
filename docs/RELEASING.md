@@ -1,5 +1,12 @@
 # Making a release
 
+**Before a release, check the save converters** on a folder of your own sample saves (named as the script's
+header lists; never commit them):
+```
+python tools/saves/tests/test_converters.py <samples folder>
+```
+It ends with "No problems." when every conversion, round trip and refusal is as it should be.
+
 1. **Push this repository to GitHub** (once): create an empty repository named `MVP05-Plus` on github.com (no README), then in this folder:
    ```
    git remote add origin https://github.com/<you>/MVP05-Plus.git

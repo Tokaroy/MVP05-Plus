@@ -166,8 +166,8 @@ def read(data):
         icons = (files.get("title.ico"), files.get("icon.sys"))
     _check(_u32(b, 16) == HEAD and _u32(b, 20) == SIZE, "not a PS2 MVP 2005 dynasty this reads")
     typ = b[0x48:0x88].decode("utf-16-le", "replace").split("\0")[0]
-    _check(typ == "Dynasty", f"that's a{'n' if typ[:1] in 'AEIOU' else ''} {typ or 'different'} save: only "
-                             "dynasties convert (owner mode is coming later)")
+    _check(typ == "Dynasty", f"that's {DY.a_kind(typ)} save: only "
+                             "dynasties convert here")
     _check(_u32(b, 0) == RO.crc(b[16:HEAD]) and _u32(b, 4) == RO.crc(b[HEAD:]),
            "the PS2 save's checksums don't match: it's damaged or edited")
     if icons and all(icons):
