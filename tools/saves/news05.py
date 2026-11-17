@@ -385,8 +385,9 @@ def _history(x, marks):
     return {}
 
 
-def season_leaders(save, db, most=5):
-    """This season's leaders in each league: {0 (AL) / 1 (NL): {"HR"|"AVG"|"W"|"ERA"|"SV": [(key, team, text)]}}.
+def season_leaders(save, db, most=10):
+    """This season's leaders in each league: {0 (AL) / 1 (NL): {"AVG"|"HR"|"RBI"|"W"|"ERA"|"SV"|"SO": [(key, team,
+    text)]}}.
     AVG needs 2.7 at-bats a team game, ERA an inning every three team games (the game's own list, checked)."""
     rows = [r for rs in save["history"].values() for r in rs]
     if not rows:
@@ -421,6 +422,8 @@ def season_leaders(save, db, most=5):
         cat["ERA"] = [(k, s.team, f"{27 * s['er'] / s['outs']:.2f}")
                       for k, s in sorted(q, key=lambda z: (z[1]["er"] / z[1]["outs"], -z[1]["outs"]))][:most]
         cat["SV"] = [(k, s.team, str(s["sv"])) for k, s in sorted(p, key=lambda z: -z[1]["sv"]) if s["sv"]][:most]
+        cat["RBI"] = [(k, s.team, str(s["rbi"])) for k, s in sorted(b, key=lambda z: -z[1]["rbi"]) if s["rbi"]][:most]
+        cat["SO"] = [(k, s.team, str(s["so"])) for k, s in sorted(p, key=lambda z: -z[1]["so"]) if s["so"]][:most]
         out[lg] = cat
     out["year"] = year
     out["last_season"] = season is not None and day(season).year != year
@@ -1039,7 +1042,7 @@ a.score{display:block;color:#000;text-decoration:none}a.score:hover{border-color
 .dpane{display:none}.dpane.on{display:block}
 .lpane{display:none}.lpane.on{display:block}.lt button{font-size:11px;padding:3px 2px}
 .subtabs.lt{padding:4px 0 0}.subtabs.lt button{padding:0 3px}
-#leaders td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+#leaders0 td,#leaders1 td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
 .top{display:flex;align-items:flex-start;padding:8px 10px 0 0;font:bold 11px Tahoma,Arial,sans-serif}
 .top a{color:#fff;padding:0 9px;border-left:1px solid #777}.top a:first-child{border:0}.top a:hover{color:#fc3;text-decoration:none}
 .sub{height:24px;background:linear-gradient(#e2e2e2,#b9b9b9);border-bottom:1px solid #888;display:flex;align-items:center;font:bold 11px Tahoma,Arial,sans-serif}
@@ -1193,28 +1196,30 @@ def render(news):
                        f"Streak: {row['streak'] or '&ndash;'}<br>Home {row['home']} &middot; Road {row['road']}"
                        + (f"<br>Next: {'at ' + e(db.club(nxt['home'])) if nxt['away'] == user else 'vs. ' + e(db.club(nxt['away']))}"
                           if nxt else "") + "</div></div>")
-    if news["leaders"]:  # this season's leaders, as the game's Around the League shows them
-        cats = ("HR", "AVG", "W", "ERA", "SV")
-        title = f"{news['leaders']['year']} leaders" if news["leaders"]["last_season"] else "League leaders"
-        out.append(f"<div class=mod id=leaders><div class=mh>{title}</div><div class='tabs lt'>" + "".join(
-            f"<button data-g=llg data-i={i} onclick='pickl({i},window._lc)'>{n}</button>"
-            for i, n in enumerate(("AL", "NL"))) + "</div><div class='subtabs lt'>" + "".join(
-            f"<button data-g=lcat data-i={i} onclick='pickl(window._ll,{i})'>{c}</button>" for i, c in enumerate(cats))
-                   + "</div><div class=mb>")
+    if news["leaders"]:  # this season's leaders, as the game's Around the League shows them: hitting, then pitching
+        year = f"{news['leaders']['year']} " if news["leaders"]["last_season"] else ""
         names_ = news["names"]
-        for lgi in (0, 1):
-            for ci, c in enumerate(cats):
-                out.append(f"<div class=lpane id=l{lgi}{ci}><table>")
-                for rank, (k, t, v) in enumerate(news["leaders"].get(lgi, {}).get(c, []), 1):
-                    full = names_.get(k) or db.name(k) or "?"
-                    first, _, rest = full.partition(" ")
-                    short_name = f"{first[0]}. {rest}" if rest else full
-                    cls = " class=mine" if t == user else ""
-                    out.append(f"<tr{cls}><td>{rank}. {lg(t)}{e(short_name)}</td><td>{e(v)}</td></tr>")
-                if not news["leaders"].get(lgi, {}).get(c):
-                    out.append("<tr><td>No one yet</td><td></td></tr>")
-                out.append("</table></div>")
-        out.append("</div></div>")
+        for box, (title, cats) in enumerate(((f"{year}Hitting leaders", ("AVG", "HR", "RBI")),
+                                            (f"{year}Pitching leaders", ("W", "ERA", "SV", "SO")))):
+            out.append(f"<div class=mod id=leaders{box}><div class=mh>{title}</div><div class='tabs lt'>" + "".join(
+                f"<button data-g=llg{box} data-i={i} onclick='pickl({box},{i},null)'>{n}</button>"
+                for i, n in enumerate(("AL", "NL"))) + "</div><div class='subtabs lt'>" + "".join(
+                f"<button data-g=lcat{box} data-i={i} onclick='pickl({box},null,{i})'>{c}</button>"
+                for i, c in enumerate(cats)) + "</div><div class=mb>")
+            for lgi in (0, 1):
+                for ci, c in enumerate(cats):
+                    rows_ = news["leaders"].get(lgi, {}).get(c, [])
+                    out.append(f"<div class='lpane lp{box}' id=l{box}{lgi}{ci}><table>")
+                    for rank, (k, t, v) in enumerate(rows_, 1):
+                        full = names_.get(k) or db.name(k) or "?"
+                        first, _, rest = full.partition(" ")
+                        short_name = f"{first[0]}. {rest}" if rest else full
+                        cls = " class=mine" if t == user else ""
+                        out.append(f"<tr{cls}><td>{rank}. {lg(t)}{e(short_name)}</td><td>{e(v)}</td></tr>")
+                    if not rows_:
+                        out.append("<tr><td>No one yet</td><td></td></tr>")
+                    out.append("</table></div>")
+            out.append("</div></div>")
     if not post and news["games_played"]:
         rows = [r for d in news["divisions"] for r in d["rows"] if r["streak"]]
         hot = sorted((r for r in rows if r["streak"][0] == "W"), key=lambda r: -int(r["streak"][1:]))[:4]
@@ -1383,9 +1388,10 @@ def render(news):
                f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
                "function pickday(i){tab('day',i);document.querySelectorAll('.dpane').forEach(function(p){"
                "p.classList.toggle('on',p.id=='d'+i)});}function day0(){pickday(0);}pickday(0);"
-               "function pickl(l,c){tab('llg',l);tab('lcat',c);window._ll=l;window._lc=c;"
-               "document.querySelectorAll('.lpane').forEach(function(p){p.classList.toggle('on',p.id=='l'+l+c)});}"
-               f"pickl({first[0]},0);</script>")
+               "var LS=[[0,0],[0,0]];function pickl(b,l,c){if(l!==null)LS[b][0]=l;if(c!==null)LS[b][1]=c;"
+               "l=LS[b][0];c=LS[b][1];tab('llg'+b,l);tab('lcat'+b,c);document.querySelectorAll('.lp'+b)"
+               ".forEach(function(p){p.classList.toggle('on',p.id=='l'+b+l+c)});}"
+               f"pickl(0,{first[0]},0);pickl(1,{first[0]},0);</script>")
     out.append("</body></html>")
     logos = "".join(f".{c}{{background-image:url({u})}}" for v in used.values() if v for c, u in [v])
     return "".join(out).replace("</style>", logos + "</style>", 1)

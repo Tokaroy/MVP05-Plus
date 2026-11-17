@@ -300,6 +300,7 @@ def news_leaders():
     assert got["AVG"] == [("Jason Varitek", ".406"), ("Juan Uribe", ".402"), ("Shannon Stewart", ".396")], got["AVG"]
     assert got["HR"][0] == ("Juan Uribe", "15") and got["SV"][:2] == [("Jeremy Affeldt", "11"), ("Joe Nathan", "9")]
     assert got["W"][0] == ("Jimmy Gobble", "5") and got["ERA"][2] == ("Joe Nathan", "0.77"), (got["W"], got["ERA"])
+    assert [name(k) for k, _, _ in L[0]["AVG"]][6:] == ["Michael Young", "Ichiro", "Mike Sweeney", "Marco Scutaro"]
     return 1
 t('league news: league leaders as the game shows them', news_leaders)
 def news_standings():
