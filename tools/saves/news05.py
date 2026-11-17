@@ -420,6 +420,39 @@ def rate3(v):
     return t[1:] if t.startswith("0") else t
 
 
+def league_norms(history, db, first=2005):
+    """{(year, 0 AL / 1 NL): dict(obp, slg, era)}: each league's totals by season, from every big-leaguer's row (the
+    dynasty's seasons: the real ones before it hold only the players still in the game, and no walks)."""
+    tot = collections.defaultdict(collections.Counter)
+    for rows in history.values():
+        for r in rows:
+            if r["year"] < first or r["team"] >= len(db.franchises):
+                continue
+            league = int(db.teams.get(db.franchises[r["team"]], {}).get(4, -1))
+            tot[(r["year"], league)].update({("b_" if r["batter"] else "p_") + k: v for k, v in r["stats"].items()})
+    out = {}
+    for key, t in tot.items():
+        b = {k[2:]: v for k, v in t.items() if k.startswith("b_")}
+        b = collections.Counter(b)
+        out[key] = dict(obp=obp(b) if b["ab"] else 0, slg=slg(b) if b["ab"] else 0,
+                        era=27 * t["p_er"] / t["p_outs"] if t["p_outs"] else 0)
+    return out
+
+
+def ops_plus(s, norm):
+    """100 x (OBP / the league's + SLG / the league's - 1), or None (no league line, no at-bats)"""
+    if not norm or not norm["obp"] or not norm["slg"] or not s["ab"]:
+        return None
+    return round(100 * (obp(s) / norm["obp"] + slg(s) / norm["slg"] - 1))
+
+
+def era_plus(s, norm):
+    """100 x the league's ERA / his, or None (no innings, no earned runs)"""
+    if not norm or not norm["era"] or not s["outs"] or not s["er"]:
+        return None
+    return round(100 * norm["era"] / (27 * s["er"] / s["outs"]))
+
+
 def season_stats(save, db):
     """This season's line for every player with one (the player history's rows of the newest year, FORMAT_NOTES 3.6):
     dict(year, last_season (no games yet this year: last season's rows), games {team: games played, or 162},
@@ -797,6 +830,7 @@ def build(save, db):
                 days=recaps(save["games"], db, save["user"], postseason),
                 leaders={} if postseason else season_leaders(save, db, stats=stats), names=save["names"],
                 stats=stats, rosters=save["rosters"], games=save["games"], records=rec, stories=stories,
+                norms=league_norms(save["history"], db),
                 history=save["history"], team_of=team_of)
 
 
@@ -1202,7 +1236,7 @@ function showPlayer(k){var el=document.getElementById('playerpage'),p=PD[k],h=[]
   "</p><p>"+p.bio+"</p></div></div></div>");
  if(p.status&&p.status.length){h.push("<div class=mod><div class=mh>Status</div><div class=mb><ul class=list>");
   p.status.forEach(function(x){h.push("<li><b>"+esc(x[0])+":</b> "+esc(x[1])+"</li>");});h.push("</ul></div></div>");}
- var head=p.b?['Year','Team','AB','H','HR','RBI','R','SB','BB','SO','AVG','OBP','SLG','OPS']:['Year','Team','G','W','L','SV','IP','ER','SO','BB','ERA'];
+ var head=p.b?['Year','Team','AB','H','HR','RBI','R','SB','BB','SO','AVG','OBP','SLG','OPS','OPS+']:['Year','Team','G','W','L','SV','IP','ER','SO','BB','ERA','ERA+'];
  var t=["<div class=mod><div class=mh>"+(p.b?'Batting':'Pitching')+" by season</div><div class=mb><table class=career><tr>"];
  head.forEach(function(x){t.push('<th>'+x+'</th>');});t.push('</tr>');var tot=[],full=true,n=0;
  function cell(r,j){return !p.b&&j==6?Math.floor(r[j]/3)+'.'+r[j]%3:r[j];}
@@ -1211,14 +1245,14 @@ function showPlayer(k){var el=document.getElementById('playerpage'),p=PD[k],h=[]
   var avg=r[2]?r3(r[3]/r[2]):'&ndash;';if(!known||!r[2])return '<td>'+avg+'</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td>';
   var ob=(r[3]+r[8])/(r[2]+r[8]+r[11]),sl=r[10]/r[2];return '<td>'+avg+'</td><td>'+r3(ob)+'</td><td>'+r3(sl)+'</td><td>'+r3(ob+sl)+'</td>';}
  var last=p.b?10:10;
- p.rows.forEach(function(r){if((r.length==12)!=!!p.b)return;n++;var cls=r[0]==now?" class=mine":"",tt=TT[r[1]]||['?',-1];
+ p.rows.forEach(function(r){if((r.length==13)!=!!p.b)return;var plus=r[r.length-1];n++;var cls=r[0]==now?" class=mine":"",tt=TT[r[1]]||['?',-1];
   var known=!p.b||(r[8]+r[9]+r[10]+r[11]>0)||!r[3];if(!known)full=false;
   t.push('<tr'+cls+'><td>'+r[0]+'</td><td>'+tm(tt[1],tt[0])+'</td>');
-  for(var j=2;j<r.length;j++){tot[j]=(tot[j]||0)+r[j];if(j<last)t.push('<td>'+(p.b&&j>=8&&!known?'&ndash;':cell(r,j))+'</td>');}
-  t.push(rates(r,known)+'</tr>');});
+  for(var j=2;j<r.length-1;j++){tot[j]=(tot[j]||0)+r[j];if(j<last)t.push('<td>'+(p.b&&j>=8&&!known?'&ndash;':cell(r,j))+'</td>');}
+  t.push(rates(r,known)+'<td>'+(plus===null?(!p.b&&!r[7]&&r[6]?'&infin;':'&ndash;'):plus)+'</td></tr>');});
  if(n){t.push('<tr class=tot><td>Total</td><td></td>');for(var j=2;j<tot.length&&j<last;j++)t.push('<td>'+(p.b&&j>=8&&!full?'&ndash;':cell(tot,j))+'</td>');
-  t.push(rates(tot,full)+'</tr>');}
- t.push('</table>'+(p.b&&!full?"<p class=date>BB, SO, OBP, SLG and OPS are kept for the seasons played in this dynasty only.</p>":"")+'</div></div>');h.push(t.join(''));
+  t.push(rates(tot,full)+'<td></td></tr>');}
+ t.push('</table>'+(p.b&&!full?"<p class=date>BB, SO, OBP, SLG, OPS and OPS+ are kept for the seasons played in this dynasty only.</p>":"")+'</div></div>');h.push(t.join(''));
  if(p.news.length){h.push("<div class=mod><div class=mh>In the news</div><div class=mb><ul class=heads>");
   p.news.forEach(function(n){h.push("<li><span class=kind>"+esc(n[1])+"</span> <span class=date>"+n[0]+"</span><b>"+esc(n[2])+"</b><p>"+esc(n[3])+"</p></li>");});
   h.push("</ul></div></div>");}
@@ -1549,6 +1583,10 @@ def render(news):
     return "".join(out).replace("</style>", logos + "</style>", 1)
 
 
+def _or_dash(v, dash="&ndash;"):
+    return dash if v is None else v
+
+
 def team_pages(news, lg, gid, PL, TM, story):
     """One page a club (shown in place of the front page by #team-<n>): record and place, the season so far by
     game, the roster with each player's line, injuries, transactions and headlines about the club."""
@@ -1599,6 +1637,7 @@ def team_pages(news, lg, gid, PL, TM, story):
             out.append("<tr><td>Nothing on the schedule.</td></tr>")
         out.append("</table></div></div></div>")
         # the roster: hitters, then pitchers, with this season's lines
+        lnorm = news["norms"].get((stats.get("year"), int(db.teams.get(t, {}).get(4, -1))))
         keys = news["rosters"].get(i, [])
         nm = lambda k: names.get(k) or db.name(k) or "?"
         hitters = [k for k in keys if k in bat or (k not in pit and db.pos(k) not in ("RHP", "LHP"))]
@@ -1608,24 +1647,25 @@ def team_pages(news, lg, gid, PL, TM, story):
         pitchers.sort(key=lambda k: (-pit.get(k, {}).get("outs", 0)))
         label = f"{stats.get('year', '')} " if stats.get("last_season") else ""
         out.append(f"<div class=mod><div class=mh>{label}Roster</div><div class=mb><table class=roster><tr><th>Pos</th>"
-                   "<th>Hitter</th><th>AB</th><th>AVG</th><th>HR</th><th>RBI</th><th>R</th><th>SB</th><th>OPS</th></tr>")
+                   "<th>Hitter</th><th>AB</th><th>AVG</th><th>HR</th><th>RBI</th><th>R</th><th>SB</th><th>OPS</th><th>OPS+</th></tr>")
         for k in hitters:
             b = bat.get(k)
             line = (f"<td>{b['ab']}</td><td>{(b['h'] / b['ab']):.3f}</td>".replace(">0.", ">.") if b and b["ab"] else
                     "<td>0</td><td>&ndash;</td>") + (f"<td>{b['hr']}</td><td>{b['rbi']}</td><td>{b['r']}</td>"
                                                     f"<td>{b['sb']}</td><td>{rate3(obp(b) + slg(b)) if b['ab'] else '&ndash;'}</td>"
-                                                    if b else "<td></td>" * 5)
+                                                    f"<td>{_or_dash(ops_plus(b, lnorm))}</td>" if b else "<td></td>" * 6)
             out.append(f"<tr><td>{db.pos(k)}</td><td>{PL(k)}</td>{line}</tr>")
         out.append("</table><table class=roster><tr><th></th><th>Pitcher</th><th>G</th><th>W-L</th><th>ERA</th>"
-                   "<th>SV</th><th>IP</th><th>SO</th></tr>")
+                   "<th>SV</th><th>IP</th><th>SO</th><th>ERA+</th></tr>")
         for k in pitchers:
             p = pit.get(k)
             if p and p["g"]:
                 era = f"{27 * p['er'] / p['outs']:.2f}" if p["outs"] else "&ndash;"
                 line = (f"<td>{p['g']}</td><td>{p['w']}-{p['l']}</td><td>{era}</td><td>{p['sv']}</td>"
-                        f"<td>{p['outs'] // 3}.{p['outs'] % 3}</td><td>{p['so']}</td>")
+                        f"<td>{p['outs'] // 3}.{p['outs'] % 3}</td><td>{p['so']}</td>"
+                        f"<td>{_or_dash(era_plus(p, lnorm), '&infin;' if not p['er'] and p['outs'] else '&ndash;')}</td>")
             else:
-                line = "<td>0</td>" + "<td></td>" * 5
+                line = "<td>0</td>" + "<td></td>" * 6
             out.append(f"<tr><td>{db.pos(k)}</td><td>{PL(k)}</td>{line}</tr>")
         out.append("</table></div></div>")
         # news about the club
@@ -1689,9 +1729,12 @@ def player_data(news, keys):
         cells = []
         for r in sorted(rows, key=lambda r: r["year"]):
             x = r["stats"]
+            norm = (news["norms"].get((r["year"], int(db.teams.get(db.franchises[r["team"]], {}).get(4, -1))))
+                    if r["team"] < len(db.franchises) else None)
+            plus = ops_plus(x, norm) if r["batter"] else era_plus(x, norm)
             cells.append([r["year"], r["team"]] + ([x["ab"], x["h"], x["hr"], x["rbi"], x["r"], x["sb"], x["bb"],
                                                     x["so"], x["tb"], x["sf"]] if r["batter"]
-                         else [x["g"], x["w"], x["l"], x["sv"], x["outs"], x["er"], x["so"], x["bb"]]))
+                         else [x["g"], x["w"], x["l"], x["sv"], x["outs"], x["er"], x["so"], x["bb"]]) + [plus])
         p = db.players.get(k, {})
         bio = []
         if p:
@@ -1762,8 +1805,9 @@ def stats_page(news, lg, PL, TM):
            + "</div><div class=mb><label class=date><input type=checkbox onchange=\"document.getElementById('stats')"
              ".classList.toggle('all',this.checked);renumber()\"> Show players who don't qualify</label>"
              " <span class=date>&middot; Click a column to sort by it.</span>"]
-    heads = (["#", "Player", "Team", "G", "AB", "R", "H", "HR", "RBI", "SB", "BB", "SO", "AVG", "OBP", "SLG", "OPS"],
-             ["#", "Player", "Team", "G", "W", "L", "SV", "IP", "ER", "BB", "SO", "ERA", "K/9"])
+    heads = (["#", "Player", "Team", "G", "AB", "R", "H", "HR", "RBI", "SB", "BB", "SO", "AVG", "OBP", "SLG", "OPS",
+              "OPS+"], ["#", "Player", "Team", "G", "W", "L", "SV", "IP", "ER", "BB", "SO", "ERA", "ERA+", "K/9"])
+    norm = lambda t: news["norms"].get((st["year"], int(db.teams.get(t, {}).get(4, -1))))
     for lgi in (0, 1):
         for kind in (0, 1):
             src = st["bat"] if kind == 0 else st["pit"]
@@ -1782,13 +1826,19 @@ def stats_page(news, lg, PL, TM):
                     cells = (td(x["g"]) + td(x["ab"]) + td(x["r"]) + td(x["h"]) + td(x["hr"]) + td(x["rbi"]) + td(x["sb"])
                              + td(x["bb"]) + td(x["so"]) + td(f"{avg:.4f}", rate3(avg)) + td(f"{ob:.4f}", rate3(ob))
                              + td(f"{sl:.4f}", rate3(sl)) + td(f"{ob + sl:.4f}", rate3(ob + sl)))
+                    op = ops_plus(x, norm(t))
+                    cells += td(op if op is not None else -999, op if op is not None else "&ndash;")
                 else:
                     q = x["outs"] >= games.get(t, 0)
                     era = 27 * x["er"] / x["outs"]
                     k9 = 27 * x["so"] / x["outs"]
                     cells = (td(x["g"]) + td(x["w"]) + td(x["l"]) + td(x["sv"])
                              + td(x["outs"], f"{x['outs'] // 3}.{x['outs'] % 3}") + td(x["er"]) + td(x["bb"]) + td(x["so"])
-                             + td(f"{-era + x['outs'] / 1e6:.6f}", f"{era:.2f}") + td(f"{k9:.4f}", f"{k9:.1f}"))
+                             + td(f"{-era + x['outs'] / 1e6:.6f}", f"{era:.2f}"))
+                    ep = era_plus(x, norm(t))
+                    cells += td(ep if ep is not None else (9999 if not x["er"] else -1),
+                                ep if ep is not None else ("&infin;" if not x["er"] else "&ndash;"))
+                    cells += td(f"{k9:.4f}", f"{k9:.1f}")
                 cls = ("" if q else "nq") + (" mine" if t == news["user"] else "")
                 name = news["names"].get(k) or db.name(k) or "?"
                 out.append(f"<tr class='{cls.strip()}'><td></td><td data-v=\"{html.escape(name)}\">{PL(k)}</td>"

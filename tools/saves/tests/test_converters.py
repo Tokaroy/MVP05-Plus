@@ -307,6 +307,8 @@ def news_leaders():
     st = N.season_stats(save, db)
     v = next(x for k, x in st["bat"].items() if name(k) == "Jason Varitek")
     assert (N.rate3(N.obp(v)), N.rate3(N.slg(v))) == (".467", ".625"), (N.obp(v), N.slg(v))
+    norms = N.league_norms(save["history"], db)
+    assert N.ops_plus(v, norms[(2007, 0)]) == 175 and round(norms[(2007, 0)]["era"], 2) == 4.24, norms[(2007, 0)]
     return 1
 t('league news: league leaders as the game shows them', news_leaders)
 def news_standings():
