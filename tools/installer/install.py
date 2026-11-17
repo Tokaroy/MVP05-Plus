@@ -1568,6 +1568,37 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         "from the card first if the tool says the save already exists."), parent=frm)
 
 
+def copy_or_rename(frm, root, folder, rename, done):
+    """One of your saves copied under a new name, or renamed (the folder the game uses for the name goes with it)."""
+    import saves05 as S
+    from tkinter import messagebox, simpledialog
+    title = "Rename a save" if rename else "Copy a save"
+    try:
+        with open(os.path.join(folder, "data.dat"), "rb") as f:
+            head = f.read(0x108)
+        old = head[0x68:0x88].decode("utf-16-le").split("\0")[0]
+    except (OSError, UnicodeDecodeError) as e:
+        messagebox.showinfo(title, f"That save can't be read: {e}.", parent=frm)
+        return
+    first = old if rename else (old[:S.NAME_MOST - 1] + "2")
+    while True:
+        name = simpledialog.askstring(title, f"{'A new name for' if rename else 'A name for the copy of'} \"{old}\" "
+                                             f"(up to {S.NAME_MOST} letters and digits):", initialvalue=first,
+                                      parent=frm)
+        if name is None or (rename and " ".join(name.split()) == old):
+            return
+        try:
+            (S.rename_save if rename else S.copy_save)(root, folder, name)
+            break
+        except S.SaveError as e:
+            messagebox.showinfo(title, f"{e}.", parent=frm)
+            first = name
+        except OSError as e:
+            messagebox.showerror(title, f"Nothing was changed: {e}.", parent=frm)
+            return
+    done()
+
+
 def share_save(frm, folder, name):
     """One of your saves as a zip (its folder as the game keeps it), for another MVP05-Plus's Import a save, or an
     Xbox's save tools."""
@@ -1629,7 +1660,9 @@ def current_saves_tab(frm, root, tk, ttk):
          lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "GameCube", tk, ttk)),
         ("Export to PS2\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PS2", tk, ttk)),
         ("Export to PC\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PC", tk, ttk)),
-        ("Share as a zip\u2026", lambda: share_save(frm, folders[iid], tree.item(iid, "text")))])
+        ("Share as a zip\u2026", lambda: share_save(frm, folders[iid], tree.item(iid, "text"))),
+        ("Copy\u2026", lambda: copy_or_rename(frm, root, folders[iid], False, refresh)),
+        ("Rename\u2026", lambda: copy_or_rename(frm, root, folders[iid], True, refresh))])
 
     bar = ttk.Frame(frm)
     bar.grid(row=2, column=0, sticky="we", pady=(8, 0))

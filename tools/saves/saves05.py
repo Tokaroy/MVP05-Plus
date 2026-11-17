@@ -162,6 +162,25 @@ def new_save(root, base_folder, data, name):
     return folder
 
 
+def copy_save(root, folder, name):
+    """A copy of one of your saves under a new name (a dynasty to branch off, say): its folder."""
+    _check_not_running()
+    with open(os.path.join(folder, "data.dat"), "rb") as f:
+        data = f.read()
+    return new_save(root, folder, data, name)
+
+
+def rename_save(root, folder, name):
+    """One of your saves under a new name, in the folder the game uses for it (backed up first): its folder."""
+    _check_not_running()
+    with open(os.path.join(folder, "data.dat"), "rb") as f:
+        data = f.read()
+    new = new_save(root, folder, data, name)
+    backup_folder(root, folder, "renaming")
+    shutil.rmtree(folder)
+    return new
+
+
 def _check_not_running():
     if game_running():
         raise SaveError("close MVP05.exe first: the game keeps its saves open while it runs")
