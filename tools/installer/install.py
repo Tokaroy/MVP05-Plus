@@ -2235,7 +2235,7 @@ def mods_tab(tabs, root, tk, ttk):
     box = ttk.Frame(frm)
     box.grid(row=2, column=0, sticky="we")
     box.columnconfigure(0, weight=1)
-    tree = ttk.Treeview(box, columns=("types", "size"), show="tree headings", selectmode="browse", height=12)
+    tree = ttk.Treeview(box, columns=("types", "size"), show="tree headings", selectmode="browse", height=10)
     tree.heading("#0", text="Mod")
     tree.heading("types", text="File type")
     tree.heading("size", text="Size")
@@ -2261,18 +2261,15 @@ def mods_tab(tabs, root, tk, ttk):
 
     # the game's memory (memory_mb), for mods that load more than the Xbox could hold
     import settings as ST
-    ttk.Separator(frm, orient="horizontal").grid(row=5, column=0, sticky="we", pady=(12, 8))
     more_ram = tk.BooleanVar(value=ST.read(root).get("memory_mb", 64) == 128)
 
     def ram_changed():
         ST.write(root, {"memory_mb": 128 if more_ram.get() else 64})
         say("Memory doubled. Restart the game if it's running." if more_ram.get() else
             "Memory back to the Xbox's. Restart the game if it's running.")
-    ttk.Checkbutton(frm, text="Double the game's memory (128 MB, as a developer Xbox)", variable=more_ram,
-                    command=ram_changed).grid(row=6, column=0, sticky="w")
-    ttk.Label(frm, foreground="#666", wraplength=560, justify="left", text=(
-        "For mods with bigger stadiums, textures or crowds than the Xbox's 64 MB could hold. Leave it off "
-        "otherwise.")).grid(row=7, column=0, sticky="w", padx=(22, 0))
+    # (one line, and the list two rows shorter for it: the Launcher stays the height it was)
+    ttk.Checkbutton(frm, text="Double the game's memory (128 MB): for mods bigger than the Xbox could hold",
+                    variable=more_ram, command=ram_changed).grid(row=5, column=0, sticky="w", pady=(4, 0))
     frm.bind("<Map>", lambda _: more_ram.set(ST.read(root).get("memory_mb", 64) == 128), add="+")
 
     def say(text, colour="#1a7f37"):
@@ -2288,7 +2285,7 @@ def mods_tab(tabs, root, tk, ttk):
             if name == keep:
                 tree.selection_set(iid)
                 tree.see(iid)
-        if len(items) > 12:  # a scrollbar only when the list is longer than it shows
+        if len(items) > 10:  # a scrollbar only when the list is longer than it shows
             sb.grid(row=0, column=1, sticky="ns")
         else:
             sb.grid_remove()
