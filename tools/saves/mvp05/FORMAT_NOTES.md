@@ -135,7 +135,9 @@ serializer for the owner object (0x451440, thiscall: stream, writer) writes sect
 blobs in this order: +4 0x340, +0x344 0x100, +0x444 0x340, +0x784 0x100, +0x884 0xFC00, +0x109C4 0x2100, +0x10484
 0x540 (these two swapped), +0x12AC4 0xB0, then seven u32 from +0x12B74 (+0x12B7C the bank balance), then the rest
 from +0x12B90 elsewhere. The long table at +0x884 is 12-byte records read as (float, u32, int32) at 0x4515D0, and
-+0x10484 and +0x12AC4 are 16-byte records starting with an int32 (0x451570): 4-byte values, as assumed.
++0x10484 and +0x12AC4 are 16-byte records starting with an int32 (0x451570): 4-byte values, as assumed. A new
+owner mode sets +0x12B7C and +0x12B80 to the float 2,000,000.0 (0x46A6AA, from 0x5B1D84): the bank balance and,
+beside it, most likely the starting one; income is added to +0x12B7C as a float (0x450755).
 
 ### 3.9 Memory card images (MVP05-Plus)
 - **PCSX2 (.ps2, `tools/saves/ps2card.py`):** 512-byte pages, each followed by 16 error-correcting bytes in a full
