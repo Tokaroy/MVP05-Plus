@@ -194,6 +194,23 @@ class Database:
         cache[(key, big)] = url
         return url
 
+    def badge(self):
+        """The game's own badge (the MVP Baseball 2005 title image in your default.xbe), as a data: URL, or "" """
+        if "_badge" not in self.__dict__:
+            self._badge = ""
+            try:
+                import base64
+                import io
+                import title_icon
+                with open(os.path.join(self.root, "assets", "default.xbe"), "rb") as f:
+                    im = title_icon.title_image(f.read())
+                buf = io.BytesIO()
+                im.save(buf, "PNG", optimize=True)
+                self._badge = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+            except Exception:  # (no disc's xbe here: the header goes without)
+                pass
+        return self._badge
+
     def injury(self, kind):
         """The injury's name (from the game's text, when it's read), or "" """
         return self.injuries.get(kind, "")
@@ -632,7 +649,8 @@ def build(save, db):
                                 key=lambda s: (not s["big_club"], -s["days"])),
                 moves=sorted((s for s in stories if s["kind"] == "Roster move"),
                              key=lambda s: (not any(t in rec for t in s["raw_teams"]), -s["day"])),
-                user=save["user"], games_played=games_played, db=db)
+                user=save["user"], games_played=games_played, db=db,
+                days=recaps(save["games"], db, save["user"], postseason))
 
 
 def _out_for(days):
@@ -678,6 +696,218 @@ def _spread(stories, most=12, per_team=2, recent=0, per_kind=3):
     return out
 
 
+# ---- the games, written up ------------------------------------------------------------------------------------
+NUMBERS = ("no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve")
+ORDINAL = {10: "10th", 11: "11th", 12: "12th", 13: "13th"}
+
+
+def _num(n):
+    return NUMBERS[n] if 0 <= n < len(NUMBERS) else str(n)
+
+
+def _ord(n):
+    return ORDINAL.get(n) or f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def _back(gb):
+    """2.5 -> "2½ games back", 0.5 -> "half a game back" """
+    if gb == 0.5:
+        return "half a game back"
+    whole = int(gb)
+    return f"{whole}{'½' if gb != whole else ''} game{'s' if gb != 1 else ''} back"
+
+
+def recaps(games, db, user=None, postseason=False, days=7):
+    """The last `days` days of games, newest first: [(date number, [recap])]. A recap: the game, a headline, a few
+    sentences (what happened, streaks made or ended, the series, the season series, the standings after it), and
+    how notable it is (for the Game of the Day)."""
+    played = sorted((g for g in games if g["played"]), key=lambda g: g["day"])
+    if not played:
+        return []
+    allg = sorted(games, key=lambda g: g["day"])
+    # series: the same two clubs, the same park, on days no more than two apart
+    series_of = {}
+    by_pair = collections.defaultdict(list)
+    for g in allg:
+        by_pair[(g["away"], g["home"])].append(g)
+    for lst in by_pair.values():
+        run = []
+        for g in lst:
+            if run and g["day"] - run[-1]["day"] > 2:
+                for x in run:
+                    series_of[id(x)] = run
+                run = []
+            run.append(g)
+        for x in run:
+            series_of[id(x)] = run
+    keep = sorted({g["day"] for g in played})[-days:]
+    first_kept = keep[0]
+    rec = collections.defaultdict(lambda: [0, 0])
+    form = collections.defaultdict(list)
+    meet = collections.defaultdict(lambda: collections.Counter())
+    div_of = {t: int(db.teams[t].get(5, -1)) for t in db.franchises if t in db.teams}
+    out = collections.OrderedDict((d, []) for d in reversed(keep))
+    i = 0
+    while i < len(played):
+        d = played[i]["day"]
+        today = [g for g in played if g["day"] == d]
+        i += len(today)
+        notes = []
+        for g in today:
+            a, h = g["away"], g["home"]
+            win, lose = (a, h) if g["ar"] > g["hr"] else (h, a)
+            before = {t: (form[t][-1] if form[t] else "", _streak_len(form[t])) for t in (win, lose)}
+            rec[win][0] += 1
+            rec[lose][1] += 1
+            form[win].append("W")
+            form[lose].append("L")
+            meet[frozenset((a, h))][win] += 1
+            if d >= first_kept:
+                notes.append((g, win, lose, before, dict(meet[frozenset((a, h))])))
+        if d < first_kept:
+            continue
+        snap = {t: tuple(rec[t]) for t in db.franchises}
+        for g, win, lose, before, season in notes:
+            out[d].append(_recap(g, win, lose, before, season, series_of.get(id(g), [g]), snap, div_of, db, user,
+                                 postseason, form))
+        out[d].sort(key=lambda r: -r["weight"])
+        if out[d]:
+            out[d][0]["gotd"] = True
+    return list(out.items())
+
+
+def _streak_len(f):
+    k = 0
+    while k < len(f) and f[-1 - k] == f[-1]:
+        k += 1
+    return k
+
+
+def _recap(g, win, lose, before, season, series, snap, div_of, db, user, postseason, form):
+    wr, lr = max(g["ar"], g["hr"]), min(g["ar"], g["hr"])
+    wh, lh = (g["ah"], g["hh"]) if win == g["away"] else (g["hh"], g["ah"])
+    home_won = win == g["home"]
+    inn = g["innings"]
+    margin = wr - lr
+    walkoff = home_won and inn > 9
+    C = db.club
+    shared = collections.Counter(db.city(t) for t in db.franchises)
+
+    def c(t):  # the city, or "the White Sox" where two clubs share it (Chicago, New York)
+        return db.city(t) if shared[db.city(t)] == 1 else f"the {C(t)}"
+
+    def cap(x):
+        return x[0].upper() + x[1:]
+
+    def poss(t):
+        x = c(t)
+        return x + ("'" if x.endswith("s") else "'s")
+    W, L = C(win), C(lose)
+    # the headline
+    if lh == 0:
+        head, weight = f"No-hitter! {W} hold {db.city(lose) if shared[db.city(lose)] == 1 else C(lose)} hitless", 6.0
+    elif walkoff:
+        head, weight = f"{W} walk off in the {_ord(inn)}", 2.4
+    elif inn > 9:
+        head, weight = f"{W} outlast {c(lose)} in {inn}", 2.0
+    elif lh == 1:
+        head, weight = f"{W} one-hit {c(lose)}", 2.6
+    elif lr == 0:
+        head, weight = f"{W} blank {c(lose)}, {wr}-0", 1.4
+    elif margin >= 10:
+        head, weight = f"{W} pound {c(lose)}, {wr}-{lr}", 1.3
+    elif wr + lr >= 18:
+        head, weight = f"{W} win {wr}-{lr} slugfest", 1.4
+    elif margin == 1:
+        head, weight = f"{W} edge {c(lose)}, {wr}-{lr}", 1.3
+    elif margin >= 5:
+        head, weight = f"{W} roll past {c(lose)}", 1.0
+    else:
+        head, weight = f"{W} top {c(lose)}, {wr}-{lr}", 1.0
+    where = f"at {db.city(g['home'])}" if not home_won else "at home"
+    when = day(g["day"]).strftime("%A")
+    text = [f"The {db.full(win)} beat the {db.full(lose)} {wr}-{lr} {where} on {when}"
+            + (f" in {inn} innings" if inn > 9 and not walkoff else "")
+            + (f", winning it in the bottom of the {_ord(inn)}" if walkoff else "") + "."]
+    if lh == 0:
+        text.append(f"{cap(c(lose))} didn't get a hit.")
+    elif wh < lh:
+        text.append(f"{cap(c(win))} won it despite being outhit {lh}-{wh}.")
+    elif lr == 0 and lh <= 4:
+        text.append(f"{cap(c(lose))} managed only {_num(lh)} hit{'s' if lh != 1 else ''}.")
+    elif wh >= 15:
+        text.append(f"{cap(c(win))} piled up {wh} hits.")
+    # streaks: made or ended
+    ws = _streak_len(form[win]) if form[win] and form[win][-1] == "W" else 0
+    lb, ln = before[lose]
+    wb, wn = before[win]
+    if lb == "W" and ln >= 3:
+        text.append(f"The loss snapped {poss(lose)} {_num(ln)}-game winning streak.")
+        weight += 0.3
+    elif wb == "L" and wn >= 4:
+        text.append(f"The win ended a {_num(wn)}-game skid for {c(win)}.")
+        weight += 0.3
+    elif ws >= 3:
+        text.append(f"{cap(c(win))} {'have' if c(win).startswith('the ') else 'has'} won {_num(ws)} straight.")
+        weight += 0.1 * ws
+    # the series
+    played_s = [x for x in series if x["played"] and x["day"] <= g["day"]]
+    n_all, k = len(series), len(played_s)
+    wins = collections.Counter((x["away"] if x["ar"] > x["hr"] else x["home"]) for x in played_s)
+    a_w, b_w = wins[win], wins[lose]
+    size = f"{_num(n_all)}-game" if n_all > 1 else ""
+    if n_all > 1:
+        if k == n_all:
+            if b_w == 0:
+                text.append(f"{cap(c(win))} swept the {size} series.")
+                weight += 0.3
+            elif a_w == b_w:
+                text.append(f"The teams split the {size} series.")
+            else:
+                lead = win if a_w > b_w else lose
+                text.append(f"{cap(c(lead))} took the {size} series, {max(a_w, b_w)}-{min(a_w, b_w)}.")
+        elif k == 1:
+            text.append(f"It was the opener of a {size} series.")
+        elif a_w == b_w:
+            text.append(f"The series is tied {a_w}-{b_w}.")
+        else:
+            lead = win if a_w > b_w else lose
+            text.append(f"{cap(c(lead))} {'lead' if c(lead).startswith('the ') else 'leads'} the series {max(a_w, b_w)}-{min(a_w, b_w)}.")
+    sw, sl = season.get(win, 0), season.get(lose, 0)
+    if sw + sl >= 3 and sw + sl > k:
+        if sw == sl:
+            text.append(f"The season series is tied {sw}-{sl}.")
+        elif sl == 0:
+            text.append(f"{cap(c(win))} {'have' if c(win).startswith('the ') else 'has'} won all {_num(sw)} meetings this season.")
+        else:
+            lead = win if sw > sl else lose
+            text.append(f"{cap(c(lead))} {'lead' if c(lead).startswith('the ') else 'leads'} the season series {max(sw, sl)}-{min(sw, sl)}.")
+    # the standings after the day's games
+    if not postseason:
+        bits = []
+        for t in (win, lose):
+            dv = div_of.get(t)
+            mates = [m for m in db.franchises if div_of.get(m) == dv]
+            if not mates:
+                continue
+            pct = lambda m: snap[m][0] / max(1, sum(snap[m]))
+            top = max(mates, key=lambda m: (pct(m), snap[m][0]))
+            gb = ((snap[top][0] - snap[t][0]) + (snap[t][1] - snap[top][1])) / 2
+            tied = gb == 0 and sum(1 for m in mates if ((snap[top][0] - snap[m][0]) + (snap[m][1] - snap[top][1])) == 0) > 1
+            spot = ("tied for first" if tied else "in first") if gb == 0 else _back(gb)
+            bits.append(f"the {C(t)} ({snap[t][0]}-{snap[t][1]}) are {spot} in the {DIVISIONS[dv]}"
+                        if 0 <= dv < 6 else "")
+            if gb <= 2:
+                weight += 0.25
+        bits = [b for b in bits if b]
+        if bits:
+            text.append(cap("; ".join(bits)) + ".")
+    if user is not None and user in (win, lose):
+        weight += 2.0
+    return dict(game=g, win=win, lose=lose, head=head, body=" ".join(text), weight=weight, gotd=False,
+                mine=user in (win, lose))
+
+
 # ---- the page ---------------------------------------------------------------------------------------------------
 # laid out like a baseball site's front page from 2006: a charcoal bar with the wordmark, a gray bar of sections
 # with the Team Sites list, three columns (scores and your club / the top story, standings and matchups / a navy
@@ -690,10 +920,21 @@ a{color:#00c;text-decoration:none}a:hover{text-decoration:underline}
 .util{height:26px;display:flex;justify-content:flex-end;align-items:center;gap:14px;padding:0 10px;font:10px Tahoma,Arial,sans-serif;color:#666}
 .util b{color:#000}
 .bar{background:#333;height:72px;display:flex;justify-content:space-between;position:relative}
-.mark{width:350px;height:52px;margin-top:14px;background:repeating-linear-gradient(115deg,#093e9c 0 18px,#0b47b0 18px 22px);
- border-top:1px solid #4c78cf;border-bottom:1px solid #001f63;display:flex;align-items:center;padding-left:12px}
-.mark b{font:italic 900 30px/1 'Arial Black',Arial,sans-serif;color:#fff;letter-spacing:-1px;text-shadow:2px 2px 0 #001a55}
-.mark span{font:bold 10px Tahoma,sans-serif;color:#fc3;margin:14px 0 0 6px;text-transform:uppercase}
+.mark{width:390px;height:52px;margin-top:14px;background:repeating-linear-gradient(115deg,#093e9c 0 18px,#0b47b0 18px 22px);
+ border-top:1px solid #4c78cf;border-bottom:1px solid #001f63;display:flex;align-items:center;padding-left:8px;position:relative}
+.mark img{width:78px;height:78px;margin:-10px 6px -16px 0;filter:drop-shadow(2px 3px 2px rgba(0,0,0,.6))}
+.mark b{display:block;font:italic 900 27px/1 'Arial Black',Arial,sans-serif;color:#fff;letter-spacing:-1px;text-shadow:2px 2px 0 #001a55}
+.mark span{display:block;font:bold 10px Tahoma,sans-serif;color:#fc3;text-transform:uppercase;letter-spacing:2px;margin-top:2px}
+.recap{display:flex;gap:10px;padding:8px 0;border-top:1px dotted #aaa}.recap:first-child{border:0}
+.recap table{width:150px;flex:none;background:#fff;border:1px solid #bbb;align-self:flex-start}
+.recap td{border:0;padding:2px 4px}.recap .w td{font-weight:bold}.recap th{background:#dcdcdc;border:0}
+.recap b{display:block;font:bold 13px Arial,Helvetica,sans-serif;color:#006;margin-bottom:2px}
+.recap p{margin:0}
+.gotd{background:#fff7c8;margin:0 -7px;padding:8px 7px}
+.gotd .kick{display:block;font:bold 9px Tahoma,sans-serif;color:#c00;text-transform:uppercase;letter-spacing:1px}
+.gotd b{font-size:16px}
+a.score{display:block;color:#000;text-decoration:none}a.score:hover{border-color:#00c}
+.dpane{display:none}.dpane.on{display:block}
 .top{display:flex;align-items:flex-start;padding:8px 10px 0 0;font:bold 11px Tahoma,Arial,sans-serif}
 .top a{color:#fff;padding:0 9px;border-left:1px solid #777}.top a:first-child{border:0}.top a:hover{color:#fc3;text-decoration:none}
 .sub{height:24px;background:linear-gradient(#e2e2e2,#b9b9b9);border-bottom:1px solid #888;display:flex;align-items:center;font:bold 11px Tahoma,Arial,sans-serif}
@@ -761,7 +1002,7 @@ td a{color:#000}
 .foot .links a{color:#006;margin:0 14px}
 .foot .fine{background:#000;color:#aaa;font:10px Tahoma,Arial,sans-serif;padding:10px 14px}
 @media (max-width:760px){.wrap{width:auto}.cols{flex-direction:column;align-items:stretch;padding:6px}.mid{order:-1}.left,.mid,.rail{width:auto;margin:0}
- .bar{height:auto;flex-direction:column}.mark{width:auto;margin:0}.top{flex-wrap:wrap;padding:6px}.top a{padding:2px 6px}
+ .bar{height:auto;flex-direction:column}.mark{width:auto;margin:0;height:58px}.mark img{width:50px;height:50px;margin:0 6px 0 0}.top{flex-wrap:wrap;padding:6px}.top a{padding:2px 6px}
  .pair{flex-direction:column}.util{display:none}.sub{overflow-x:auto;white-space:nowrap}.lgb{width:72px;height:72px}}
 """
 
@@ -791,14 +1032,18 @@ def render(news):
     short = lambda d: f"{AP_MONTHS[d.month - 1]} {d.day}"
     user = news["user"]
     heads = news["headlines"]
+
+    def gid(g):
+        return f"g{g['day']}_{g['home'] & 0xFFFFFF:x}"
     post = news["postseason"]
     out = ["<!doctype html><html lang=en><head><meta charset=utf-8>",
            "<meta name=viewport content='width=device-width,initial-scale=1'>",
-           f"<title>Baseball Today: {e(news['name'])}</title><style>{CSS}</style></head><body><div class=wrap>",
+           f"<title>MVP Baseball League News: {e(news['name'])}</title><style>{CSS}</style></head><body><div class=wrap>",
            f"<div class=util><span>{e(news['name'])} &middot; {e(news['kind'])}</span>"
            + (f"<b>{fmt(news['today'])}</b>" if news["today"] else "") + "</div>",
-           "<div class=bar><div class=mark><b>BaseballToday</b><span>Your league</span></div>"
-           "<div class=top><a href='#news'>Headlines</a><a href='#scores'>Scores</a><a href='#standings'>Standings</a>"
+           "<div class=bar><div class=mark>" + (f"<img src='{db.badge()}' alt=''>" if db.badge() else "")
+           + "<div><b>MVP Baseball</b><span>League News</span></div></div>"
+           "<div class=top><a href='#news'>Headlines</a><a href='#recaps'>Scores</a><a href='#standings'>Standings</a>"
            "<a href='#matchups'>Matchups</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></div></div>"]
     # Team Sites: every club, American League then National, each to its row in the standings
     leagues = [[], []]
@@ -824,9 +1069,9 @@ def render(news):
         for g in news["results"]:
             aw, hw = g["ar"] > g["hr"], g["hr"] > g["ar"]
             fin = "Final" + (f"/{g['innings']}" if g["innings"] > 9 else "")
-            out.append(f"<div class=score><div class=st>{fin}</div>"
+            out.append(f"<a class=score href='#{gid(g)}' onclick='day0()'><div class=st>{fin}</div>"
                        f"<div class={'w' if aw else ''}><span>{lg(g['away'])}{e(db.short(g['away']))}</span><span>{g['ar']}</span></div>"
-                       f"<div class={'w' if hw else ''}><span>{lg(g['home'])}{e(db.short(g['home']))}</span><span>{g['hr']}</span></div></div>")
+                       f"<div class={'w' if hw else ''}><span>{lg(g['home'])}{e(db.short(g['home']))}</span><span>{g['hr']}</span></div></a>")
         out.append("</div>")
     else:
         out.append("No final scores yet.")
@@ -917,6 +1162,26 @@ def render(news):
     else:
         out.append("No games on the schedule.")
     out.append("</div></div></div>")
+    if news["days"]:  # every game of the last week, written up; the day's best first, as the Game of the Day
+        out.append("<div class=mod id=recaps><div class=mh>Scores &amp; recaps</div><div class=subtabs>")
+        for i, (d, _) in enumerate(news["days"]):
+            out.append(f"<button data-g=day data-i={i} onclick='pickday({i})'>{day(d).strftime('%a')} "
+                       f"{day(d).month}/{day(d).day}</button>")
+        out.append("</div><div class=mb>")
+        for i, (d, rs) in enumerate(news["days"]):
+            out.append(f"<div class=dpane id=d{i}><div class=date style='margin-bottom:4px'>{fmt(day(d))}</div>")
+            for r in rs:
+                g = r["game"]
+                inn = f"/{g['innings']}" if g["innings"] > 9 else ""
+                rows = "".join(f"<tr class={'w' if t == r['win'] else ''}><td>{lg(t)}{e(db.short(t))}</td><td>{rr}</td>"
+                               f"<td>{hh}</td></tr>" for t, rr, hh in ((g["away"], g["ar"], g["ah"]),
+                                                                       (g["home"], g["hr"], g["hh"])))
+                kick = "<span class=kick>Game of the day</span>" if r["gotd"] else ""
+                out.append(f"<div class='recap{' gotd' if r['gotd'] else ''}{' mine' if r['mine'] and not r['gotd'] else ''}'"
+                           f" id={gid(g)}><table><tr><th>Final{inn}</th><th>R</th><th>H</th></tr>{rows}</table>"
+                           f"<div>{kick}<b>{e(r['head'])}</b><p>{e(r['body'])}</p></div></div>")
+            out.append("</div>")
+        out.append("</div></div>")
     out.append("<div class=mod id=news><div class=mh>Headlines</div><div class=mb><ul class=heads>")
     for i, h in enumerate(heads):
         out.append(f"<li id=s{i} class='{'mine' if h['mine'] else ''}'><span class=kind>{e(h['kind'])}</span> "
@@ -980,7 +1245,9 @@ def render(news):
                "<div class=fine>Made by the MVP05-Plus Launcher from your save. Names, teams and logos are read from your "
                "own copy of the game. Nothing in your save is changed.</div></div></div>")
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
-               f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});</script>")
+               f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
+               "function pickday(i){tab('day',i);document.querySelectorAll('.dpane').forEach(function(p){"
+               "p.classList.toggle('on',p.id=='d'+i)});}function day0(){pickday(0);}pickday(0);</script>")
     out.append("</body></html>")
     logos = "".join(f".{c}{{background-image:url({u})}}" for v in used.values() if v for c, u in [v])
     return "".join(out).replace("</style>", logos + "</style>", 1)

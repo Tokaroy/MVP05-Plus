@@ -257,7 +257,11 @@ def news(k, **want):
         assert "lg7" in page or not n["results"], "the logos aren't in the page"
     shutil.rmtree(root)
     assert len(n["divisions"]) == 6 and sum(len(d["rows"]) for d in n["divisions"]) == 30
-    assert "<html" in page and "Baseball Today" in page
+    assert "<html" in page and "MVP Baseball" in page
+    if n["results"]:  # every game of the last day written up, the best one the Game of the Day
+        last = n["days"][0][1]
+        assert len(last) == len(n["results"]) and last[0]["gotd"] and " beat the " in last[0]["body"], "recaps"
+        assert "Game of the day" in page
     for key, v in want.items():
         got = len(n[key]) if isinstance(n[key], list) else n[key]
         assert (got >= v) if isinstance(v, int) and not isinstance(v, bool) else got == v, (key, got, v)
