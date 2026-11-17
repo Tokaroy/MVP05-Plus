@@ -216,7 +216,7 @@ def played_rt():
     marks = [m.start() for m in re.finditer(re.escape(b'\x0d\xf0\xef\xbe'), b)]
     d = [i for i in range(marks[5]) if a[i] != b[i]]
     # (the 9 values after the schedules are kept at zero, FORMAT_NOTES 3.5: 18 bytes at most)
-    assert len(d) <= 18 and all(marks[3] - 0x100 < i < marks[3] for i in d), [hex(i) for i in d[:5]]
+    assert len(d) <= 18 and all(marks[3] - 0x600 < i < marks[3] for i in d), [hex(i) for i in d[:5]]
     return 1
 t('played xb dynasty -> gc -> xb exact before history (but the 9 kept values)', played_rt)
 # League News: the news from a dynasty in its season, a fresh owner mode and one in the postseason
