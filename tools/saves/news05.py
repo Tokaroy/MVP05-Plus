@@ -679,46 +679,98 @@ def _spread(stories, most=12, per_team=2, recent=0, per_kind=3):
 
 
 # ---- the page ---------------------------------------------------------------------------------------------------
+# laid out like a baseball site's front page from 2006: a charcoal bar with the wordmark, a gray bar of sections
+# with the Team Sites list, three columns (scores and your club / the top story, standings and matchups / a navy
+# rail of headlines), boxes headed in blue with an orange chevron, Tahoma and Verdana at 11 pixels
 CSS = """
-:root{--ink:#1b1b1b;--muted:#5d6670;--line:#c9d1da;--paper:#fff;--bg:#e9edf1;--navy:#0b2a4a;--navy2:#123c66;
---red:#b3122e;--hi:#fff7d6;--link:#0b4f8a}
-@media (prefers-color-scheme:dark){:root{--ink:#e6e9ec;--muted:#9aa5b1;--line:#34404c;--paper:#151b22;--bg:#0d1217;
---navy:#0a1f36;--navy2:#0f2d4d;--hi:#3a3216;--link:#8cc4ff}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 Verdana,Tahoma,Arial,sans-serif}
-.wrap{max-width:1000px;margin:0 auto;background:var(--paper);border-left:1px solid var(--line);border-right:1px solid var(--line)}
-header{background:linear-gradient(var(--navy2),var(--navy));color:#fff;padding:14px 16px 10px;border-bottom:4px solid var(--red)}
-header h1{margin:0;font:bold 26px/1.1 Georgia,'Times New Roman',serif;letter-spacing:.5px}
-header .sub{color:#c8d6e5;font-size:11px;margin-top:4px;text-transform:uppercase;letter-spacing:1px}
-nav{display:flex;flex-wrap:wrap;background:#dfe5ec;border-bottom:1px solid var(--line)}
-@media (prefers-color-scheme:dark){nav{background:#1b232c}}
-nav a{padding:6px 12px;color:var(--navy2);font-weight:bold;font-size:11px;text-decoration:none;text-transform:uppercase;border-right:1px solid var(--line)}
-@media (prefers-color-scheme:dark){nav a{color:#bcd3ea}}
-.ticker{display:flex;gap:6px;overflow-x:auto;padding:8px;background:#f4f6f8;border-bottom:1px solid var(--line)}
-@media (prefers-color-scheme:dark){.ticker{background:#10161c}}
-.box{min-width:118px;border:1px solid var(--line);background:var(--paper);font-size:11px}
-.box div{display:flex;justify-content:space-between;padding:2px 6px}.box .w{font-weight:bold}
-.box .st{background:#dfe5ec;color:var(--muted);font-size:10px;padding:1px 6px;text-transform:uppercase}
-@media (prefers-color-scheme:dark){.box .st{background:#1b232c}}
-main{display:grid;grid-template-columns:1fr 330px;gap:16px;padding:16px}
-@media (max-width:760px){main{grid-template-columns:1fr}}
-h2{font:bold 12px Verdana,sans-serif;text-transform:uppercase;letter-spacing:1px;color:#fff;background:var(--navy2);margin:18px 0 8px;padding:4px 8px}
-h2:first-child{margin-top:0}
-.lead h3{font:bold 24px/1.15 Georgia,serif;margin:4px 0 6px}.lead p{font-size:14px;margin:0 0 8px}
-.kind{display:inline-block;font-size:10px;font-weight:bold;text-transform:uppercase;color:var(--red);letter-spacing:.5px}
-.date{color:var(--muted);font-size:11px}
-.heads{list-style:none;margin:0;padding:0}.heads li{padding:8px 0;border-top:1px dotted var(--line)}
-.heads b{font-family:Georgia,serif;font-size:15px}.heads p{margin:2px 0 0;color:var(--muted)}
-.mine{background:var(--hi)}
-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}
-th{background:#dfe5ec;text-align:right;padding:3px 5px;font-size:10px;text-transform:uppercase}
-@media (prefers-color-scheme:dark){th{background:#1b232c}}
-td{padding:3px 5px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:#000;font:11px/1.35 Verdana,Tahoma,Arial,Helvetica,sans-serif}
+a{color:#00c;text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:1000px;margin:0 auto;background:#fff}
+.util{height:26px;display:flex;justify-content:flex-end;align-items:center;gap:14px;padding:0 10px;font:10px Tahoma,Arial,sans-serif;color:#666}
+.util b{color:#000}
+.bar{background:#333;height:72px;display:flex;justify-content:space-between;position:relative}
+.mark{width:350px;height:52px;margin-top:14px;background:repeating-linear-gradient(115deg,#093e9c 0 18px,#0b47b0 18px 22px);
+ border-top:1px solid #4c78cf;border-bottom:1px solid #001f63;display:flex;align-items:center;padding-left:12px}
+.mark b{font:italic 900 30px/1 'Arial Black',Arial,sans-serif;color:#fff;letter-spacing:-1px;text-shadow:2px 2px 0 #001a55}
+.mark span{font:bold 10px Tahoma,sans-serif;color:#fc3;margin:14px 0 0 6px;text-transform:uppercase}
+.top{display:flex;align-items:flex-start;padding:8px 10px 0 0;font:bold 11px Tahoma,Arial,sans-serif}
+.top a{color:#fff;padding:0 9px;border-left:1px solid #777}.top a:first-child{border:0}.top a:hover{color:#fc3;text-decoration:none}
+.sub{height:24px;background:linear-gradient(#e2e2e2,#b9b9b9);border-bottom:1px solid #888;display:flex;align-items:center;font:bold 11px Tahoma,Arial,sans-serif}
+.sub>a{color:#006;padding:0 9px;border-left:1px solid #999}
+.teams{position:relative;height:100%}
+.teams>button{height:100%;border:0;background:linear-gradient(#5a5a5a,#2a2a2a);color:#fff;font:bold 11px Tahoma,Arial,sans-serif;padding:0 26px 0 12px;cursor:pointer;position:relative}
+.teams>button:after{content:"";position:absolute;right:10px;top:9px;border:4px solid transparent;border-top-color:#fff}
+.drop{display:none;position:absolute;z-index:5;left:0;top:24px;background:#fff;border:1px solid #666;box-shadow:2px 2px 4px rgba(0,0,0,.35);width:300px;padding:6px 0}
+.teams:hover .drop,.teams:focus-within .drop{display:flex}
+.drop div{flex:1;padding:0 6px}.drop div+div{border-left:1px solid #ccc}
+.drop a{display:block;padding:3px 4px;color:#006;font:bold 11px Tahoma,Arial,sans-serif}.drop a:hover{background:#eef}
+.drop small{display:block;color:#999;font:bold 9px Tahoma,sans-serif;text-transform:uppercase;padding:0 4px 3px}
+.cols{display:flex;align-items:flex-start;gap:6px;padding:6px 0 0 4px}
+.left{width:180px;flex:none}.mid{flex:1;min-width:0}
+.rail{width:316px;flex:none;background:#1a2964;align-self:stretch;padding:8px 6px 12px;margin-left:auto}
+.mod{border:1px solid #b2b2b2;border-top:0;border-radius:6px 6px 3px 3px;background:#f2efef;margin-bottom:6px;overflow:hidden}
+.mh{position:relative;background:linear-gradient(#2c58b8 0,#214498 15%,#212c5d 55%,#283879 100%);color:#fff;
+ font:15px/21px Impact,'Arial Narrow',Arial,sans-serif;letter-spacing:.6px;text-transform:uppercase;padding:0 8px 0 22px;
+ text-shadow:1px 1px 0 #000;border-radius:6px 6px 0 0;height:22px;white-space:nowrap;overflow:hidden}
+.mh:before{content:"";position:absolute;left:8px;top:5px;width:8px;height:12px;background:#f8aa34;
+ clip-path:polygon(0 0,45% 0,100% 50%,45% 100%,0 100%,55% 50%)}
+.mh .r{position:absolute;right:8px;top:0;font:bold 10px/22px Tahoma,Arial,sans-serif;letter-spacing:0;text-transform:none;color:#f8aa34;text-shadow:none}
+.mb{padding:6px 7px}
+.pair{display:flex;gap:6px}.pair>.mod{flex:1;min-width:0}
+.lg{display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:-4px;background:center/contain no-repeat}
+.lgb{float:left;width:110px;height:110px;margin:2px 10px 4px 0;background:center/contain no-repeat}
+.kind{font:bold 9px Tahoma,Arial,sans-serif;color:#c00;text-transform:uppercase}
+.date{color:#666;font-size:10px}
+.lead h1{font:bold 19px/1.15 Arial,Helvetica,sans-serif;color:#006;margin:3px 0 5px}
+.lead p{font-size:12px;margin:0 0 6px}
+.more{clear:both;border-top:1px solid #ccc;margin-top:6px;padding-top:5px;display:grid;grid-template-columns:1fr 1fr;gap:4px 8px}
+.more a{font-weight:bold}
+.heads{list-style:none;margin:0;padding:0}.heads li{padding:6px 0;border-top:1px dotted #aaa}.heads li:first-child{border:0}
+.heads b{display:block;font:bold 13px Arial,Helvetica,sans-serif;color:#006;margin:1px 0 2px}
+.heads p{margin:0}
+.mine{background:#fff7c8}
+.tabs{display:flex;background:#cac9cf}.tabs button{flex:1;border:0;background:none;font:bold 12px Arial,sans-serif;color:#00c;padding:4px;cursor:pointer}
+.tabs button.on{background:#f2efef;color:#006}
+.tabs button.on:after{content:"";display:inline-block;margin-left:5px;border:4px solid transparent;border-top-color:#c00;vertical-align:-1px}
+.subtabs{text-align:center;padding:5px 0 2px}.subtabs button{border:0;background:none;font:12px Arial,sans-serif;color:#00c;padding:0 5px;cursor:pointer}
+.subtabs button.on{font-weight:bold;color:#006}
+.pane{display:none}.pane.on{display:block}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{font:bold 10px Tahoma,Arial,sans-serif;color:#333;text-align:right;padding:3px 4px;border-bottom:1px solid #999}
+td{padding:3px 4px;border-bottom:1px solid #ddd;text-align:right;white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
-.list{list-style:none;padding:0;margin:0;font-size:12px}.list li{padding:4px 0;border-bottom:1px solid var(--line)}
-.match{border:1px solid var(--line);padding:6px 8px;margin-bottom:6px}.match b{font-family:Georgia,serif}
-footer{color:var(--muted);font-size:10px;padding:10px 16px;border-top:1px solid var(--line)}
-.lg{display:inline-block;width:16px;height:16px;margin-right:5px;vertical-align:-3px;background:center/contain no-repeat}
-.lgb{float:right;width:96px;height:96px;margin:0 0 6px 12px;background:center/contain no-repeat}
+td a{color:#000}
+.scores{display:grid;grid-template-columns:1fr 1fr;gap:4px}.score{border:1px solid #bbb;background:#fff}
+.score div{display:flex;justify-content:space-between;padding:1px 4px}.score .w{font-weight:bold}
+.score .st{background:#dcdcdc;color:#333;font:bold 9px Tahoma,sans-serif;text-transform:uppercase;padding:1px 5px}
+.match{padding:4px 0;border-bottom:1px solid #ddd}.match:last-child{border:0}
+.list{list-style:none;margin:0;padding:0}.list li{padding:4px 0;border-bottom:1px solid #ddd}
+.list li:last-child{border:0}
+.big{font-size:13px;font-weight:bold}
+.rail .mod{background:none;border:0;margin-bottom:10px}
+.rail .mh{background:none;border-radius:0;padding-left:16px}.rail .mh:before{left:2px}
+.rail ul{list-style:none;margin:0;padding:0;border:1px solid #131925;border-width:1px 0}
+.rail li{background:#445a83;border-bottom:1px solid #131925;border-top:1px solid #5b709a;color:#fff;padding:3px 8px 3px 18px;position:relative;font:11px/1.35 Verdana,Arial,sans-serif}
+.rail li:before{content:"";position:absolute;left:8px;top:8px;width:4px;height:4px;background:#fff;border-radius:2px}
+.rail li a{color:#fff}.rail li .date{color:#c7ceda}
+.rail li.mine{background:#6b5a1e}
+.rail .x{display:block;color:#f8aa34;font:bold 11px Tahoma,Arial,sans-serif;padding:5px 8px 0}
+.foot{margin-top:12px;border-top:1px solid #ccc}
+.foot .links{background:#ccc;text-align:center;padding:4px;font:11px Tahoma,Arial,sans-serif}
+.foot .links a{color:#006;margin:0 14px}
+.foot .fine{background:#000;color:#aaa;font:10px Tahoma,Arial,sans-serif;padding:10px 14px}
+@media (max-width:760px){.wrap{width:auto}.cols{flex-direction:column;align-items:stretch;padding:6px}.mid{order:-1}.left,.mid,.rail{width:auto;margin:0}
+ .bar{height:auto;flex-direction:column}.mark{width:auto;margin:0}.top{flex-wrap:wrap;padding:6px}.top a{padding:2px 6px}
+ .pair{flex-direction:column}.util{display:none}.sub{overflow-x:auto;white-space:nowrap}.lgb{width:72px;height:72px}}
+"""
+
+AP_MONTHS = ("Jan.", "Feb.", "March", "April", "May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.")
+
+SCRIPT = """
+function tab(g,i){document.querySelectorAll('[data-g="'+g+'"]').forEach(function(b){b.classList.toggle('on',b.dataset.i==i)});}
+function pick(lg,dv){tab('lg',lg);tab('dv',dv);document.querySelectorAll('.pane').forEach(function(p){
+ p.classList.toggle('on',p.id=='p'+lg+dv)});window._lg=lg;window._dv=dv;}
 """
 
 
@@ -735,47 +787,149 @@ def render(news):
             url = db.logo(t, big)
             used[k] = (f"lg{db.franchises.index(t)}{'b' if big else ''}", url) if url else None
         return f"<i class='{'lgb' if big else 'lg'} {used[k][0]}'></i>" if used[k] else ""
-    fmt = lambda d: d.strftime("%A, %B %-d, %Y") if os.name != "nt" else d.strftime("%A, %B %d, %Y").replace(" 0", " ")
-    short = lambda d: f"{d.strftime('%b')} {d.day}"
+    fmt = lambda d: f"{d.strftime('%A, %B')} {d.day}, {d.year}"
+    short = lambda d: f"{AP_MONTHS[d.month - 1]} {d.day}"
+    user = news["user"]
+    heads = news["headlines"]
+    post = news["postseason"]
     out = ["<!doctype html><html lang=en><head><meta charset=utf-8>",
            "<meta name=viewport content='width=device-width,initial-scale=1'>",
-           f"<title>League News: {e(news['name'])}</title><style>{CSS}</style></head><body><div class=wrap>",
-           "<header><h1>Baseball Today</h1>",
-           f"<div class=sub>{e(news['name'])} &middot; {e(news['kind'])}"
-           + (f" &middot; {fmt(news['today'])}" if news["today"] else "") + "</div></header>",
-           "<nav><a href='#top'>Headlines</a><a href='#scores'>Scores</a><a href='#standings'>Standings</a>"
-           "<a href='#matchups'>Matchups</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></nav>"]
+           f"<title>Baseball Today: {e(news['name'])}</title><style>{CSS}</style></head><body><div class=wrap>",
+           f"<div class=util><span>{e(news['name'])} &middot; {e(news['kind'])}</span>"
+           + (f"<b>{fmt(news['today'])}</b>" if news["today"] else "") + "</div>",
+           "<div class=bar><div class=mark><b>BaseballToday</b><span>Your league</span></div>"
+           "<div class=top><a href='#news'>Headlines</a><a href='#scores'>Scores</a><a href='#standings'>Standings</a>"
+           "<a href='#matchups'>Matchups</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></div></div>"]
+    # Team Sites: every club, American League then National, each to its row in the standings
+    leagues = [[], []]
+    for d_i, d in enumerate(news["divisions"]):
+        for r in d["rows"]:
+            leagues[d_i // 3].append(r["team"])
+    out.append("<div class=sub><div class=teams><button>Team Sites</button><div class=drop>")
+    for i, name in enumerate(("American", "National")):
+        out.append(f"<div><small>{name} League</small>")
+        for t in sorted(leagues[i], key=db.city):
+            out.append(f"<a href='#t{db.franchises.index(t)}' onclick='show({db.franchises.index(t)})'>"
+                       f"{lg(t)}{e(db.city(t))}</a>")
+        out.append("</div>")
+    out.append("</div></div><a href='#scores'>Scoreboard</a><a href='#standings'>Standings</a>"
+               "<a href='#matchups'>Schedule</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a>"
+               "<a href='#news'>News</a></div>")
+    out.append("<div class=cols><div class=left>")
+
+    # ---- left: scoreboard, your club, hot and cold
+    out.append("<div class=mod id=scores><div class=mh>Scoreboard</div><div class=mb>")
     if news["results"]:
-        out.append("<div class=ticker id=scores>")
+        out.append(f"<div class=date style='margin-bottom:4px'>{fmt(news['today'])}</div><div class=scores>")
         for g in news["results"]:
             aw, hw = g["ar"] > g["hr"], g["hr"] > g["ar"]
             fin = "Final" + (f"/{g['innings']}" if g["innings"] > 9 else "")
-            out.append(f"<div class=box><div class=st>{fin}</div>"
+            out.append(f"<div class=score><div class=st>{fin}</div>"
                        f"<div class={'w' if aw else ''}><span>{lg(g['away'])}{e(db.short(g['away']))}</span><span>{g['ar']}</span></div>"
                        f"<div class={'w' if hw else ''}><span>{lg(g['home'])}{e(db.short(g['home']))}</span><span>{g['hr']}</span></div></div>")
         out.append("</div>")
-    out.append("<main><div>")
-    heads = news["headlines"]
-    out.append("<h2 id=top>Top stories</h2>")
+    else:
+        out.append("No final scores yet.")
+    out.append("</div></div>")
+    if user in db.franchises and not post:
+        row, div = next(((r, d) for d in news["divisions"] for r in d["rows"] if r["team"] == user), (None, None))
+        if row:
+            place = div["rows"].index(row) + 1
+            nxt = next((g for g in news["upcoming"] if user in (g["away"], g["home"])), None)
+            out.append(f"<div class=mod><div class=mh>Your club</div><div class=mb>{lg(user)}<span class=big>"
+                       f"{e(db.full(user))}</span><br>{row['w']}-{row['l']}, "
+                       f"{['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][place - 1]} in the {e(div['name'])}"
+                       + ("" if row["gb"] == 0 else f", {row['gb']:g} back") + f"<br>Last 10: {row['last10']} &middot; "
+                       f"Streak: {row['streak'] or '&ndash;'}<br>Home {row['home']} &middot; Road {row['road']}"
+                       + (f"<br>Next: {'at ' + e(db.club(nxt['home'])) if nxt['away'] == user else 'vs. ' + e(db.club(nxt['away']))}"
+                          if nxt else "") + "</div></div>")
+    if not post and news["games_played"]:
+        rows = [r for d in news["divisions"] for r in d["rows"] if r["streak"]]
+        hot = sorted((r for r in rows if r["streak"][0] == "W"), key=lambda r: -int(r["streak"][1:]))[:4]
+        cold = sorted((r for r in rows if r["streak"][0] == "L"), key=lambda r: -int(r["streak"][1:]))[:4]
+        out.append("<div class=mod><div class=mh>Hot &amp; Cold</div><div class=mb><table>")
+        for label, group in (("Winning streaks", hot), ("Losing streaks", cold)):
+            out.append(f"<tr><th colspan=2>{label}</th></tr>")
+            for r in group:
+                out.append(f"<tr><td>{lg(r['team'])}{e(db.club(r['team']))}</td><td>{r['streak']}</td></tr>")
+        out.append("</table></div></div>")
+
+    # ---- middle: the top story, standings and matchups, all the headlines, the wire, injuries
+    out.append("</div><div class=mid>")
+    out.append("<div class=mod><div class=mh>Top story</div><div class='mb lead'>")
     if heads:
         h = heads[0]
         big = next((t for t in h["teams"] if t in db.franchises), None)
-        out.append(f"<div class='lead{' mine' if h['mine'] else ''}'>{lg(big, True) if big else ''}"
-                   f"<span class=kind>{e(h['kind'])}</span> "
-                   f"<span class=date>{short(day(h['day']))}</span><h3>{e(h['head'])}</h3><p>{e(h['body'])}</p></div>")
-        out.append("<ul class=heads>")
-        for h in heads[1:]:
-            out.append(f"<li class='{'mine' if h['mine'] else ''}'><span class=kind>{e(h['kind'])}</span> "
-                       f"<span class=date>{short(day(h['day']))}</span><br><b>{e(h['head'])}</b><p>{e(h['body'])}</p></li>")
-        out.append("</ul>")
+        out.append(f"{lg(big, True) if big else ''}<span class=kind>{e(h['kind'])}</span> "
+                   f"<span class=date>{short(day(h['day']))}</span><h1>{e(h['head'])}</h1><p>{e(h['body'])}</p>")
+        if len(heads) > 1:
+            out.append("<div class=more>")
+            for i, h in enumerate(heads[1:5], 1):
+                t = next((t for t in h["teams"] if t in db.franchises), None)
+                out.append(f"<div>{lg(t) if t else ''}<a href='#s{i}'>{e(h['head'])}</a></div>")
+            out.append("</div>")
     else:
         out.append("<p>No news yet: play a few days and come back.</p>")
-    out.append("<h2 id=wire>Transactions</h2><ul class=list>")
+    out.append("</div></div><div class=pair>")
+    # standings, tabbed: American / National, then East / Central / West / Wild Card
+    mine_dv = next((i for i, d in enumerate(news["divisions"]) for r in d["rows"] if r["team"] == user), 2)
+    first = (mine_dv // 3, {0: 2, 1: 1, 2: 0}[mine_dv % 3])  # (league, tab: East, Central, West, Wild Card)
+    out.append("<div class=mod id=standings><div class=mh>Standings</div>")
+    if post:
+        out.append("<div class=mb>It's the postseason: the season's standings are put away until next year.</div></div>")
+    else:
+        out.append("<div class=tabs>" + "".join(
+            f"<button data-g=lg data-i={i} onclick='pick({i},window._dv)'>{n}</button>"
+            for i, n in enumerate(("American", "National"))) + "</div><div class=subtabs>" + "".join(
+            f"<button data-g=dv data-i={i} onclick='pick(window._lg,{i})'>{n}</button>"
+            for i, n in enumerate(("East", "Central", "West", "Wild Card"))) + "</div><div class=mb>")
+        for lgi in (0, 1):
+            for tab_i, dv in enumerate((2, 1, 0)):
+                d = news["divisions"][3 * lgi + dv]
+                out.append(f"<div class=pane id=p{lgi}{tab_i}><table><tr><th>{e(d['name'])}</th><th>W</th><th>L</th>"
+                           "<th>Pct</th><th>GB</th><th>L10</th></tr>")
+                for r in d["rows"]:
+                    gb = "&ndash;" if r["gb"] == 0 else f"{r['gb']:g}"
+                    cls = " class=mine" if r["team"] == user else ""
+                    out.append(f"<tr{cls} id=t{db.franchises.index(r['team'])}><td>{lg(r['team'])}"
+                               f"{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
+                               + f"<td>{r['pct']:.3f}".replace("0.", ".", 1) + f"</td><td>{gb}</td><td>{r['last10']}</td></tr>")
+                out.append("</table></div>")
+            rows = news["wildcard"].get(lgi, [])
+            out.append(f"<div class=pane id=p{lgi}3><table><tr><th>{'AL' if lgi == 0 else 'NL'} Wild Card</th><th>W</th>"
+                       "<th>L</th><th>GB</th></tr>")
+            for r in rows[:6]:
+                gb = "&ndash;" if r["wcgb"] == 0 else f"{r['wcgb']:g}"
+                cls = " class=mine" if r["team"] == user else ""
+                out.append(f"<tr{cls}><td>{lg(r['team'])}{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
+                           f"<td>{gb}</td></tr>")
+            out.append("</table></div>")
+        out.append("<a href='#allstandings' style='display:block;margin-top:5px'>View expanded standings &rsaquo;</a>"
+                   "</div></div>")
+    out.append("<div class=mod id=matchups><div class=mh>" + ("Postseason" if post else "Matchups") + "</div><div class=mb>")
+    if news["upcoming"]:
+        out.append(f"<div class=date style='margin-bottom:3px'>{fmt(news['next_day'])}</div>")
+        for g in news["upcoming"][:7]:
+            a, h = g["away"], g["home"]
+            rec = "" if post else " <span class=date>(%s)</span>"
+            out.append(f"<div class=match>{lg(a)}<b>{e(db.club(a))}</b>{rec and rec % news_record(news, a)}<br>"
+                       f"<span class=date>at</span> {lg(h)}<b>{e(db.club(h))}</b>{rec and rec % news_record(news, h)}</div>")
+    else:
+        out.append("No games on the schedule.")
+    out.append("</div></div></div>")
+    out.append("<div class=mod id=news><div class=mh>Headlines</div><div class=mb><ul class=heads>")
+    for i, h in enumerate(heads):
+        out.append(f"<li id=s{i} class='{'mine' if h['mine'] else ''}'><span class=kind>{e(h['kind'])}</span> "
+                   f"<span class=date>{short(day(h['day']))}</span><b>{e(h['head'])}</b><p>{e(h['body'])}</p></li>")
+    if not heads:
+        out.append("<li>Nothing yet.</li>")
+    out.append("</ul></div></div>")
+    out.append("<div class=mod id=wire><div class=mh>Transactions</div><div class=mb><ul class=list>")
     for s in (news["trades"] + news["moves"])[:40]:
-        out.append(f"<li><span class=date>{short(day(s['day']))}</span> {e(s['body'])}</li>")
+        out.append(f"<li><span class=date>{short(day(s['day']))}:</span> {e(s['body'])}</li>")
     if not news["trades"] and not news["moves"]:
         out.append("<li>None yet.</li>")
-    out.append("</ul><h2 id=injuries>Injury report</h2><ul class=list>")
+    out.append("</ul></div></div><div class=mod id=injuries><div class=mh>Injury report</div><div class=mb><ul class=list>")
     majors = [s for s in news["injuries"] if s["big_club"]]
     minors = [s for s in news["injuries"] if not s["big_club"]]
     for s in majors:
@@ -783,42 +937,51 @@ def render(news):
     if not majors:
         out.append("<li>Every big-league club is healthy.</li>")
     if minors:
-        out.append(f"<li class=date>In the minors and elsewhere: {len(minors)} more</li>")
+        out.append(f"<li><b>In the minors and elsewhere: {len(minors)} more</b></li>")
         for s in minors[:25]:
             out.append(f"<li>{e(s['body'])}</li>")
-    out.append("</ul></div><aside>")
-    out.append("<h2 id=standings>Standings</h2>")
-    if news["postseason"]:
-        out.append("<p>It's the postseason: the season's standings are put away until next year.</p>")
-    for d in ([] if news["postseason"] else news["divisions"]):
-        out.append(f"<table><tr><th>{e(d['name'])}</th><th>W</th><th>L</th><th>Pct</th><th>GB</th><th>L10</th>"
-                   "<th>Strk</th></tr>")
-        for r in d["rows"]:
-            gb = "&ndash;" if r["gb"] == 0 else f"{r['gb']:g}"
-            cls = " class=mine" if r["team"] == news["user"] else ""
-            out.append(f"<tr{cls}><td>{lg(r['team'])}{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
-                       f"<td>{r['pct']:.3f}".replace("0.", ".", 1) + f"</td><td>{gb}</td><td>{r['last10']}</td>"
-                       f"<td>{r['streak']}</td></tr>")
-        out.append("</table>")
-    for league, rows in ([] if news["postseason"] else sorted(news["wildcard"].items())):
-        out.append(f"<table><tr><th>{'AL' if league == 0 else 'NL'} Wild Card</th><th>W</th><th>L</th><th>GB</th></tr>")
-        for r in rows[:5]:
-            gb = "&ndash;" if r["wcgb"] == 0 else f"{r['wcgb']:g}"
-            out.append(f"<tr><td>{lg(r['team'])}{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
-                       f"<td>{gb}</td></tr>")
-        out.append("</table>")
-    if news["upcoming"]:
-        out.append(f"<h2 id=matchups>{'Postseason' if news['postseason'] else 'Next up'}: "
-                   f"{short(news['next_day'])}</h2>")
-        for g in news["upcoming"][:6]:
-            a, h = g["away"], g["home"]
-            ra, rh = news_record(news, a), news_record(news, h)
-            rec = "" if news["postseason"] else " (%s)"
-            out.append(f"<div class=match>{lg(a)}<b>{e(db.club(a))}</b>{rec and rec % ra} at "
-                       f"{lg(h)}<b>{e(db.club(h))}</b>{rec and rec % rh}</div>")
-    out.append("</aside></main>")
-    out.append("<footer>Made by the MVP05-Plus Launcher from your save. Names and teams are read from your own game. "
-               "Nothing in your save is changed.</footer></div></body></html>")
+    out.append("</ul></div></div>")
+    if not post:  # every division at once, as the old "expanded standings" page had it
+        out.append("<div class=mod id=allstandings><div class=mh>Expanded standings</div><div class=mb>")
+        for d in news["divisions"]:
+            out.append(f"<table style='margin-bottom:8px'><tr><th>{e(d['name'])}</th><th>W</th><th>L</th><th>Pct</th>"
+                       "<th>GB</th><th>Home</th><th>Road</th><th>RS</th><th>RA</th><th>Strk</th></tr>")
+            for r in d["rows"]:
+                gb = "&ndash;" if r["gb"] == 0 else f"{r['gb']:g}"
+                cls = " class=mine" if r["team"] == user else ""
+                out.append(f"<tr{cls}><td>{lg(r['team'])}{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
+                           + f"<td>{r['pct']:.3f}".replace("0.", ".", 1) + f"</td><td>{gb}</td><td>{r['home']}</td>"
+                           f"<td>{r['road']}</td><td>{r['rs']}</td><td>{r['ra']}</td><td>{r['streak']}</td></tr>")
+            out.append("</table>")
+        out.append("</div></div>")
+
+    # ---- right: the navy rail
+    out.append("</div><div class=rail><div class=mod><div class=mh>News<span class=r>Your league</span></div><ul>")
+    for i, h in enumerate(heads[:10]):
+        out.append(f"<li class='{'mine' if h['mine'] else ''}'><a href='#s{i}'>{e(h['head'])}</a></li>")
+    if not heads:
+        out.append("<li>Nothing yet.</li>")
+    out.append("</ul><a class=x href='#news'>More news &rsaquo;</a></div>")
+    wire = (news["trades"] + news["moves"])[:6]
+    if wire:
+        out.append("<div class=mod><div class=mh>Transactions</div><ul>")
+        for s in wire:
+            out.append(f"<li><span class=date>{short(day(s['day']))}:</span> {e(s['head'])}</li>")
+        out.append("</ul><a class=x href='#wire'>All transactions &rsaquo;</a></div>")
+    hurt = [s for s in news["injuries"] if s["big_club"]][:6]
+    if hurt:
+        out.append("<div class=mod><div class=mh>Injuries</div><ul>")
+        for s in hurt:
+            out.append(f"<li>{e(s['head'])}</li>")
+        out.append("</ul><a class=x href='#injuries'>Injury report &rsaquo;</a></div>")
+    out.append("</div></div>")
+    out.append("<div class=foot><div class=links><a href='#news'>Headlines</a><a href='#scores'>Scores</a>"
+               "<a href='#allstandings'>Standings</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></div>"
+               "<div class=fine>Made by the MVP05-Plus Launcher from your save. Names, teams and logos are read from your "
+               "own copy of the game. Nothing in your save is changed.</div></div></div>")
+    out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
+               f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});</script>")
+    out.append("</body></html>")
     logos = "".join(f".{c}{{background-image:url({u})}}" for v in used.values() if v for c, u in [v])
     return "".join(out).replace("</style>", logos + "</style>", 1)
 

@@ -175,6 +175,23 @@ beside it, most likely the starting one; income is added to +0x12B7C as a float 
 - **The news list** (32 x 20 B after the moves): the game's own League News events, kind in bits 2..7 of the word
   (2..13 seen: 13 weekly, a batter and a pitcher: player of the week). Not read yet.
 
+### 3.11 The four save slots of each kind (Xbox default.xbe, MVP05-Plus)
+The game shows at most four saves of a kind (four dynasties, four owner modes ...). The four is built into the save
+screen, not only checked:
+- The save screen is one object, made once (constructor 0x28E080, called at 0x1EAA39). It holds four pointers to
+  slot objects at +0x0C..+0x18 and the chosen slot's index at +0x1C. About 20 reads index them as
+  `[obj + 0x0C + i*4]` (0x28D4F8, 0x28E474, 0x28F307 ...).
+- The slots are filled by a job that is given the array and the count: `push 4; lea 0xC(esi)` at 0x28EF6B and
+  0x28F036 (into 0x28D090 and 0x28BF30, which stores them at job+0x2C / +0x30).
+- Before a save, 0x28EC40 walks the four slots (`mov [ebp-0x10], 4` at 0x28EC60). A slot object has an in-use
+  byte at +4 and its name (UTF-16) at +0xC0. When all four are in use and the screen is saving (+0x58 == 1), it sets
+  the "no slots" byte at +0x4E (`cmp dword [ebp-8], 4` at 0x28ED42).
+- 0x28E7F0 turns that byte into error 8 (9 for type 0x200000); 0x28C0A0's jump table (0x28C218) sends 8 to
+  0x28C0E3, which shows text 0x691 or 0x685: "No available %5 save slots remaining ..." (feeng.loc id 1681).
+Raising the cap means a bigger slot array somewhere else (the object's fields run on from +0x1C, so it can't grow
+in place), every indexed read and both counts changed to match, and a save screen list that scrolls past four; only
+changing the compare at 0x28ED42 would let the game try to save with no free slot.
+
 ## 4. Converter files (`lib/`)
 `gc2xb_v0.py` (driver: replacement list applied back to front), `tablesconv.py` (tagged tables, header,
 org/team-season records), `postconv.py` (schedules, user section, after-schedules section, history merge),
