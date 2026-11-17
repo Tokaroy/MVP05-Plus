@@ -80,12 +80,16 @@ sh -c 'B="/home/deck/Games/MVP05-Plus/gcbridge"; chmod +x "$B"; "$B" & exec "$@"
 * **Install**, which becomes **Play** once the game's installed (coming from an older MVP05-Plus or Mad Dog's MVP05? The Launcher offers to bring its game, saves and settings over the first time it opens; **Ctrl+Shift+B** offers it again): your discs in, then what's installed (checked each start), **Launch MVP 05**, and which controllers Windows sees right now, including whether the GameCube adapter has the WinUSB driver it needs. At the bottom, the **Player of the Day**: an MLB player from the game's 2005 rosters, with his picture and 2004 season, the same for everyone each day.
 * **Saves**: *Your saves*, with *Import a save…* for saves from the PS2, GameCube, PC or another Xbox, and *Export…* to send one of yours there (built on a save of yours from that console: a .psu or PCSX2 card, a .gci or Dolphin card, or a PC .sav); and *Backups* by date. Restore single saves or a whole date; your saves become a backup first, so a restore can be undone.
 * **Schedule**: the season schedule new seasons play; *Create a schedule…* (any even number of games from 12 to 162, interleague as in 2005, matchups you choose, a new matchup each year or none, natural rivals, the All-Star Game's host, a different season each dynasty year, previewed team by team before you save it); and *Import a schedule…*.
-* **Tools**: the Team Changer, Playoffs Editor and Standings Projector, in the running game or (Playoffs Editor, Standings Projector) on a saved dynasty.
+* **Tools**: Dynasty adjustments (pitchers' rest, injury length, development, aging, retirement, contract prices, re-signing, rookies), the Payroll Budget (and an owner mode's bank balance, changed in the save), the Team Changer, Playoffs Editor and Standings Projector, in the running game or (Payroll Budget, Playoffs Editor, Standings Projector) on a saved dynasty or owner mode.
 * **Settings**: display mode, aspect ratio (16:9, or 4:3 with black bars at the sides), resolution (default: fullscreen at your desktop's resolution), render scale, frame rate cap, texture filtering, VSync, low latency, Xbox 720p mode; desktop shortcuts for the game ("MVP 05 Plus") and the Launcher, if you want them; and *Updates*: check for a new release, install it, or go back to the version before.
 
 For the least delay between a button and the screen, as on a console: turn on *Low latency* in Settings (turn it back off if the game stutters), and use your monitor's G-Sync / FreeSync or your TV's game mode if it has one.
 
 Everything is also in `mvp05-settings.toml`. Plus adds `gamecube_layout`, `gamecube_icons`, `playstation_layout`, `playstation_icons` (all on) and `save_backups` (30).
+
+## Reporting a problem
+
+Send `mvp05.log` (the game's) and, for a Launcher problem such as a save import or export, `MVP05-Plus-Launcher.log`. Both are beside `MVP05.exe`.
 
 ## Building from source
 
