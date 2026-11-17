@@ -410,6 +410,7 @@ def gui(root):
 
     w = tk.Tk()
     w.title(f"{GAME} Launcher ({VERSION}) by spy_jam")
+    catch_errors(w, root)
     import title_icon
     title_icon.ensure(root)  # the game's icon from the Xbox disc, once it's installed
 
@@ -1219,6 +1220,38 @@ def import_tool(frm, root, tk, ttk, start=None):
         use(start)
     refresh.use = use
     return refresh
+
+
+def catch_errors(w, root):
+    """Anything the Launcher didn't expect, from a button or from work in the background, written to
+    MVP05-Plus-Launcher.log beside the exe (the Launcher has no console, so it would be lost) and said on screen once."""
+    import threading
+    shown = []
+
+    def report(what, err, tb):
+        try:
+            import datetime
+            with open(os.path.join(root, "MVP05-Plus-Launcher.log"), "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {what}: {err!r}\n"
+                        + "".join(traceback.format_exception(type(err), err, tb)) + "\n")
+        except OSError:
+            pass
+        if shown:
+            return
+        shown.append(1)
+
+        def tell():
+            from tkinter import messagebox
+            messagebox.showerror("MVP05-Plus Launcher", f"Something went wrong: {err}.\n\nIt's written to "
+                                 "MVP05-Plus-Launcher.log beside MVP05.exe: send that file to spy_jam.", parent=w)
+        try:
+            w.after(0, tell)
+        except Exception:
+            pass
+
+    w.report_callback_exception = lambda typ, err, tb: report("unexpected error", err, tb)
+    threading.excepthook = lambda a: None if a.exc_type is SystemExit else report(
+        f"unexpected error in {getattr(a.thread, 'name', 'a thread')}", a.exc_value, a.exc_traceback)
 
 
 def log_failure(root, what, err):
