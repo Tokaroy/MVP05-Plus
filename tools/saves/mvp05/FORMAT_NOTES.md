@@ -132,6 +132,20 @@ converts it: the dynasty part as a dynasty, the two owner sections by those maps
 PS2 and GameCube exact up to the history, whose link words are written as zero). The long table at the start of
 section 4 is empty in a new owner mode, so its GameCube byte order is assumed (4-byte values).
 
+### 3.9 Memory card images (MVP05-Plus)
+- **PCSX2 (.ps2, `tools/saves/ps2card.py`):** 512-byte pages, each followed by 16 error-correcting bytes in a full
+  8 MB image (8,650,752 bytes): 3 per 128 bytes of the page (a column parity, starting 0x77, and two line parities,
+  starting 0x7F; the Hamming code of mymc's ps2mc_ecc) and 4 zeros. Erased pages are all 0xFF, their code too.
+  Checked on spy_jam's card: every written page's code matches. An export replaces the chosen save's file in a copy
+  of the card, in its own clusters (the same length), and writes those pages' codes again.
+- **Dolphin GameCube (.raw, `tools/saves/gccard.py`):** 8 KB blocks; the header's megabits at 0x22 (times 0x20000 is
+  the image's length); blocks 1 and 2 the directory and its backup, 3 and 4 the block table and its backup (the
+  higher update counter, at 0x1FFA and at 4, is the one in use); 127 directory entries of 64 bytes (first block at
+  0x36, block count at 0x38); the table's map from 0xA gives the next block for each block from 5 (0xFFFF last). A
+  .gci is the entry followed by the file's blocks. File blocks carry no card checksum, so an export writes the new
+  .gci's blocks over the old save's in a copy of the card and leaves the directory and table alone. Checked on
+  made-up cards only.
+
 ## 4. Converter files (`lib/`)
 `gc2xb_v0.py` (driver: replacement list applied back to front), `tablesconv.py` (tagged tables, header,
 org/team-season records), `postconv.py` (schedules, user section, after-schedules section, history merge),
