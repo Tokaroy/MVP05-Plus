@@ -130,7 +130,12 @@ section 5. The owner's bank balance is the float at section 4 + 0x12B80 (the gam
 section is that object from its +0 on, 4 bytes in); $2,000,000 in a new owner mode. MVP05-Plus `tools/saves/owner05.py`
 converts it: the dynasty part as a dynasty, the two owner sections by those maps. Checked by round trips (PC exact;
 PS2 and GameCube exact up to the history, whose link words are written as zero). The long table at the start of
-section 4 is empty in a new owner mode, so its GameCube byte order is assumed (4-byte values).
+section 4 is empty in a new owner mode, so its GameCube byte order is assumed (4-byte values). The Xbox game's
+serializer for the owner object (0x451440, thiscall: stream, writer) writes section 4's first 0x12B90 bytes as
+blobs in this order: +4 0x340, +0x344 0x100, +0x444 0x340, +0x784 0x100, +0x884 0xFC00, +0x109C4 0x2100, +0x10484
+0x540 (these two swapped), +0x12AC4 0xB0, then seven u32 from +0x12B74 (+0x12B7C the bank balance), then the rest
+from +0x12B90 elsewhere. The long table at +0x884 is 12-byte records read as (float, u32, int32) at 0x4515D0, and
++0x10484 and +0x12AC4 are 16-byte records starting with an int32 (0x451570): 4-byte values, as assumed.
 
 ### 3.9 Memory card images (MVP05-Plus)
 - **PCSX2 (.ps2, `tools/saves/ps2card.py`):** 512-byte pages, each followed by 16 error-correcting bytes in a full
