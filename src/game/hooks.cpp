@@ -512,6 +512,23 @@ X86_FUNC(sub_00270950) {
     kernel::CallGuest(ctx, 0x286A70, {scene, kernel::R32(ctx.ebp + 8), stadium});
 }
 
+// EA's debug menu draws a few read-outs every frame while it's up (0x3324B0, from 0x2BE530 in the frame's draw
+// list; the item at its +0x2484, through 0x3302A0). One takes its number from 0x2A74F0 (no arguments, a float back):
+// the difference of two counters in a part of the game object at 0x65A690 that is only there during a ballgame
+// ([0x65A690]+8; 0 in the menus). With that part gone it reads from address 0x54: the crash spy_jam got in the
+// dynasty menus a few seconds after using the debug menu (2026-11-16). Without that part the read-out is 0.
+X86_EXTERN_FUNC(__imp__sub_002A74F0);
+X86_FUNC(sub_002A74F0) {
+    uint32_t game = kernel::R32(0x65A690);
+    if (!InHeap(game, 12) || !InHeap(kernel::R32(game + 8), 0x60)) {
+        LOG_FIRST(1, "extras: a debug menu read-out given 0 (what it reads is only there during a game)");
+        x87_push(ctx, 0.0);
+        ::kernel::Return(ctx, 0, 0);
+        return;
+    }
+    __imp__sub_002A74F0(ctx, base);
+}
+
 // Things the Tools menu asks the game to do, run by the game's own thread at the end of a frame: the two functions
 // that hand a finished frame to D3D (0x2F9320 and 0x2F8D00, around D3DDevice_Swap).
 namespace {
@@ -622,7 +639,10 @@ void RunToolRequests(X86Context& ctx) {
             kernel::CallGuest(ctx, 0x2AF310, {11});
             ctx.ecx = saved_ecx;
             tools::g_debug_menu_request = 2;
-            LOGR("extras: EA's debug menu %s", kernel::R32(0x663AB0) & 0xFF ? "shown" : "hidden");
+            bool shown = (kernel::R32(0x663AB0) & 0xFF) != 0;
+            // (hidden: the pads let go of it too, so nothing moves through a menu that can't be seen)
+            *static_cast<uint8_t*>(kernel::HostPtr(0x63D068)) = shown ? 1 : 0;
+            LOGR("extras: EA's debug menu %s", shown ? "shown" : "hidden");
         }
     }
 }

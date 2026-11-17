@@ -36,7 +36,8 @@ def accept(widget, on_drop):
         shell32.DragQueryFileW.argtypes = [ctypes.c_void_p, wintypes.UINT, wintypes.LPWSTR, wintypes.UINT]
         shell32.DragFinish.argtypes = [ctypes.c_void_p]
         shell32.DragAcceptFiles.argtypes = [wintypes.HWND, wintypes.BOOL]
-        widget.update_idletasks()
+        # (winfo_id makes the widget's window if it isn't made yet. No update here: that draws the Launcher
+        # half-built, tabs missing, while it's still being put together)
         hwnd = widget.winfo_id()
         if not hwnd or hwnd in _kept:
             return bool(hwnd)

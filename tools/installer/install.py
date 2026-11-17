@@ -1508,20 +1508,12 @@ def tweak_controls(parent, items, saved, tk, ttk, row=0, width=58, about=None):
 
 
 def adjustments_tool(group, heading, about):
-    """A Tools page for one TWEAKS group, short enough to fit the Launcher: Save and Defaults at the top, one row a
-    setting, and one place under them that explains the setting the pointer is on. Used at the game's next start."""
+    """A Tools page for one TWEAKS group, short enough to fit the Launcher: one row a setting, one place under them
+    that explains the setting the pointer is on, then Save and Defaults. Used at the game's next start."""
     def build(frm, root, tk, ttk):
         import settings as ST
         frm.columnconfigure(0, weight=1)
-        head = ttk.Frame(frm)
-        head.grid(row=0, column=0, sticky="we")
-        ttk.Label(head, text=heading, font=("Segoe UI", 10, "bold")).pack(side="left")
-        save_b = ttk.Button(head, text="Save")
-        save_b.pack(side="right")
-        default_b = ttk.Button(head, text="MVP 05 Default")
-        default_b.pack(side="right", padx=6)
-        note = ttk.Label(head, text="")
-        note.pack(side="right", padx=6)
+        ttk.Label(frm, text=heading, font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w")
         ttk.Label(frm, foreground="#666", wraplength=600, justify="left", text=about + (
             " The game uses them the next time it starts.")).grid(row=1, column=0, sticky="w", pady=(2, 8))
         rows = ttk.Frame(frm)
@@ -1536,6 +1528,14 @@ def adjustments_tool(group, heading, about):
         why_box.columnconfigure(0, weight=1)
         why = ttk.Label(why_box, text="", foreground="#444", wraplength=600, justify="left")
         why.grid(row=0, column=0, sticky="nw")
+        bar = ttk.Frame(frm)
+        bar.grid(row=6, column=0, sticky="we", pady=(8, 0))
+        save_b = ttk.Button(bar, text="Save")
+        save_b.pack(side="right")
+        default_b = ttk.Button(bar, text="MVP 05 Default")
+        default_b.pack(side="right", padx=6)
+        note = ttk.Label(bar, text="")
+        note.pack(side="left")
 
         def explain(title=None, text=None):
             what.configure(text=title or "")
@@ -2607,21 +2607,21 @@ def tools_tab(tabs, root, tk, ttk):
     home.columnconfigure(0, weight=1)
     ttk.Label(home, text="Tools", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
     ttk.Label(home, foreground="#666", wraplength=560, justify="left", text=(
-        "Pick a tool to open it. The first three are in the game too: F10, or hold Back + Start (Z + Start on a "
-        "GameCube controller).")).grid(
+        "Pick a tool to open it. Team Changer, Playoffs Editor and Standings Projector are in the game too: F10, or "
+        "hold Back + Start (Z + Start on a GameCube controller).")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
     tools = [
+        ("Dynasty adjustments", "Pitchers' rest, injury length, player development, aging, retirement, contract "
+         "prices, re-signing and rookies. Set here, used the next time the game starts.",
+         adjustments_tool("Dynasty", "Dynasty adjustments",
+                          "Changes to how a dynasty runs, built into MVP05-Plus. Your game files stay as they "
+                          "are.")),
         ("Team Changer", "Take over another organization in your dynasty or owner mode. Based on tywiggins' Team "
          "Changer.", team_changer_tool),
         ("Playoffs Editor", "Swap teams in a playoff round before its first game. Based on tywiggins' Playoffs "
          "Creator.", playoffs_tool),
         ("Standings Projector", "Every team's record projected to 162 games, keeping its winning percentage. Short "
          "seasons don't need it: they end on their own.", short_season_tool),
-        ("Dynasty adjustments", "Pitchers' rest, injury length, player development, aging, retirement, contract "
-         "prices, re-signing and rookies. Set here, used the next time the game starts.",
-         adjustments_tool("Dynasty", "Dynasty adjustments",
-                          "Changes to how a dynasty runs, built into MVP05-Plus. Your game files stay as they "
-                          "are.")),
     ]
     pages = {}
 
