@@ -979,7 +979,7 @@ def import_tool(frm, root, tk, ttk, start=None):
         "\u2022  rosters, a dynasty or an owner mode from the PC (.sav)\n"
         "\u2022  rosters, a dynasty or an owner mode from another Xbox (its data.dat)\n"
         "The save goes into one of your own saves of the same kind, which is backed up first. To take a dynasty the "
-        "other way, to the GameCube, the PS2 or the PC, right-click it in your saves.")).grid(
+        "other way, to the GameCube, the PS2 or the PC, pick it in your saves and Export.")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 12))
 
     def step(row, n, text):
@@ -1220,6 +1220,7 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
     "GameCube", "PS2" or "PC"), built on one of your own saves of that kind from there: it gives the new file its name
     and its place."""
     import dynasty05 as DY
+    import gcroster05 as GR
     import owner05 as OW
     import pcdynasty05 as PCD
     import ps2card as PC
@@ -1228,40 +1229,42 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
     from tkinter import filedialog, messagebox
     title = f"Export to {to}"
     errors = (OSError, DY.DynastyError, PD.Ps2DynastyError, RO.RosterError, PC.CardError, PCD.PcDynastyError,
-              OW.OwnerError)
+              OW.OwnerError, GR.GcRosterError)
     try:
         with open(os.path.join(folder, "data.dat"), "rb") as f:
             data = f.read()
         owner = len(data) == DY.XB_OFF + OW.XB_LEN
+        roster = len(data) == RO.XBOX_SAVE_SIZE
         if owner:
             OW.read_xbox(data)
+        elif roster:
+            RO.read(data)
         elif len(data) != DY.XB_DYNASTY_SIZE:
-            raise DY.DynastyError(f"only dynasty and owner mode saves go to the {to} (not rosters or the others)")
+            raise DY.DynastyError(f"only roster, dynasty and owner mode saves go to the {to}")
         else:
             DY.read_xbox(data)
     except errors as e:
         messagebox.showinfo(title, f"\"{name}\" can't be exported: {e}.", parent=frm)
         return
-    mode = "owner mode" if owner else "dynasty"
+    mode = "owner mode" if owner else "roster" if roster else "dynasty"
+    start = ("save your rosters once" if roster else
+             f"start {'an owner mode' if owner else 'a dynasty'} and save it")
     gc = to == "GameCube"
-    how = (f"If you don't have one: start {'an owner mode' if owner else 'a dynasty'} in the GameCube game and "
-           "save it, then in Dolphin open "
+    how = (f"If you don't have one: in the GameCube game, {start}, then in Dolphin open "
            "Tools > Memory Card Manager and export that save as a .gci file.\n\n"
            "Choose that .gci next. It isn't changed: you get a new file to import with the Memory Card Manager."
            if gc else
-           f"If you don't have one: start {'an owner mode' if owner else 'a dynasty'} in the PC game and save it. "
-           f"Choose that save next (<name>_{'Owner_Mode' if owner else 'Dynasty'}.sav, where the PC game keeps its "
-           "saves).\n\n"
+           f"If you don't have one: in the PC game, {start}. Choose that save next (a .sav, where the PC game keeps "
+           "its saves).\n\n"
            "It isn't changed: you get a new .sav to put in that folder."
            if to == "PC" else
-           f"If you don't have one: start {'an owner mode' if owner else 'a dynasty'} in the PS2 game and save it. "
-           "Then choose your PCSX2 memory card "
+           f"If you don't have one: in the PS2 game, {start}. Then choose your PCSX2 memory card "
            "(.ps2) next, or that save as a .psu.\n\n"
            "It isn't changed: you get a new .psu to import (in PCSX2, with a memory card tool such as mymc; on a "
            "console, with uLaunchELF).")
     if not messagebox.askokcancel(title, (
             f"\"{name}\" is written into a copy of one of your own {to} {mode} saves.\n\n{how}"
-            + ("" if to == "PC" else
+            + ("" if to == "PC" or roster else
                f"\n\nThe {to} keeps each player's last 6 seasons of history, so older seasons are left out.")),
             parent=frm):
         return
@@ -1274,10 +1277,10 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         with open(p, "rb") as f:
             base = f.read()
         if gc:
-            fname, out = (OW.xbox_to_gc if owner else DY.xbox_to_gc)(data, base)
+            fname, out = (OW.xbox_to_gc if owner else GR.xbox_to_gc if roster else DY.xbox_to_gc)(data, base)
             stem, ext = (fname[:-4] if fname.endswith(".gci") else fname) + " (from MVP05-Plus)", ".gci"
         elif to == "PC":
-            out, ext = (OW.xbox_to_pc if owner else PCD.to_pc)(data, base), ".sav"
+            out, ext = (OW.xbox_to_pc if owner else RO.to_pc if roster else PCD.to_pc)(data, base), ".sav"
             stem = os.path.splitext(os.path.basename(p))[0]
             for end in ("_Dynasty", "_Owner_Mode"):
                 if stem.endswith(end):
@@ -1292,11 +1295,13 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
                 for card_folder, files in PC.Card(base).saves().items():
                     for n, b in files.items():
                         try:
-                            if not owner and len(b) == PD.HEAD + PD.SIZE:
+                            if mode == "dynasty" and len(b) == PD.HEAD + PD.SIZE:
                                 found.append((card_folder, n, "dynasty", PD.read(b)))
                             elif owner and len(b) == PD.HEAD + OW.PS2_LEN:
                                 found.append((card_folder, n, "owner mode", OW.read_ps2(b)))
-                        except (PD.Ps2DynastyError, OW.OwnerError):
+                            elif roster and len(b) == RO.SIZE + RO.PC_HEAD:
+                                found.append((card_folder, n, "rosters", RO.read(b)))
+                        except (PD.Ps2DynastyError, OW.OwnerError, RO.RosterError):
                             pass
                 if not found:
                     raise PD.Ps2DynastyError(f"that memory card has no MVP 2005 {mode} on it")
@@ -1305,7 +1310,7 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
                     return
                 base = PC.to_psu(which[0], PC.Card(base).saves()[which[0]])
                 stem = f"{which[0]} (from MVP05-Plus)"
-            ext, out = (OW.xbox_to_ps2 if owner else PD.to_ps2)(data, base)
+            ext, out = (OW.xbox_to_ps2 if owner else RO.to_ps2 if roster else PD.to_ps2)(data, base)
     except Exception as e:
         log_failure(os.path.abspath(os.path.join(folder, *[os.pardir] * 5)),  # (hdd/E/UDATA/<title>/<save>)
                     f"export of \"{name}\" to the {to} built on {os.path.basename(p)}", e)

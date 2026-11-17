@@ -1,5 +1,6 @@
 """MVP Baseball 2005 roster saves (not dynasties): a PC .sav, a PS2 .psu (or the Ps2.sav taken out of one) or an
-Xbox data.dat read, and converted into one of your Xbox roster saves in hdd beside MVP05.exe.
+Xbox data.dat read, and converted into one of your Xbox roster saves in hdd beside MVP05.exe, or one of those
+back out to the PC or PS2 (to_pc, to_ps2), built on a roster save of yours from there.
 
 A port of the save conversion in Mad Dog's MVP-Roster-Toolkit-Native (madddog), checked byte for byte against it.
 All three platforms store the same 0xE4C00-byte roster after a header (200 bytes on PC and PS2, 264 on Xbox). PS2
@@ -240,6 +241,45 @@ def to_xbox(save, xbox_save):
     check = read(out)
     _check(check.platform == XBOX and check.body == body, "the converted save didn't read back right")
     return bytes(out)
+
+
+def _out_of_xbox(xbox_save):
+    src = read(xbox_save)
+    _check(src.platform == XBOX, "that isn't an Xbox roster save")
+    return src
+
+
+def to_pc(xbox_save, pc_save):
+    """An Xbox roster save as a PC roster .sav, with pc_save's header (one of your own PC roster saves)."""
+    src, target = _out_of_xbox(xbox_save), read(pc_save)
+    _check(target.platform == PC, "the save to build on isn't a PC roster save")
+    body = convert_body(src.body, XBOX, PC)
+    out = bytearray(target.raw[:PC_HEAD]) + body
+    struct.pack_into("<I", out, 4, crc(body))
+    check = read(bytes(out))
+    _check(check.platform == PC and check.body == body, "the converted save didn't read back right")
+    return bytes(out)
+
+
+def to_ps2(xbox_save, ps2_save):
+    """An Xbox roster save as a PS2 save: (".psu" or ".sav", bytes), as ps2_save (one of your own PS2 roster saves:
+    a .psu, or the .sav from one) was, keeping its name, icon and place."""
+    src = _out_of_xbox(xbox_save)
+    data = bytes(ps2_save)
+    target = read(data)
+    _check(target.platform == PS2, "the save to build on isn't a PS2 roster save")
+    body = convert_body(src.body, XBOX, PS2)
+    if len(data) == SIZE + PC_HEAD:
+        start, kind = 0, ".sav"
+    else:
+        start = [s for _, s, z in psu_entries(data) if z == SIZE + PC_HEAD and u32(data, s + 16) == PC_HEAD][0]
+        kind = ".psu"
+    sav = bytearray(data[start:start + PC_HEAD]) + body
+    struct.pack_into("<I", sav, 4, crc(body))
+    out = data[:start] + bytes(sav) + data[start + SIZE + PC_HEAD:]
+    check = read(out)
+    _check(check.platform == PS2 and check.body == body, "the converted save didn't read back right")
+    return kind, out
 
 
 # (PC/Xbox bit, PS2 bit, width) of each manager field, from the toolkit's schema

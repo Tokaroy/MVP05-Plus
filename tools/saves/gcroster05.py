@@ -1,4 +1,5 @@
-"""MVP Baseball 2005 GameCube roster saves (.gci) to Xbox roster data, with spy_jam's dynasty converter's tables.
+"""MVP Baseball 2005 GameCube roster saves (.gci) to Xbox roster data and back, with spy_jam's dynasty converter's
+tables.
 
 A roster save is a dynasty save without its settings header and its season sections: the roster's payload is the
 dynasty stream from 0x2D6 on (its settings header ends at GC 0x2D2 / Xbox 0x2CF) through the 25 tagged tables, then the
@@ -39,7 +40,8 @@ def read_gc(data):
         except Exception:
             good = False
     if meta.get("typ") != "Rosters":
-        raise GcRosterError(f"that's a {meta.get('typ') or 'different'} save, not rosters")
+        typ = meta.get("typ") or "different"
+        raise GcRosterError(f"that's {'an' if typ[:1] in 'AEIOU' else 'a'} {typ} save, not rosters")
     if not good:
         raise GcRosterError("the GameCube save's checksums don't match: it's damaged or edited")
     p = bytes(meta["payload"])
@@ -146,3 +148,63 @@ def to_xbox(gci, xbox_save):
         return RO.to_xbox(save, xbox_save)
     except RO.RosterError as e:
         raise GcRosterError(f"the converted roster didn't pass the Xbox roster checks ({e})")
+
+
+def convert_body_to_gc(xb_body, gc_body):
+    """Xbox roster body -> GameCube roster payload (RO.SIZE bytes), built on gc_body (a GameCube roster's): the
+    roster steps of spy_jam's Xbox -> GameCube dynasty converter (xb2gc.convert without the settings header and the
+    season sections), in the roster's own coordinates as convert_body runs the other way."""
+    with DY._in_lib():
+        import xb2gc as X
+        xb = bytes(XB_HEAD) + bytes(xb_body)
+        gt = bytes(GC_HEAD) + bytes(gc_body)
+        try:
+            reps = [X.orgs(xb, gt), X.teamflags(xb, gt), X.teamtable(xb, gt), X.rosters_and_post(xb, gt)]
+            reps += X.tagged(xb, gt)
+        except Exception as e:
+            raise GcRosterError(f"this roster couldn't be converted ({e})")
+    reps.sort(key=lambda r: r[0])
+    for (a, b, _), (c, d, _) in zip(reps, reps[1:]):
+        if c < b:
+            raise GcRosterError("the converted roster's tables overlap")
+    # the template's stream end: where the roster stops (its marker, in GameCube byte order)
+    end = gt.rfind(MARKER[::-1], 0, GC_HEAD + RO.SIZE)
+    if end < 0 or struct.unpack_from(">I", gt, end + 4)[0] != end - GC_HEAD + 4:
+        raise GcRosterError("your GameCube roster save has no stream end where it should")
+    out = bytearray()
+    p = 0
+    for a, b, c in reps:
+        out += gt[p:a]
+        out += c
+        p = b
+    out += gt[p:end]
+    body = out[GC_HEAD:]
+    f = len(body)
+    body += MARKER[::-1] + struct.pack(">I", f + 4)
+    if len(body) > RO.SIZE - 144:
+        raise GcRosterError("the converted roster doesn't fit a GameCube roster save")
+    body += bytes(0xBB if k % 2 == 0 else 0x55 for k in range(len(body), RO.SIZE))
+    return bytes(body)
+
+
+def xbox_to_gc(xbox_save, gci):
+    """An Xbox roster save (data.dat) as a GameCube .gci, built on gci (a GameCube roster save of yours, whose name
+    and place it keeps): (file name, bytes)."""
+    try:
+        src = RO.read(xbox_save)
+    except RO.RosterError as e:
+        raise GcRosterError(str(e))
+    if src.platform != RO.XBOX:
+        raise GcRosterError("that isn't an Xbox roster save")
+    gc_body, _ = read_gc(gci)
+    body = convert_body_to_gc(src.body, gc_body)
+    with DY._in_lib():
+        C, _, _, GCS = DY._libs()
+        out = bytearray(gci)
+        out[C.GC_PAYLOAD:C.GC_PAYLOAD + len(body)] = body
+        struct.pack_into(">I", out, C.GC_HDR + 4, C.ea_crc(body))  # the payload's checksum (the header's stays)
+        if not GCS.check(bytearray(out)):
+            raise GcRosterError("the converted .gci failed its checksum check")
+    read_gc(bytes(out))
+    fname = bytes(out[0x08:0x28]).split(b"\0")[0].decode("ascii", "replace")
+    return f"69-GV4E-{fname}.gci", bytes(out)
