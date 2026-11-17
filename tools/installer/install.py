@@ -504,7 +504,7 @@ def gui(root):
             return
         dog.file = pick
         dog.configure(image=dog.picture)
-        dog.place(relx=1.0, rely=1.0, x=-12, y=-12, anchor="se")
+        dog.place(relx=1.0, rely=1.0, x=-12, y=-20 - news_box.winfo_height(), anchor="se")  # (above League News)
         dog.lift()
         for x in (pad_adapter, pad_others):
             x.configure(wraplength=380)
@@ -593,6 +593,34 @@ def gui(root):
             potd_line.configure(text=p["line"])
             potd_card.grid(row=12, column=0, columnspan=2, sticky="w", pady=(28, 0))
         threading.Thread(target=work, daemon=True).start()
+    # League News, bottom right: the newest dynasty or owner mode in the game, as a page in the browser
+    news_box = ttk.Frame(ready)
+    news_box.grid(row=12, column=2, sticky="se", pady=(28, 0))
+    news_btn = ttk.Button(news_box, text="League News", command=lambda: latest_news())
+    news_btn.pack(anchor="e", ipadx=10, ipady=4)
+    news_from = ttk.Label(news_box, text="", foreground="#777", font=("Segoe UI", 8))
+    news_from.pack(anchor="e", pady=(2, 0))
+    ready.rowconfigure(12, weight=1)
+
+    def newest_league():
+        import saves05 as S
+        try:
+            return next((s for s in S.list_saves(root) if s["type"] in ("Dynasty", "Owner Mode")), None)
+        except Exception:
+            return None
+
+    def show_news_from():
+        s = newest_league()
+        news_from.configure(text=f"{s['name']} ({s['type']}), {when_text(s['when'])}" if s else
+                            "Save a dynasty or owner mode first")
+        news_btn.state(["!disabled"] if s else ["disabled"])
+
+    def latest_news():
+        s = newest_league()
+        if s:
+            league_news(ready, root, s["folder"])
+        show_news_from()
+    tabs.bind("<<NotebookTabChanged>>", lambda e: show_news_from() if tabs.select() == str(tab) else None, add="+")
     colours = {"ok": "#1a7f37", "warn": "#b35900", "none": "#777"}
 
     def watch_pads():
@@ -689,6 +717,7 @@ def gui(root):
             tab.columnconfigure(0, weight=1)
             show_art()
             show_potd()
+            show_news_from()
             back.pack(side="left")
             labels["xbox"].configure(text="Xbox disc (installed: leave empty, or choose one to install again)")
         else:
@@ -1859,14 +1888,6 @@ def current_saves_tab(frm, root, tk, ttk):
         side="left")
     export_btn = ttk.Button(bar, text="Export\u2026", command=lambda: export_menu())
     export_btn.pack(side="left", padx=(6, 0))
-
-    def news_for_pick():
-        sel = tree.selection()
-        if not sel:
-            messagebox.showinfo("League News", "Pick a dynasty or owner mode in the list first.", parent=frm)
-            return
-        league_news(frm, root, folders[sel[0]])
-    ttk.Button(bar, text="League News", command=news_for_pick).pack(side="left", padx=(6, 0))
 
     def export_menu():
         """The save picked in the list, to another console: a menu under the button, as the right-click one."""
