@@ -1121,8 +1121,14 @@ def import_tool(frm, root, tk, ttk, start=None):
             elif PD.is_dynasty(data):
                 d = PD.read(data)
                 picked.update(kind="dynasty", ps2_dynasty=d, what=f"PS2 dynasty \"{d['name']}\"")
+            elif b"21367" in data[:0x2000]:  # MVP 06's PS2 product code (SLUS-21367)
+                raise RO.RosterError("that's an MVP 06 save: these imports are for MVP 2005 saves")
             else:
-                save = RO.read(data)
+                try:
+                    save = RO.read(data)
+                except RO.RosterError:
+                    raise RO.RosterError("it isn't an MVP 2005 save this reads: rosters, a dynasty or an owner mode "
+                                         "from the PS2, GameCube, PC or Xbox")
                 picked.update(kind="roster", save=save, what=f"{save.platform} rosters")
         except (OSError, RO.RosterError, DY.DynastyError, PC.CardError, GR.GcRosterError, PD.Ps2DynastyError,
                 PCD.PcDynastyError, OW.OwnerError) as e:
@@ -2860,7 +2866,7 @@ def playoffs_tool(frm, root, tk, ttk):
         note.configure(text=text, foreground=colour)
 
     def load_saves(*_):
-        saves[:] = [x for x in S.list_saves(root) if x["type"] == "Dynasty"]
+        saves[:] = [x for x in S.list_saves(root) if x["type"] in ("Dynasty", "Owner Mode")]
         save_box.configure(values=[f"{x['name']} ({when_text(x['when'])})" for x in saves])
         if saves and save_box.current() < 0:
             save_box.current(0)
@@ -3101,7 +3107,7 @@ def short_season_tool(frm, root, tk, ttk):
         frm.after(0, lambda: note.configure(text=text, foreground=colour))
 
     def load_saves(*_):
-        saves[:] = [s for s in S.list_saves(root) if s["type"] == "Dynasty"]
+        saves[:] = [s for s in S.list_saves(root) if s["type"] in ("Dynasty", "Owner Mode")]
         save_box.configure(values=[f"{s['name']} ({when_text(s['when'])})" for s in saves])
         if saves and save_box.current() < 0:
             save_box.current(0)

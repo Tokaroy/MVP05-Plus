@@ -91,15 +91,18 @@ def check_changes(ss, changes):
 
 def _save_parts(data):
     import dynasty05 as DY
+    import owner05 as OW
     import ps2dynasty05 as PD
+    owner = len(data) == DY.XB_OFF + OW.XB_LEN
     try:
-        t = DY.read_xbox(data)
-    except DY.DynastyError as e:
+        t = OW.read_xbox(data) if owner else DY.read_xbox(data)
+    except (DY.DynastyError, OW.OwnerError) as e:
         raise PlayoffsError(str(e))
     body = t["payload"]
     try:
-        L = PD._layout(body, False)
-    except PD.Ps2DynastyError as e:
+        # (an owner mode's schedules are where they are in its dynasty part: the owner's sections come after)
+        L = PD._layout(OW.split(body, DY.XB_LEN)[0] if owner else body, False)
+    except (PD.Ps2DynastyError, OW.OwnerError) as e:
         raise PlayoffsError(str(e))
     p = L["m"][2] + 4  # the MLB table: its count, then its entries
     n = struct.unpack_from("<I", body, p)[0]

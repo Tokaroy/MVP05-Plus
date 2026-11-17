@@ -87,6 +87,10 @@ def list_saves(root):
 def backup_folder(root, folder, why):
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S")
     dest = os.path.join(root, "save backups", f"{stamp} before {why}", os.path.basename(folder))
+    n = 2
+    while os.path.exists(dest):  # a second backup of the same save in the same second
+        dest = os.path.join(root, "save backups", f"{stamp} before {why} ({n})", os.path.basename(folder))
+        n += 1
     shutil.copytree(folder, dest)
     return dest
 
@@ -147,8 +151,8 @@ def read_standings(folder):
     with open(os.path.join(folder, "data.dat"), "rb") as f:
         xf = f.read()
     m = C.parse_xbox(xf)
-    if m.get("typ") != "Dynasty":
-        raise SaveError(f"that's a {m.get('typ')} save: standings are in Dynasty saves")
+    if m.get("typ") not in ("Dynasty", "Owner Mode"):
+        raise SaveError(f"that's a {m.get('typ')} save: standings are in dynasty and owner mode saves")
     _, recs = _standings_at(m["payload"])
     prog = _schedule_progress(m["payload"]) or (None, None)
     season = round(prog[1] * 2 / len(MLB_TEAMS)) if prog[1] else None
@@ -164,8 +168,8 @@ def patch_standings(root, folder, games=162, say=print):
     with open(dat, "rb") as f:
         xf = f.read()
     m = C.parse_xbox(xf)
-    if m.get("typ") != "Dynasty":
-        raise SaveError(f"that's a {m.get('typ')} save: pick a Dynasty save")
+    if m.get("typ") not in ("Dynasty", "Owner Mode"):
+        raise SaveError(f"that's a {m.get('typ')} save: pick a dynasty or owner mode save")
     if not C.verify_xbox(xf):
         raise SaveError("that save's signature doesn't check out; it's left as it is")
     payload = bytearray(m["payload"])
@@ -177,7 +181,7 @@ def patch_standings(root, folder, games=162, say=print):
     for i, (w, l) in enumerate(recs):
         pw, pl = project(w, l, games)
         payload[t + 4 * i], payload[t + 4 * i + 1] = pw, pl
-    out = C.build_xbox(xf, dict(name=m["name"], typ="Dynasty", flags=m["flags"], payload=bytes(payload)))
+    out = C.build_xbox(xf, dict(name=m["name"], typ=m["typ"], flags=m["flags"], payload=bytes(payload)))
     if not C.verify_xbox(out):
         raise SaveError("the patched save didn't pass its signature check; nothing written")
     b = backup_folder(root, folder, "standings patch")
