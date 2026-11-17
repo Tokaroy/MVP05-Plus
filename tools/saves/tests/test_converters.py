@@ -260,6 +260,7 @@ def news(k, **want):
     shutil.rmtree(root)
     assert len(n["divisions"]) == 6 and sum(len(d["rows"]) for d in n["divisions"]) == 30
     assert "<html" in page and "MVP Baseball" in page
+    assert all(f"id=team-{i}>" in page for i in range(30)) and "href='#team-7'" in page, "team pages"
     if n["results"]:  # every game of the last day written up, the best one the Game of the Day
         last = n["days"][0][1]
         assert len(last) == len(n["results"]) and last[0]["gotd"] and " beat the " in last[0]["body"], "recaps"

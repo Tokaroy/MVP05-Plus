@@ -385,28 +385,38 @@ def _history(x, marks):
     return {}
 
 
-def season_leaders(save, db, most=10):
-    """This season's leaders in each league: {0 (AL) / 1 (NL): {"AVG"|"HR"|"RBI"|"W"|"ERA"|"SV"|"SO": [(key, team,
-    text)]}}.
-    AVG needs 2.7 at-bats a team game, ERA an inning every three team games (the game's own list, checked)."""
+def season_stats(save, db):
+    """This season's line for every player with one (the player history's rows of the newest year, FORMAT_NOTES 3.6):
+    dict(year, last_season (no games yet this year: last season's rows), games {team: games played, or 162},
+    bat {key: Counter}, pit {key: Counter}); each Counter's .team is the club he's with (a traded player's rows add
+    up)."""
     rows = [r for rs in save["history"].values() for r in rs]
     if not rows:
-        return {}
+        return None
     year = max(r["year"] for r in rows)
     season = min((g["day"] for g in save["games"]), default=None)
-    games = {db.franchises[i]: sum(v) for i, v in save["records"].items()}
-    if season is not None and day(season).year != year:  # no games yet this season: last season's, over 162
-        games = {t: 162 for t in games}
+    last = season is not None and day(season).year != year
+    games = {db.franchises[i]: (162 if last else sum(v)) for i, v in save["records"].items()}
     bat, pit = {}, {}
     for k, rs in save["history"].items():
         for r in rs:
             if r["year"] != year or r["team"] >= len(db.franchises):
                 continue
-            t = db.franchises[r["team"]]
             d = bat if r["batter"] else pit
-            s = d.setdefault(k, collections.Counter())
-            s.update(r["stats"])
-            d[k].team = t  # (traded: the rows add up, the last team shown)
+            st = d.setdefault(k, collections.Counter())
+            st.update(r["stats"])
+            st.team = db.franchises[r["team"]]
+    return dict(year=year, last_season=last, games=games, bat=bat, pit=pit)
+
+
+def season_leaders(save, db, most=10, stats=None):
+    """This season's leaders in each league: {0 (AL) / 1 (NL): {"AVG"|"HR"|"RBI"|"W"|"ERA"|"SV"|"SO": [(key, team,
+    text)]}, year, last_season}. AVG needs 2.7 at-bats a team game, ERA an inning every three team games (the game's
+    own list, checked)."""
+    st = stats or season_stats(save, db)
+    if not st:
+        return {}
+    year, games, bat, pit = st["year"], st["games"], st["bat"], st["pit"]
     out = {}
     for lg in (0, 1):
         def mine(d):
@@ -426,7 +436,7 @@ def season_leaders(save, db, most=10):
         cat["SO"] = [(k, s.team, str(s["so"])) for k, s in sorted(p, key=lambda z: -z[1]["so"]) if s["so"]][:most]
         out[lg] = cat
     out["year"] = year
-    out["last_season"] = season is not None and day(season).year != year
+    out["last_season"] = st["last_season"]
     return out
 
 
@@ -726,6 +736,7 @@ def build(save, db):
                     f"{db.club(top)} pass {db.city(before)} for the {d['name']} lead.", last_day, [top, before])
 
     stories.sort(key=lambda s: -s["score"])
+    stats = season_stats(save, db)
     headlines = _spread(stories, recent=today - 10)
     results = [g for g in played if g["day"] == last_day] if last_day else []
     tomorrow = [g for g in upcoming if g["day"] == next_day] if next_day else []
@@ -749,7 +760,8 @@ def build(save, db):
                              key=lambda s: (not any(t in rec for t in s["raw_teams"]), -s["day"])),
                 user=save["user"], games_played=games_played, db=db,
                 days=recaps(save["games"], db, save["user"], postseason),
-                leaders={} if postseason else season_leaders(save, db), names=save["names"])
+                leaders={} if postseason else season_leaders(save, db, stats=stats), names=save["names"],
+                stats=stats, rosters=save["rosters"], games=save["games"], records=rec, stories=stories)
 
 
 def _out_for(days):
@@ -1040,7 +1052,15 @@ a{color:#00c;text-decoration:none}a:hover{text-decoration:underline}
 .gotd b{font-size:16px}
 a.score{display:block;color:#000;text-decoration:none}a.score:hover{border-color:#00c}
 .dpane{display:none}.dpane.on{display:block}
-.lpane{display:none}.lpane.on{display:block}.lt button{font-size:11px;padding:3px 2px}
+.lpane{display:none}.lpane.on{display:block}
+.teampage{display:none;padding:6px 4px 0}.teampage .back{display:inline-block;margin:2px 0 8px;font-weight:bold}
+.thead{display:flex;gap:14px;align-items:center}.thead .lgb{float:none;margin:0}
+.thead h1{font:bold 24px Arial,Helvetica,sans-serif;color:#006;margin:0 0 4px}.thead p{margin:2px 0}
+.roster td:nth-child(n+3),.roster th:nth-child(n+3){text-align:right}.roster{margin-bottom:8px}
+.roster td:nth-child(2),.roster th:nth-child(2){text-align:left;width:40%}
+.res td{text-align:left}.res td:last-child{text-align:right}.res td:first-child{width:22%}
+.res .w{color:#060;font-weight:bold}.res .l{color:#a00;font-weight:bold}
+@media (max-width:760px){.teampage .pair{flex-direction:column}}.lt button{font-size:11px;padding:3px 2px}
 .subtabs.lt{padding:4px 0 0}.subtabs.lt button{padding:0 3px}
 #leaders0 td,#leaders1 td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
 .top{display:flex;align-items:flex-start;padding:8px 10px 0 0;font:bold 11px Tahoma,Arial,sans-serif}
@@ -1162,8 +1182,7 @@ def render(news):
     for i, name in enumerate(("American", "National")):
         out.append(f"<div><small>{name} League</small>")
         for t in sorted(leagues[i], key=db.city):
-            out.append(f"<a href='#t{db.franchises.index(t)}' onclick='show({db.franchises.index(t)})'>"
-                       f"{lg(t)}{e(db.city(t))}</a>")
+            out.append(f"<a href='#team-{db.franchises.index(t)}'>{lg(t)}{e(db.city(t))}</a>")
         out.append("</div>")
     out.append("</div></div><a href='#scores'>Scoreboard</a><a href='#standings'>Standings</a>"
                "<a href='#matchups'>Schedule</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a>"
@@ -1269,7 +1288,7 @@ def render(news):
                     gb = "&ndash;" if r["gb"] == 0 else f"{r['gb']:g}"
                     cls = " class=mine" if r["team"] == user else ""
                     out.append(f"<tr{cls} id=t{db.franchises.index(r['team'])}><td>{lg(r['team'])}"
-                               f"{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
+                               f"<a href='#team-{db.franchises.index(r['team'])}'>{e(db.club(r['team']))}</a></td><td>{r['w']}</td><td>{r['l']}</td>"
                                + f"<td>{r['pct']:.3f}".replace("0.", ".", 1) + f"</td><td>{gb}</td><td>{r['last10']}</td></tr>")
                 out.append("</table></div>")
             rows = news["wildcard"].get(lgi, [])
@@ -1380,21 +1399,130 @@ def render(news):
             out.append(f"<li>{e(s['head'])}</li>")
         out.append("</ul><a class=x href='#injuries'>Injury report &rsaquo;</a></div>")
     out.append("</div></div>")
+    out.append(team_pages(news, lg, gid))
     out.append("<div class=foot><div class=links><a href='#news'>Headlines</a><a href='#scores'>Scores</a>"
                "<a href='#allstandings'>Standings</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></div>"
                "<div class=fine>Made by the MVP05-Plus Launcher from your save. Names, teams and logos are read from your "
                "own copy of the game. Nothing in your save is changed.</div></div></div>")
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
                f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
+               "function route(){var h=location.hash.slice(1),t=h.indexOf('team-')==0?document.getElementById(h):null;"
+               "document.querySelectorAll('.teampage').forEach(function(p){p.style.display=p==t?'block':'none'});"
+               "document.querySelector('.cols').style.display=t?'none':'flex';if(t){window.scrollTo(0,0);return;}"
+               "var el=h&&document.getElementById(h);if(el){var d=el.closest('.dpane');if(d)pickday(+d.id.slice(1));"
+               "var q=el.closest('.pane');if(q)pick(+q.id[1],+q.id[2]);el.scrollIntoView();}}"
+               "window.addEventListener('hashchange',route);"
                "function pickday(i){tab('day',i);document.querySelectorAll('.dpane').forEach(function(p){"
                "p.classList.toggle('on',p.id=='d'+i)});}function day0(){pickday(0);}pickday(0);"
                "var LS=[[0,0],[0,0]];function pickl(b,l,c){if(l!==null)LS[b][0]=l;if(c!==null)LS[b][1]=c;"
                "l=LS[b][0];c=LS[b][1];tab('llg'+b,l);tab('lcat'+b,c);document.querySelectorAll('.lp'+b)"
                ".forEach(function(p){p.classList.toggle('on',p.id=='l'+b+l+c)});}"
-               f"pickl(0,{first[0]},0);pickl(1,{first[0]},0);</script>")
+               f"pickl(0,{first[0]},0);pickl(1,{first[0]},0);route();</script>")
     out.append("</body></html>")
     logos = "".join(f".{c}{{background-image:url({u})}}" for v in used.values() if v for c, u in [v])
     return "".join(out).replace("</style>", logos + "</style>", 1)
+
+
+def team_pages(news, lg, gid):
+    """One page a club (shown in place of the front page by #team-<n>): record and place, the season so far by
+    game, the roster with each player's line, injuries, transactions and headlines about the club."""
+    db, e = news["db"], html.escape
+    stats = news["stats"] or {}
+    bat, pit = stats.get("bat", {}), stats.get("pit", {})
+    names = news["names"]
+    recapped = {gid(r["game"]) for _, rs in news["days"] for r in rs}
+    out = []
+    rows = {r["team"]: (r, d) for d in news["divisions"] for r in d["rows"]}
+    short_day = lambda n: f"{day(n).month}/{day(n).day}"
+    for i, t in enumerate(db.franchises):
+        out.append(f"<div class=teampage id=team-{i}><a class=back href='#top'>&lsaquo; Back to the front page</a>"
+                   f"<div class=mod><div class=mh>{e(db.full(t))}</div><div class='mb thead'>{lg(t, True)}<div>"
+                   f"<h1>{e(db.full(t))}</h1>")
+        row, div = rows.get(t, (None, None))
+        if row and not news["postseason"]:
+            place = div["rows"].index(row) + 1
+            out.append(f"<p class=big>{row['w']}-{row['l']}, {_ord(place)} in the {e(div['name'])}"
+                       + ("" if row["gb"] == 0 else f", {_back(row['gb'])}") + "</p>"
+                       f"<p>Last 10: {row['last10']} &middot; Streak: {row['streak'] or '&ndash;'} &middot; "
+                       f"Home {row['home']} &middot; Road {row['road']} &middot; Runs {row['rs']}-{row['ra']}</p>")
+        out.append("</div></div></div><div class=pair>")
+        mine = [g for g in news["games"] if t in (g["away"], g["home"])]
+        played = sorted((g for g in mine if g["played"]), key=lambda g: g["day"])[-10:][::-1]
+        coming = sorted((g for g in mine if not g["played"]), key=lambda g: g["day"])[:8]
+        out.append("<div class=mod><div class=mh>Last 10 games</div><div class=mb><table class=res>")
+        for g in played:
+            home = g["home"] == t
+            opp = g["away"] if home else g["home"]
+            us, them = (g["hr"], g["ar"]) if home else (g["ar"], g["hr"])
+            score = f"{us}-{them}" + (f" ({g['innings']})" if g["innings"] > 9 else "")
+            link = f"<a href='#{gid(g)}'>{score}</a>" if gid(g) in recapped else score
+            out.append(f"<tr><td>{short_day(g['day'])}</td><td>{'vs.' if home else 'at'} {lg(opp)}"
+                       f"<a href='#team-{db.franchises.index(opp)}'>{e(db.club(opp))}</a></td>"
+                       f"<td class={'w' if us > them else 'l'}>{'W' if us > them else 'L'}</td><td>{link}</td></tr>")
+        if not played:
+            out.append("<tr><td>No games yet.</td></tr>")
+        out.append("</table></div></div><div class=mod><div class=mh>Coming up</div><div class=mb><table class=res>")
+        for g in coming:
+            home = g["home"] == t
+            opp = g["away"] if home else g["home"]
+            out.append(f"<tr><td>{day(g['day']).strftime('%a')} {short_day(g['day'])}</td><td>{'vs.' if home else 'at'} "
+                       f"{lg(opp)}<a href='#team-{db.franchises.index(opp)}'>{e(db.club(opp))}</a></td>"
+                       f"<td>{news_record(news, opp)}</td></tr>")
+        if not coming:
+            out.append("<tr><td>Nothing on the schedule.</td></tr>")
+        out.append("</table></div></div></div>")
+        # the roster: hitters, then pitchers, with this season's lines
+        keys = news["rosters"].get(i, [])
+        nm = lambda k: names.get(k) or db.name(k) or "?"
+        hitters = [k for k in keys if k in bat or (k not in pit and db.pos(k) not in ("RHP", "LHP"))]
+        pitchers = [k for k in keys if k not in hitters]
+        order = {"C": 0, "1B": 1, "2B": 2, "3B": 3, "SS": 4, "OF": 5, "DH": 6}
+        hitters.sort(key=lambda k: (order.get(db.pos(k), 7), -bat.get(k, {}).get("ab", 0)))
+        pitchers.sort(key=lambda k: (-pit.get(k, {}).get("outs", 0)))
+        label = f"{stats.get('year', '')} " if stats.get("last_season") else ""
+        out.append(f"<div class=mod><div class=mh>{label}Roster</div><div class=mb><table class=roster><tr><th>Pos</th>"
+                   "<th>Hitter</th><th>AB</th><th>AVG</th><th>HR</th><th>RBI</th><th>R</th><th>SB</th></tr>")
+        for k in hitters:
+            b = bat.get(k)
+            line = (f"<td>{b['ab']}</td><td>{(b['h'] / b['ab']):.3f}</td>".replace(">0.", ">.") if b and b["ab"] else
+                    "<td>0</td><td>&ndash;</td>") + (f"<td>{b['hr']}</td><td>{b['rbi']}</td><td>{b['r']}</td>"
+                                                    f"<td>{b['sb']}</td>" if b else "<td></td>" * 4)
+            out.append(f"<tr><td>{db.pos(k)}</td><td>{e(nm(k))}</td>{line}</tr>")
+        out.append("</table><table class=roster><tr><th></th><th>Pitcher</th><th>G</th><th>W-L</th><th>ERA</th>"
+                   "<th>SV</th><th>IP</th><th>SO</th></tr>")
+        for k in pitchers:
+            p = pit.get(k)
+            if p and p["g"]:
+                era = f"{27 * p['er'] / p['outs']:.2f}" if p["outs"] else "&ndash;"
+                line = (f"<td>{p['g']}</td><td>{p['w']}-{p['l']}</td><td>{era}</td><td>{p['sv']}</td>"
+                        f"<td>{p['outs'] // 3}.{p['outs'] % 3}</td><td>{p['so']}</td>")
+            else:
+                line = "<td>0</td>" + "<td></td>" * 5
+            out.append(f"<tr><td>{db.pos(k)}</td><td>{e(nm(k))}</td>{line}</tr>")
+        out.append("</table></div></div>")
+        # news about the club
+        about = lambda s_: t in s_["teams"] or t in s_.get("raw_teams", [])
+        heads = [s_ for s_ in news["stories"] if about(s_) and s_["kind"] not in ("Injury", "Suspension")][:8]
+        hurt = [s_ for s_ in news["injuries"] if about(s_)]
+        wire = sorted((s_ for s_ in news["trades"] + news["moves"] if about(s_)), key=lambda s_: -s_["day"])[:12]
+        out.append("<div class=pair><div class=mod><div class=mh>News</div><div class=mb><ul class=heads>")
+        for h in heads:
+            out.append(f"<li><span class=kind>{e(h['kind'])}</span> <span class=date>{short_day(h['day'])}</span>"
+                       f"<b>{e(h['head'])}</b><p>{e(h['body'])}</p></li>")
+        if not heads:
+            out.append("<li>No news yet.</li>")
+        out.append("</ul></div></div><div class=mod><div class=mh>Injuries</div><div class=mb><ul class=list>")
+        for h in hurt:
+            out.append(f"<li>{e(h['body'])}</li>")
+        if not hurt:
+            out.append("<li>Nobody's hurt.</li>")
+        out.append("</ul></div><div class=mh>Transactions</div><div class=mb><ul class=list>")
+        for h in wire:
+            out.append(f"<li><span class=date>{short_day(h['day'])}:</span> {e(h['body'])}</li>")
+        if not wire:
+            out.append("<li>None yet.</li>")
+        out.append("</ul></div></div></div></div>")
+    return "".join(out)
 
 
 def news_record(news, t):
