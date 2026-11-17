@@ -2268,7 +2268,7 @@ def mods_tab(tabs, root, tk, ttk):
         say("Memory doubled. Restart the game if it's running." if more_ram.get() else
             "Memory back to the Xbox's. Restart the game if it's running.")
     # (one line, and the list two rows shorter for it: the Launcher stays the height it was)
-    ttk.Checkbutton(frm, text="Double the game's memory (128 MB): for mods bigger than the Xbox could hold",
+    ttk.Checkbutton(frm, text="Double the game's memory (128 MB): for mods bigger than the Xbox could hold (experimental)",
                     variable=more_ram, command=ram_changed).grid(row=5, column=0, sticky="w", pady=(4, 0))
     frm.bind("<Map>", lambda _: more_ram.set(ST.read(root).get("memory_mb", 64) == 128), add="+")
 
