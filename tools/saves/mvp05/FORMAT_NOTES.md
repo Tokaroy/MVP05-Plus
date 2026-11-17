@@ -86,6 +86,12 @@ HMAC-SHA1s over 0x50..0x108 and 0x108..). MVP05-Plus `tools/saves/saves05.py` (`
 - Entry 28 B: u16 day number (days since 1948-01-01, +1); 16-bit bitfield (10, 1, 5: the 5-bit field is
   non-zero once the game is played); 2 x side: team key u32, runs u8, hits u8, then 4 + 6 four-bit inning
   scores and a u8. The inning nibbles swap within each byte (MSB-first vs LSB-first).
+  On the Xbox (MVP05-Plus, League News): side byte +10 low nibble = errors, high nibble = inning 1; +11..+14 =
+  innings 2-8 and then the **last inning played**, low nibble first; +15 = 0. The innings of an extra-inning game
+  between the 9th and the last aren't kept by inning: they're the runs less all nine (checked: every one of 22
+  extra-inning games is tied going into its last inning; the nine slots sum to the runs in 994 of 1024 sides, the
+  30 others all extra-inning). Simulated games sometimes give a home team that's ahead a bottom of the 9th.
+  No pitchers of record are kept per game: only the season totals (tables 18-24).
 - **The game has no stored "current date".** It uses the first unplayed game across the four tables. Converting
   only the MLB table left the minors at 2005, so the game showed April 7, 2005 and crashed on game start.
 

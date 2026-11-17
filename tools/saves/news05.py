@@ -302,7 +302,8 @@ def read_save(data):
         g = dict(day=dn, away=struct.unpack_from("<I", e, 4)[0], home=struct.unpack_from("<I", e, 16)[0],
                  played=bool(bf >> 11), innings=(bf >> 11) + 1 if bf >> 11 else 0)
         if g["played"]:
-            g.update(ar=e[8], ah=e[9], hr=e[20], hh=e[21])
+            g.update(ar=e[8], ah=e[9], hr=e[20], hh=e[21], ae=e[10] & 15, he=e[22] & 15,
+                     aline=_line(e[10:15]), hline=_line(e[22:27]))
         games.append(g)
     end = p + 16 + 28 * sum(SCHED_CAPS)
     tc, mc = struct.unpack_from("<II", x, end)
@@ -330,6 +331,14 @@ def read_save(data):
         user = struct.unpack_from("<I", x, marks[len(marks) - 3] + 8)[0]
     return dict(name=name, kind=kind, records=records, games=games, trades=trades, moves=moves, hurt=hurt,
                 names=names, rosters=rosters, feed=feed, user=user)
+
+
+def _line(b):
+    """A side's runs by inning (FORMAT_NOTES 3.4): nine slots, innings 1-8 and then the last inning played (the 9th, or
+    the last of an extra-inning game; the innings between are the total less all nine). The high nibble of the first
+    byte (its low nibble is the errors), then two a byte, low nibble first (bitfields on the little-endian Xbox; the
+    GameCube's are swapped). Checked: every extra-inning game is tied going into its last inning."""
+    return [b[0] >> 4] + [v for c in b[1:5] for v in (c & 15, c >> 4)]
 
 
 def _lib():
@@ -789,7 +798,8 @@ def _recap(g, win, lose, before, season, series, snap, div_of, db, user, postsea
     home_won = win == g["home"]
     inn = g["innings"]
     margin = wr - lr
-    walkoff = home_won and inn > 9
+    # a walk-off: the home team won in extras, or in the 9th from behind or tied after the top of it
+    walkoff = home_won and (inn > 9 or sum(g["hline"][:8]) <= g["ar"])
     C = db.club
     shared = collections.Counter(db.city(t) for t in db.franchises)
 
@@ -837,6 +847,9 @@ def _recap(g, win, lose, before, season, series, snap, div_of, db, user, postsea
         text.append(f"{cap(c(lose))} managed only {_num(lh)} hit{'s' if lh != 1 else ''}.")
     elif wh >= 15:
         text.append(f"{cap(c(win))} piled up {wh} hits.")
+    le = g["ae"] if lose == g["away"] else g["he"]
+    if le >= 3:
+        text.append(f"{cap(c(lose))} made {_num(le)} errors.")
     # streaks: made or ended
     ws = _streak_len(form[win]) if form[win] and form[win][-1] == "W" else 0
     lb, ln = before[lose]
@@ -925,9 +938,11 @@ a{color:#00c;text-decoration:none}a:hover{text-decoration:underline}
 .mark img{width:78px;height:78px;margin:-10px 6px -16px 0;filter:drop-shadow(2px 3px 2px rgba(0,0,0,.6))}
 .mark b{display:block;font:italic 900 27px/1 'Arial Black',Arial,sans-serif;color:#fff;letter-spacing:-1px;text-shadow:2px 2px 0 #001a55}
 .mark span{display:block;font:bold 10px Tahoma,sans-serif;color:#fc3;text-transform:uppercase;letter-spacing:2px;margin-top:2px}
-.recap{display:flex;gap:10px;padding:8px 0;border-top:1px dotted #aaa}.recap:first-child{border:0}
-.recap table{width:150px;flex:none;background:#fff;border:1px solid #bbb;align-self:flex-start}
-.recap td{border:0;padding:2px 4px}.recap .w td{font-weight:bold}.recap th{background:#dcdcdc;border:0}
+.recap{padding:8px 0;border-top:1px dotted #aaa}.recap:first-child{border:0}
+.recap table.line{width:auto;background:#fff;border:1px solid #bbb;margin-bottom:5px}
+.recap td{border:0;padding:2px 5px;text-align:center}.recap td:first-child{text-align:left;min-width:62px}
+.recap .w td{font-weight:bold}.recap th{background:#dcdcdc;border:0;text-align:center;padding:2px 5px}
+.recap th:first-child{text-align:left}.recap .rhe{border-left:1px solid #bbb}
 .recap b{display:block;font:bold 13px Arial,Helvetica,sans-serif;color:#006;margin-bottom:2px}
 .recap p{margin:0}
 .gotd{background:#fff7c8;margin:0 -7px;padding:8px 7px}
@@ -1173,12 +1188,20 @@ def render(news):
             for r in rs:
                 g = r["game"]
                 inn = f"/{g['innings']}" if g["innings"] > 9 else ""
-                rows = "".join(f"<tr class={'w' if t == r['win'] else ''}><td>{lg(t)}{e(db.short(t))}</td><td>{rr}</td>"
-                               f"<td>{hh}</td></tr>" for t, rr, hh in ((g["away"], g["ar"], g["ah"]),
-                                                                       (g["home"], g["hr"], g["hh"])))
+                extra = g["innings"] > 9
+                rows = ""
+                for t, rr, hh, ee, line in ((g["away"], g["ar"], g["ah"], g["ae"], g["aline"]),
+                                            (g["home"], g["hr"], g["hh"], g["he"], g["hline"])):
+                    cells = "".join(f"<td>{v}</td>" for v in (line[:8] + [rr - sum(line), line[8]] if extra else line))
+                    rows += (f"<tr class={'w' if t == r['win'] else ''}><td>{lg(t)}{e(db.short(t))}</td>{cells}"
+                             f"<td class=rhe>{rr}</td><td>{hh}</td><td>{ee}</td></tr>")
+                heads_ = "".join(f"<th>{k}</th>" for k in range(1, 9)) + (
+                    (f"<th>9{'-' + str(g['innings'] - 1) if g['innings'] > 10 else ''}</th><th>{g['innings']}</th>")
+                    if extra else "<th>9</th>")
                 kick = "<span class=kick>Game of the day</span>" if r["gotd"] else ""
                 out.append(f"<div class='recap{' gotd' if r['gotd'] else ''}{' mine' if r['mine'] and not r['gotd'] else ''}'"
-                           f" id={gid(g)}><table><tr><th>Final{inn}</th><th>R</th><th>H</th></tr>{rows}</table>"
+                           f" id={gid(g)}><table class=line><tr><th>Final{inn}</th>{heads_}<th class=rhe>R</th><th>H</th><th>E</th></tr>"
+                           f"{rows}</table>"
                            f"<div>{kick}<b>{e(r['head'])}</b><p>{e(r['body'])}</p></div></div>")
             out.append("</div>")
         out.append("</div></div>")

@@ -262,6 +262,12 @@ def news(k, **want):
         last = n["days"][0][1]
         assert len(last) == len(n["results"]) and last[0]["gotd"] and " beat the " in last[0]["body"], "recaps"
         assert "Game of the day" in page
+        for d, rs in n["days"]:  # the nine slots: innings 1-8 and the last one; tied going into the last in extras
+            for r in rs:
+                g = r["game"]
+                assert sum(g["aline"]) <= g["ar"] and sum(g["hline"]) <= g["hr"], "line score"
+                if g["innings"] > 9:
+                    assert g["ar"] - g["aline"][8] == g["hr"] - g["hline"][8], "extra innings"
     for key, v in want.items():
         got = len(n[key]) if isinstance(n[key], list) else n[key]
         assert (got >= v) if isinstance(v, int) and not isinstance(v, bool) else got == v, (key, got, v)
