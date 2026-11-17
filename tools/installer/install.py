@@ -1709,7 +1709,7 @@ def put_away(frm, root, folder, name, done):
     try:
         S.put_away(root, folder)
     except (S.SaveError, OSError) as e:
-        messagebox.showerror("Save library", f"\"{name}\" wasn't moved: {e}.", parent=frm)
+        messagebox.showerror("Deactivate a save", f"\"{name}\" wasn't deactivated: {e}.", parent=frm)
         return
     done()
 
@@ -1745,7 +1745,7 @@ def bring_back(frm, root, lib_folder, tk, ttk, done, swap_for=None):
     exchange (chosen here); when the name is taken, it can come back under another."""
     import saves05 as S
     from tkinter import messagebox, simpledialog
-    title = "Save library"
+    title = "Activate a save"
     name = None
     while True:
         try:
@@ -1757,7 +1757,7 @@ def bring_back(frm, root, lib_folder, tk, ttk, done, swap_for=None):
         except S.SlotsFull as e:
             opts = [f"{s['name']} (last saved {when_text(s['when'])})" for s in e.saves]
             i = choose_one(frm, tk, ttk, title, f"The game holds 4 {e.kind} saves and 4 are ticked. Which one "
-                                                f"should be unticked to make room?", opts)
+                                                f"should be deactivated to make room?", opts)
             if i is None:
                 return
             swap_for = e.saves[i]["folder"]
@@ -1791,8 +1791,8 @@ def current_saves_tab(frm, root, tk, ttk):
     from tkinter import messagebox
 
     ttk.Label(frm, wraplength=520, justify="left", text=(
-        "The game holds 4 saves of each type (dynasty, owner mode, rosters ...). Tick the saves you want in the "
-        "game.")).grid(row=0, column=0, sticky="w", pady=(0, 8))
+        "The game holds 4 saves of each type (dynasty, owner mode, rosters ...). Tick the saves you want active "
+        "in the game.")).grid(row=0, column=0, sticky="w", pady=(0, 8))
     tree = ttk.Treeview(frm, columns=("when", "size"), show="tree headings", height=12, selectmode="browse")
     tree.heading("#0", text="Save")
     tree.heading("when", text="Last saved")
@@ -1859,7 +1859,7 @@ def current_saves_tab(frm, root, tk, ttk):
 
     def menu(iid):
         f, n = folders[iid], names[iid]
-        items = [("Take out of the game (untick)" if live[iid] else "Put in the game (tick)", lambda: toggle(iid)),
+        items = [("Deactivate" if live[iid] else "Activate", lambda: toggle(iid)),
                  ("Open folder", lambda: open_in_explorer(f)),
                  ("League News", lambda: league_news(frm, root, f)),
                  ("Export to GameCube\u2026", lambda: export_dynasty(frm, f, n, "GameCube", tk, ttk)),

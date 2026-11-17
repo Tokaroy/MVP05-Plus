@@ -326,11 +326,12 @@ def read_save(data):
         feed.append(dict(key=k, value=a, kind=(w >> 2) & 0x3F, word=w, day=d1))
     names, hurt = _players(x)
     rosters = _rosters(x)
+    history = _history(x, marks)
     user = None
     if len(marks) in (7, 9):  # the user section: marker 4 in a dynasty, 6 in an owner mode (budget05 reads it too)
         user = struct.unpack_from("<I", x, marks[len(marks) - 3] + 8)[0]
     return dict(name=name, kind=kind, records=records, games=games, trades=trades, moves=moves, hurt=hurt,
-                names=names, rosters=rosters, feed=feed, user=user)
+                names=names, rosters=rosters, feed=feed, user=user, history=history)
 
 
 def _line(b):
@@ -339,6 +340,91 @@ def _line(b):
     byte (its low nibble is the errors), then two a byte, low nibble first (bitfields on the little-endian Xbox; the
     GameCube's are swapped). Checked: every extra-inning game is tied going into its last inning."""
     return [b[0] >> 4] + [v for c in b[1:5] for v in (c & 15, c >> 4)]
+
+
+def _bits(w, widths):
+    out, sh = [], 0
+    for b in widths:
+        out.append((w >> sh) & ((1 << b) - 1))
+        sh += b
+    return out
+
+
+def _history(x, marks):
+    """Each player's season rows (FORMAT_NOTES 3.6: the player history, marker 5 in a dynasty): {key: [row]}, a row
+    {year, team (franchise index), batter, stats}. This season's row is the season so far, as the game's League
+    Leaders show it (checked against them on the KCR dynasty):
+      batter   word 0 (10,8,7,7): AB, -, SB, -;  word 1 (9,8,8,7): H, RBI, R, HR
+      pitcher  word 0 (8,8,9,7): ER, BB, SO, G;  word 1 (9,2,6,6,9): IP, thirds, W, L, -;  word 2 (7,25): SV"""
+    for i in range(len(marks) - 1):  # (the marker whose groups run exactly to the next one)
+        p = marks[i] + 4
+        try:
+            n = struct.unpack_from("<I", x, p)[0]
+            if not 100 < n < 4000:
+                continue
+            q, out = p + 4, {}
+            for _ in range(n):
+                k, c = struct.unpack_from("<IB", x, q)
+                rows = []
+                for j in range(c):
+                    yr, team, flags = struct.unpack_from("<HBB", x, q + 9 + 20 * j)
+                    w = struct.unpack_from("<3I", x, q + 13 + 20 * j)
+                    if flags & 3 == 1:
+                        a, b = _bits(w[0], (10, 8, 7, 7)), _bits(w[1], (9, 8, 8, 7))
+                        st = dict(ab=a[0], sb=a[2], h=b[0], rbi=b[1], r=b[2], hr=b[3])
+                    else:
+                        a, b, c2 = _bits(w[0], (8, 8, 9, 7)), _bits(w[1], (9, 2, 6, 6, 9)), _bits(w[2], (7, 25))
+                        st = dict(er=a[0], bb=a[1], so=a[2], g=a[3], outs=3 * b[0] + b[1], w=b[2], l=b[3], sv=c2[0])
+                    rows.append(dict(year=yr, team=team, batter=flags & 3 == 1, stats=st))
+                out[k] = rows
+                q += 5 + 20 * c
+            if q == marks[i + 1]:
+                return out
+        except struct.error:
+            continue
+    return {}
+
+
+def season_leaders(save, db, most=5):
+    """This season's leaders in each league: {0 (AL) / 1 (NL): {"HR"|"AVG"|"W"|"ERA"|"SV": [(key, team, text)]}}.
+    AVG needs 2.7 at-bats a team game, ERA an inning every three team games (the game's own list, checked)."""
+    rows = [r for rs in save["history"].values() for r in rs]
+    if not rows:
+        return {}
+    year = max(r["year"] for r in rows)
+    season = min((g["day"] for g in save["games"]), default=None)
+    games = {db.franchises[i]: sum(v) for i, v in save["records"].items()}
+    if season is not None and day(season).year != year:  # no games yet this season: last season's, over 162
+        games = {t: 162 for t in games}
+    bat, pit = {}, {}
+    for k, rs in save["history"].items():
+        for r in rs:
+            if r["year"] != year or r["team"] >= len(db.franchises):
+                continue
+            t = db.franchises[r["team"]]
+            d = bat if r["batter"] else pit
+            s = d.setdefault(k, collections.Counter())
+            s.update(r["stats"])
+            d[k].team = t  # (traded: the rows add up, the last team shown)
+    out = {}
+    for lg in (0, 1):
+        def mine(d):
+            return [(k, s) for k, s in d.items() if int(db.teams.get(s.team, {}).get(4, -1)) == lg]
+        b, p = mine(bat), mine(pit)
+        cat = {}
+        cat["HR"] = [(k, s.team, str(s["hr"])) for k, s in sorted(b, key=lambda z: -z[1]["hr"]) if s["hr"]][:most]
+        q = [(k, s) for k, s in b if s["ab"] and s["ab"] >= 2.7 * games.get(s.team, 0)]
+        cat["AVG"] = [(k, s.team, f"{s['h'] / s['ab']:.3f}".lstrip("0"))
+                      for k, s in sorted(q, key=lambda z: (-z[1]["h"] / z[1]["ab"], -z[1]["ab"]))][:most]
+        cat["W"] = [(k, s.team, str(s["w"])) for k, s in sorted(p, key=lambda z: (-z[1]["w"], z[1]["l"])) if s["w"]][:most]
+        q = [(k, s) for k, s in p if s["outs"] and s["outs"] >= games.get(s.team, 0)]
+        cat["ERA"] = [(k, s.team, f"{27 * s['er'] / s['outs']:.2f}")
+                      for k, s in sorted(q, key=lambda z: (z[1]["er"] / z[1]["outs"], -z[1]["outs"]))][:most]
+        cat["SV"] = [(k, s.team, str(s["sv"])) for k, s in sorted(p, key=lambda z: -z[1]["sv"]) if s["sv"]][:most]
+        out[lg] = cat
+    out["year"] = year
+    out["last_season"] = season is not None and day(season).year != year
+    return out
 
 
 def _lib():
@@ -659,7 +745,8 @@ def build(save, db):
                 moves=sorted((s for s in stories if s["kind"] == "Roster move"),
                              key=lambda s: (not any(t in rec for t in s["raw_teams"]), -s["day"])),
                 user=save["user"], games_played=games_played, db=db,
-                days=recaps(save["games"], db, save["user"], postseason))
+                days=recaps(save["games"], db, save["user"], postseason),
+                leaders={} if postseason else season_leaders(save, db), names=save["names"])
 
 
 def _out_for(days):
@@ -950,6 +1037,9 @@ a{color:#00c;text-decoration:none}a:hover{text-decoration:underline}
 .gotd b{font-size:16px}
 a.score{display:block;color:#000;text-decoration:none}a.score:hover{border-color:#00c}
 .dpane{display:none}.dpane.on{display:block}
+.lpane{display:none}.lpane.on{display:block}.lt button{font-size:11px;padding:3px 2px}
+.subtabs.lt{padding:4px 0 0}.subtabs.lt button{padding:0 3px}
+#leaders td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
 .top{display:flex;align-items:flex-start;padding:8px 10px 0 0;font:bold 11px Tahoma,Arial,sans-serif}
 .top a{color:#fff;padding:0 9px;border-left:1px solid #777}.top a:first-child{border:0}.top a:hover{color:#fc3;text-decoration:none}
 .sub{height:24px;background:linear-gradient(#e2e2e2,#b9b9b9);border-bottom:1px solid #888;display:flex;align-items:center;font:bold 11px Tahoma,Arial,sans-serif}
@@ -1103,6 +1193,28 @@ def render(news):
                        f"Streak: {row['streak'] or '&ndash;'}<br>Home {row['home']} &middot; Road {row['road']}"
                        + (f"<br>Next: {'at ' + e(db.club(nxt['home'])) if nxt['away'] == user else 'vs. ' + e(db.club(nxt['away']))}"
                           if nxt else "") + "</div></div>")
+    if news["leaders"]:  # this season's leaders, as the game's Around the League shows them
+        cats = ("HR", "AVG", "W", "ERA", "SV")
+        title = f"{news['leaders']['year']} leaders" if news["leaders"]["last_season"] else "League leaders"
+        out.append(f"<div class=mod id=leaders><div class=mh>{title}</div><div class='tabs lt'>" + "".join(
+            f"<button data-g=llg data-i={i} onclick='pickl({i},window._lc)'>{n}</button>"
+            for i, n in enumerate(("AL", "NL"))) + "</div><div class='subtabs lt'>" + "".join(
+            f"<button data-g=lcat data-i={i} onclick='pickl(window._ll,{i})'>{c}</button>" for i, c in enumerate(cats))
+                   + "</div><div class=mb>")
+        names_ = news["names"]
+        for lgi in (0, 1):
+            for ci, c in enumerate(cats):
+                out.append(f"<div class=lpane id=l{lgi}{ci}><table>")
+                for rank, (k, t, v) in enumerate(news["leaders"].get(lgi, {}).get(c, []), 1):
+                    full = names_.get(k) or db.name(k) or "?"
+                    first, _, rest = full.partition(" ")
+                    short_name = f"{first[0]}. {rest}" if rest else full
+                    cls = " class=mine" if t == user else ""
+                    out.append(f"<tr{cls}><td>{rank}. {lg(t)}{e(short_name)}</td><td>{e(v)}</td></tr>")
+                if not news["leaders"].get(lgi, {}).get(c):
+                    out.append("<tr><td>No one yet</td><td></td></tr>")
+                out.append("</table></div>")
+        out.append("</div></div>")
     if not post and news["games_played"]:
         rows = [r for d in news["divisions"] for r in d["rows"] if r["streak"]]
         hot = sorted((r for r in rows if r["streak"][0] == "W"), key=lambda r: -int(r["streak"][1:]))[:4]
@@ -1270,7 +1382,10 @@ def render(news):
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
                f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
                "function pickday(i){tab('day',i);document.querySelectorAll('.dpane').forEach(function(p){"
-               "p.classList.toggle('on',p.id=='d'+i)});}function day0(){pickday(0);}pickday(0);</script>")
+               "p.classList.toggle('on',p.id=='d'+i)});}function day0(){pickday(0);}pickday(0);"
+               "function pickl(l,c){tab('llg',l);tab('lcat',c);window._ll=l;window._lc=c;"
+               "document.querySelectorAll('.lpane').forEach(function(p){p.classList.toggle('on',p.id=='l'+l+c)});}"
+               f"pickl({first[0]},0);</script>")
     out.append("</body></html>")
     logos = "".join(f".{c}{{background-image:url({u})}}" for v in used.values() if v for c, u in [v])
     return "".join(out).replace("</style>", logos + "</style>", 1)

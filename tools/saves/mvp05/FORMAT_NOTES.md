@@ -112,6 +112,12 @@ HMAC-SHA1s over 0x50..0x108 and 0x108..). MVP05-Plus `tools/saves/saves05.py` (`
   platforms, and matches all 5757 shared rows in the fresh pair exactly:
   - batter: (10,8,7,7) (9,8,8,7) (9,8,8,7)
   - pitcher: (8,8,9,7) (9,2,6,6,9) (7,25). The last 25 bits look like filler on both platforms.
+  - What they hold (MVP05-Plus League News, checked against the game's League Leaders screen on the KCR dynasty;
+    the row of the current year is the season so far; flags & 3: 1 batter, 2 pitcher):
+    batter (AB, -, SB, -) (H, RBI, R, HR) (-, -, -, -); pitcher (ER, BB, SO, G) (IP, thirds, W, L, -) (SV, -).
+  - Tables 18-24 hold pitching too (21: this season, G / IP / thirds / W / L / - / R / ER / SV ...; 22-23 its
+    splits, BB / - / SO / ... / 1B / 2B / 3B / HR / ... / BF; 18-20 last season; 24 career): this season's runs
+    and hits allowed equal the schedule's exactly.
 - The converter puts the GC rows after the template's rows that come before them, found by overlap: the longest run
   at the end of the template's list that the GC rows begin with (`postconv.hist_merge`). A list isn't always in year
   order, and a traded player has two rows for one year, which the earlier by-year rule could drop. Only when the two

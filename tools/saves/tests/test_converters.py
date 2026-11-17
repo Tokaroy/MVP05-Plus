@@ -13,6 +13,8 @@ missing is skipped:
     mvp06_ps2.psu   mvp06_xb.dat                                  MVP 06 saves (must be refused)
     xb_dyn_played.dat   database.big                              a dynasty some way into its season, and the
     feeng.loc   logos.big                                         game's database, text and logos (League News)
+    xb_dyn_kcr.dat                                                spy_jam's KCR dynasty at April 29, 2007 (its
+                                                                  League Leaders screen is the test's answers)
 """
 import contextlib
 import io
@@ -276,6 +278,30 @@ t('league news: a dynasty in its season', lambda: news('xb_dyn_played', headline
                                                          games_played=17, postseason=False))
 t('league news: a new owner mode', lambda: news('xb_own', postseason=False))
 t('league news: the postseason', lambda: news('xb_dyn', postseason=True))
+
+
+def news_leaders():
+    """League leaders from the player history's season rows, checked against the game's own League Leaders screen
+    (spy_jam's KCR dynasty, April 29, 2007: xb_dyn_kcr.dat, if it's in the samples)."""
+    import shutil
+    import tempfile
+    import news05 as N
+    kcr = F["xb_dyn_kcr"]  # (skipped without it)
+    root = tempfile.mkdtemp()
+    os.makedirs(os.path.join(root, "assets", "data", "database"))
+    with open(os.path.join(root, "assets", "data", "database", "database.big"), "wb") as f:
+        f.write(F["database"])
+    db = N.Database(root)
+    save = N.read_save(kcr)
+    L = N.season_leaders(save, db)
+    shutil.rmtree(root)
+    name = lambda k: save["names"].get(k) or db.name(k)
+    got = {c: [(name(k), v) for k, _, v in L[0][c][:3]] for c in L[0]}
+    assert got["AVG"] == [("Jason Varitek", ".406"), ("Juan Uribe", ".402"), ("Shannon Stewart", ".396")], got["AVG"]
+    assert got["HR"][0] == ("Juan Uribe", "15") and got["SV"][:2] == [("Jeremy Affeldt", "11"), ("Joe Nathan", "9")]
+    assert got["W"][0] == ("Jimmy Gobble", "5") and got["ERA"][2] == ("Joe Nathan", "0.77"), (got["W"], got["ERA"])
+    return 1
+t('league news: league leaders as the game shows them', news_leaders)
 def news_standings():
     """The standings (two halves summed) agree with the schedule's results, team by team."""
     import collections
