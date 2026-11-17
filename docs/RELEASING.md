@@ -4,8 +4,10 @@
 header lists; never commit them):
 ```
 python tools/saves/tests/test_converters.py <samples folder>
+python tools/installer/tests/test_save_windows.py <samples folder>
 ```
-It ends with "No problems." when every conversion, round trip and refusal is as it should be.
+Each ends with "No problems." when every conversion, round trip and refusal is as it should be (the second drives
+the Launcher's import window and Export with stand-in widgets).
 
 1. **Push this repository to GitHub** (once): create an empty repository named `MVP05-Plus` on github.com (no README), then in this folder:
    ```
