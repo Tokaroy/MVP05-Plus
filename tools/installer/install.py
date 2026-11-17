@@ -1354,11 +1354,6 @@ TWEAKS = {
          {"MVP 05 Default: showers at SBC Park and Safeco Field": 0,
           "Showers at every outdoor park, about 2 games in 9": 1,
           "Rain in every game, at every outdoor park": 2}),
-        ("memory_mb", "Memory",
-         "Room for what the game loads: stadiums, players, crowds. The Xbox had 64 MB, and the game keeps about 41 MB "
-         "of it for these. Double it for mods that add more than the Xbox could hold.",
-         {"MVP 05 Default (64 MB, 41 MB for the game)": 64,
-          "Doubled (128 MB, 97 MB for the game): room for mods": 128}),
     ],
     # each list from the least to the most, MVP 05 Default where it falls
     "Dynasty": [
@@ -1562,7 +1557,7 @@ def adjustments_tool(group, heading, about):
 
 
 def graphics_window(parent, root, tk, ttk):
-    """Graphics and memory (TWEAKS["Graphics"]), a window from the Settings tab. Used at the game's next start."""
+    """Graphics (TWEAKS["Graphics"]), a window from the Settings tab. Used at the game's next start."""
     import settings as ST
     w = parent.winfo_toplevel()
     for c in w.winfo_children():  # one at a time
@@ -1571,12 +1566,12 @@ def graphics_window(parent, root, tk, ttk):
             return
     win = tk.Toplevel(w)
     win._graphics = True
-    win.title("Graphics and memory")
+    win.title("Graphics")
     win.transient(w)
     win.resizable(False, False)
     f = ttk.Frame(win, padding=14)
     f.grid()
-    ttk.Label(f, text="Graphics and memory", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3,
+    ttk.Label(f, text="Graphics", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3,
                                                                                 sticky="w")
     ttk.Label(f, foreground="#666", wraplength=540, justify="left", text=(
         "Built into MVP05-Plus; your game files stay as they are. Changes take effect the next time the game "
@@ -1821,7 +1816,7 @@ def settings_tab(tabs, root, tk, ttk):
     ttk.Button(bar, text="Defaults", command=defaults).pack(side="right", padx=6)
     ttk.Button(bar, text="Open the settings file", command=lambda: os.startfile(os.path.join(root, ST.FILE))
                if os.name == "nt" else None).pack(side="left")
-    ttk.Button(bar, text="Graphics and memory...", command=lambda: graphics_window(frm, root, tk, ttk)).pack(
+    ttk.Button(bar, text="Graphics...", command=lambda: graphics_window(frm, root, tk, ttk)).pack(
         side="left", padx=6)
     load()
 
@@ -2263,6 +2258,22 @@ def mods_tab(tabs, root, tk, ttk):
     note = ttk.Label(frm, text="", foreground="#666", wraplength=560, justify="left")
     note.grid(row=4, column=0, sticky="w", pady=(6, 0))
     items = []
+
+    # the game's memory (memory_mb), for mods that load more than the Xbox could hold
+    import settings as ST
+    ttk.Separator(frm, orient="horizontal").grid(row=5, column=0, sticky="we", pady=(12, 8))
+    more_ram = tk.BooleanVar(value=ST.read(root).get("memory_mb", 64) == 128)
+
+    def ram_changed():
+        ST.write(root, {"memory_mb": 128 if more_ram.get() else 64})
+        say("Memory doubled. Restart the game if it's running." if more_ram.get() else
+            "Memory back to the Xbox's. Restart the game if it's running.")
+    ttk.Checkbutton(frm, text="Double the game's memory (128 MB, as a developer Xbox)", variable=more_ram,
+                    command=ram_changed).grid(row=6, column=0, sticky="w")
+    ttk.Label(frm, foreground="#666", wraplength=560, justify="left", text=(
+        "For mods with bigger stadiums, textures or crowds than the Xbox's 64 MB could hold. Leave it off "
+        "otherwise.")).grid(row=7, column=0, sticky="w", padx=(22, 0))
+    frm.bind("<Map>", lambda _: more_ram.set(ST.read(root).get("memory_mb", 64) == 128), add="+")
 
     def say(text, colour="#1a7f37"):
         note.configure(text=text, foreground=colour)
