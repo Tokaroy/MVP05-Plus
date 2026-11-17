@@ -1,9 +1,11 @@
-"""PS2 memory card images (PCSX2's .ps2, or a card dumped from a console): the saves on them read out, nothing written.
+"""PS2 memory card images (PCSX2's .ps2, or a card dumped from a console): the saves on them read out, and a save's
+file replaced by one of the same size in a copy of the card (replace_file).
 
 The card is 512-byte pages, each followed by 16 bytes of error-correcting code in a full image (8 MB cards:
 8,650,752 bytes), in clusters of two pages. A superblock at the start gives the allocation start, the root
 directory's cluster and the clusters holding the FAT (by an indirect list); a file's clusters are chained through
-the FAT. Directory entries are 512 bytes: mode, length, first cluster, name.
+the FAT. Directory entries are 512 bytes: mode, length, first cluster, name. A page's 16 code bytes are 3 per 128
+bytes of the page (a column parity and two line parities, the Hamming code of mymc's ps2mc_ecc) and 4 zeros.
 """
 import struct
 
@@ -13,6 +15,32 @@ DF_EXISTS, DF_DIR, DF_FILE = 0x8000, 0x0020, 0x0010
 
 class CardError(Exception):
     pass
+
+
+def _parity(b):
+    b ^= b >> 4
+    b ^= b >> 2
+    b ^= b >> 1
+    return b & 1
+
+
+_PARITY = [_parity(b) for b in range(256)]
+_COLUMN = [sum(_PARITY[b & m] << i for i, m in enumerate((0x55, 0x33, 0x0F, 0x00, 0xAA, 0xCC, 0xF0)))
+           for b in range(256)]
+
+
+def page_ecc(page):
+    """The 16 error-correcting bytes of a 512-byte page."""
+    out = bytearray()
+    for k in range(0, 512, 128):
+        col, line0, line1 = 0x77, 0x7F, 0x7F
+        for i, b in enumerate(page[k:k + 128]):
+            col ^= _COLUMN[b]
+            if _PARITY[b]:
+                line0 ^= ~i
+                line1 ^= i
+        out += bytes((col & 0xFF, line0 & 0x7F, line1 & 0xFF))
+    return bytes(out) + bytes(4)
 
 
 class Card:
@@ -93,6 +121,43 @@ class Card:
         first = self.page(self.alloc_off * self.ppc + self.rootdir * self.ppc)
         count = struct.unpack_from("<I", first, 4)[0]  # the root's "." entry holds the directory's length
         return self.entries(self.rootdir, count)
+
+    def find(self, folder, name):
+        """The directory entry of a file in a save folder."""
+        for d in self.root():
+            if d["mode"] & DF_DIR and d["name"] == folder:
+                for f in self.entries(d["cluster"], d["length"]):
+                    if f["mode"] & DF_FILE and f["name"] == name:
+                        return f
+        raise CardError(f"{folder}/{name} isn't on the card")
+
+    def replace_file(self, folder, name, data):
+        """A copy of the card image with that file's bytes replaced by data (the same length: its clusters and
+        directory entry stay as they are), each page written given its error-correcting bytes again."""
+        f = self.find(folder, name)
+        if len(data) != f["length"]:
+            raise CardError(f"{name} on the card is {f['length']} bytes, not {len(data)}")
+        out = bytearray(self.data)
+        padded = bytes(data) + b"\0" * (-len(data) % self.cluster_len)
+        for k, c in enumerate(self.chain(f["cluster"])):
+            if k * self.cluster_len >= len(data):
+                break
+            for i in range(self.ppc):
+                page = padded[k * self.cluster_len + i * self.page_len:k * self.cluster_len + (i + 1) * self.page_len]
+                last = (k * self.cluster_len + (i + 1) * self.page_len) > len(data)
+                o = ((self.alloc_off + c) * self.ppc + i) * self.stride
+                if last:  # the end of the file: what's past it on the page stays as the card had it
+                    keep = len(data) - (k * self.cluster_len + i * self.page_len)
+                    if keep <= 0:
+                        continue
+                    page = page[:keep] + bytes(out[o + keep:o + self.page_len])
+                out[o:o + self.page_len] = page
+                if self.stride == 528:
+                    out[o + 512:o + 528] = page_ecc(page)
+        new = Card(bytes(out))
+        if new.read(f["cluster"], f["length"]) != bytes(data):
+            raise CardError("the save didn't read back from the card")
+        return bytes(out)
 
     def saves(self):
         """{save folder name: {file name: bytes}} for every save on the card."""

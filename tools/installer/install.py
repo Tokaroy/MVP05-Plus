@@ -1260,8 +1260,8 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
            if to == "PC" else
            f"If you don't have one: in the PS2 game, {start}. Then choose your PCSX2 memory card "
            "(.ps2) next, or that save as a .psu.\n\n"
-           "It isn't changed: you get a new .psu to import (in PCSX2, with a memory card tool such as mymc; on a "
-           "console, with uLaunchELF).")
+           "It isn't changed: from a memory card you get a copy of the card with the save in it, from a .psu a "
+           "new .psu to import (in PCSX2, with a memory card tool such as mymc; on a console, with uLaunchELF).")
     if not messagebox.askokcancel(title, (
             f"\"{name}\" is written into a copy of one of your own {to} {mode} saves.\n\n{how}"
             + ("" if to == "PC" or roster else
@@ -1301,6 +1301,7 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
                 stem += " (from MVP05-Plus)"
         else:
             stem = os.path.splitext(os.path.basename(p))[0] + " (from MVP05-Plus)"
+            on_card = None
             if base[:28] == PC.MAGIC:  # a memory card: its dynasty (or owner mode), as a .psu
                 found = []
                 for card_folder, files in PC.Card(base).saves().items():
@@ -1319,9 +1320,11 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
                 which = found[0] if len(found) == 1 else choose_card_save(frm, tk, ttk, found)
                 if not which:
                     return
-                base = PC.to_psu(which[0], PC.Card(base).saves()[which[0]])
-                stem = f"{which[0]} (from MVP05-Plus)"
+                card, on_card = base, which
+                base = PC.Card(card).saves()[which[0]][which[1]]  # the save's own file: converted as a .sav
             ext, out = (OW.xbox_to_ps2 if owner else RO.to_ps2 if roster else PD.to_ps2)(data, base)
+            if on_card:  # back onto a copy of the card, in that save's place
+                out, ext = PC.Card(card).replace_file(on_card[0], on_card[1], out), ".ps2"
     except Exception as e:
         log_failure(os.path.abspath(os.path.join(folder, *[os.pardir] * 5)),  # (hdd/E/UDATA/<title>/<save>)
                     f"export of \"{name}\" to the {to} built on {os.path.basename(p)}", e)
@@ -1330,7 +1333,7 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         return
     dest = filedialog.asksaveasfilename(parent=frm, title=f"Save the {to} {mode} as", initialdir=os.path.dirname(p),
                                         initialfile=stem + ext, defaultextension=ext,
-                                        filetypes=[(f"{to} saves", "*" + ext)])
+                                        filetypes=[("PS2 memory cards" if ext == ".ps2" else f"{to} saves", "*" + ext)])
     if not dest:
         return
     if os.path.abspath(dest) == os.path.abspath(p) and not messagebox.askyesno(
@@ -1350,6 +1353,9 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         "Put it in the PC game's saves folder and load it there. If it doesn't show in the game's list, save it over "
         f"the {mode} it was built on instead (keep a copy of that one first)."
         if to == "PC" else
+        "It's a copy of your memory card with the save in place of the one it was built on (your card isn't "
+        "changed). In PCSX2: Settings > Memory Cards, and put it in a slot. The rest of the card is as it was."
+        if ext == ".ps2" else
         f"Import it onto your memory card. It takes the place of the PS2 {mode} it was built on, so delete that one "
         "from the card first if the tool says the save already exists."), parent=frm)
 

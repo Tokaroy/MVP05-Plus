@@ -131,6 +131,14 @@ def gc_roster_rt2():
     _, g = GR.xbox_to_gc(x, F['gc_roster'])
     return same(g, F['gc_roster'])
 t('gc rosters -> xb -> gc exact', gc_roster_rt2)
+def card_roster_rt():
+    c = PC.Card(F['ps2_card'])
+    (folder, name), = [(fo, n) for fo, fs in c.saves().items() for n, b in fs.items() if len(b) == RO.SIZE + RO.PC_HEAD]
+    _, sav = RO.to_ps2(F['xb_roster'], c.saves()[folder][name])
+    card = c.replace_file(folder, name, sav)
+    assert PC.Card(card).saves() == {**c.saves(), folder: {**c.saves()[folder], name: sav}}, "the rest of the card changed"
+    return same(RO.to_xbox(RO.read(PC.Card(card).saves()[folder][name]), F['xb_roster']), F['xb_roster'])
+t('xb rosters -> onto a ps2 memory card -> xb exact', card_roster_rt)
 # wrong kinds: each must be refused with a message, never a crash
 wrong = [
     ('owner into dynasty (gc)', lambda: DY.gc_to_xbox(F['gc_own'], F['xb_dyn'])),
