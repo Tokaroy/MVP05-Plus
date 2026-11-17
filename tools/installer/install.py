@@ -18,6 +18,7 @@ import json
 import contextlib
 import io
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1132,6 +1133,9 @@ def import_tool(frm, root, tk, ttk, start=None):
                     (kind == "owner" and size == DY.XB_OFF + OW.XB_LEN and s["type"] == OW.TYP):
                 targets.append(s)
         labels = [f"{s['name']} ({when_text(s['when'])})" for s in targets]
+        if targets:  # or a save of its own, made from one of yours of that kind
+            targets.append(dict(new=True, base=targets[0], name=""))
+            labels.append("As a new save\u2026")
         box.configure(values=labels, state="readonly" if labels else "disabled")
         if old in labels:
             box.set(old)
@@ -1144,8 +1148,9 @@ def import_tool(frm, root, tk, ttk, start=None):
                            foreground="#666")
         elif labels:
             hint.configure(text=f"That {kinds[kind][0]} is backed up first. It keeps the name of the save "
-                                "it goes into." if kind in ("dynasty", "owner") else
-                           f"That {kinds[kind][0]} is backed up first.", foreground="#666")
+                                "it goes into. Or pick As a new save, and name it." if kind in ("dynasty", "owner") else
+                           f"That {kinds[kind][0]} is backed up first. Or pick As a new save, and name it.",
+                           foreground="#666")
         else:
             hint.configure(text=f"You don't have a {kinds[kind][0]} yet. In the game, " +
                            ("save your rosters once" if kind == "roster" else "start a dynasty and save it"
@@ -1265,7 +1270,26 @@ def import_tool(frm, root, tk, ttk, start=None):
         kind, s = picked.get("kind"), targets[box.current()] if box.current() >= 0 else None
         if not kind or not s:
             return
-        if not messagebox.askyesno("Import a save", (
+        new_name = None
+        if s.get("new"):
+            from tkinter import simpledialog
+            m = re.search(r'"([^"]+)"', picked.get("what", ""))
+            first = (m.group(1) if m else s["base"]["name"])[:S.NAME_MOST]
+            if any(t.get("name") == first for t in targets):
+                first = first[:S.NAME_MOST - 1] + "2"
+            while True:
+                new_name = simpledialog.askstring("Import as a new save", (
+                    f"A name for the new {kinds[kind][0]} (up to {S.NAME_MOST} letters and digits):"),
+                    initialvalue=first, parent=frm)
+                if new_name is None:
+                    return
+                try:
+                    new_name = S.check_name(new_name)
+                    break
+                except S.SaveError as e:
+                    messagebox.showinfo("Import as a new save", f"{e}.", parent=frm)
+            s = dict(s, name=new_name, folder=s["base"]["folder"])
+        elif not messagebox.askyesno("Import a save", (
                 f"Replace the {kinds[kind][1]} in \"{s['name']}\" with the {picked['what']} from "
                 f"{os.path.basename(picked['path'])}?\n\n\"{s['name']}\" is backed up first (Saves > Backups)."),
                 parent=frm):
@@ -1300,12 +1324,16 @@ def import_tool(frm, root, tk, ttk, start=None):
                     out = GR.to_xbox(picked["gc_roster"], mine)
                 else:
                     out = RO.to_xbox(picked["save"], mine)
-                S.backup_folder(root, s["folder"], f"importing {kinds[kind][1]}")
-                with open(dat + ".new", "wb") as f:
-                    f.write(out)
-                os.replace(dat + ".new", dat)
-                msg = (f"Done. Load \"{s['name']}\" in the game. The old save is in Saves > Backups.",
-                       "#1a7f37")
+                if new_name:
+                    S.new_save(root, s["folder"], out, new_name)
+                    msg = (f"Done. Load \"{new_name}\" in the game.", "#1a7f37")
+                else:
+                    S.backup_folder(root, s["folder"], f"importing {kinds[kind][1]}")
+                    with open(dat + ".new", "wb") as f:
+                        f.write(out)
+                    os.replace(dat + ".new", dat)
+                    msg = (f"Done. Load \"{s['name']}\" in the game. The old save is in Saves > Backups.",
+                           "#1a7f37")
             except Exception as e:
                 log_failure(root, f"import of {picked.get('what')} ({os.path.basename(picked['path'])}) into "
                                   f"\"{s['name']}\"", e)

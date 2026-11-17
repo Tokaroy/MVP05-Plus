@@ -95,6 +95,73 @@ def backup_folder(root, folder, why):
     return dest
 
 
+# A save's folder is named from its name and type as the game shows them, "NAME (Type)": the Xbox library's hash
+# (0x3F36B5 in default.xbe): each UTF-16 character in turn, h = (h * 65536 + c) mod (2^48 - 59), written as 12
+# upper-case hex digits. Checked on saves the game made (KCRTEST (Dynasty) -> 8D58821E7335). A save put in any other
+# folder loads, but the game's next save of that name goes to the folder of the hash: a second copy.
+_FOLDER_MOD = (1 << 48) - 59
+NAME_MOST = 10  # letters: the GameCube's limit, and room to spare in the Xbox header (16)
+
+
+def folder_id(name, typ):
+    h = 0
+    for c in f"{name} ({typ})":
+        h = (h * 65536 + ord(c)) % _FOLDER_MOD
+    return f"{h:012X}"
+
+
+def check_name(name):
+    """A new save's name, or SaveError: 1 to 10 letters, digits and spaces."""
+    name = " ".join(name.split())
+    if not name:
+        raise SaveError("the save needs a name")
+    if len(name) > NAME_MOST:
+        raise SaveError(f"a save's name can have {NAME_MOST} letters at most")
+    if not all(c.isascii() and (c.isalnum() or c == " ") for c in name):
+        raise SaveError("a save's name can have only letters, digits and spaces")
+    return name
+
+
+def renamed(data, name):
+    """An Xbox save (rosters, dynasty or owner mode: the same header) under a new name, signed again."""
+    import hashlib
+    import hmac
+    C, _ = _lib()
+    b = bytearray(data)
+    typ = b[0x88:0xA8].decode("utf-16-le").split("\0")[0]
+    b[0x68:0x88] = name.encode("utf-16-le").ljust(0x20, b"\0")[:0x20]
+    b[0xA8:0xE8] = f"{name} ({typ})".encode("utf-16-le").ljust(0x40, b"\0")[:0x40]
+    key = bytes(16)
+    b[0:20] = hmac.new(key, bytes(b[0x50:0x108]), hashlib.sha1).digest()
+    b[20:40] = hmac.new(key, bytes(b[0x108:]), hashlib.sha1).digest()
+    return bytes(b), typ
+
+
+def new_save(root, base_folder, data, name):
+    """data (an Xbox save) as a new save called name, beside base_folder (one of yours, whose picture it takes):
+    its folder, or SaveError if there's a save of that name already."""
+    C, _ = _lib()
+    name = check_name(name)
+    out, typ = renamed(data, name)
+    folder = os.path.join(udata(root), folder_id(name, typ))
+    if os.path.exists(folder):
+        raise SaveError(f"there's a save called \"{name}\" already: pick another name")
+    os.makedirs(folder + ".part")
+    try:
+        img = os.path.join(base_folder, "saveimage.xbx")
+        if os.path.isfile(img):
+            shutil.copy2(img, os.path.join(folder + ".part", "saveimage.xbx"))
+        with open(os.path.join(folder + ".part", "SaveMeta.xbx"), "wb") as f:
+            f.write(C.xbox_savemeta(name, typ))
+        with open(os.path.join(folder + ".part", "data.dat"), "wb") as f:
+            f.write(out)
+        os.replace(folder + ".part", folder)
+    except OSError:
+        shutil.rmtree(folder + ".part", ignore_errors=True)
+        raise
+    return folder
+
+
 def _check_not_running():
     if game_running():
         raise SaveError("close MVP05.exe first: the game keeps its saves open while it runs")

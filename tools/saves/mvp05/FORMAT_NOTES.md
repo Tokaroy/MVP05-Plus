@@ -26,6 +26,12 @@ Conversion rule of thumb: a field converts by its declared type. u32 -> swap 4 b
 byte arrays -> copy, bitfields -> same field values re-packed LSB-first. Every bug found in testing was a
 field converted with the wrong one of these (4-byte swap over bytes or u16 pairs, raw copy over u32 keys).
 
+**Xbox save folders** (`hdd/E/UDATA/45410056/<12 hex>`): the folder's name is the Xbox library's hash of the
+save's name as SaveMeta.xbx has it, "NAME (Type)" (default.xbe 0x3F36B5: for each UTF-16 character c,
+h = (h * 65536 + c) mod (2^48 - 59); 12 upper-case hex digits). "KCRTEST (Dynasty)" -> 8D58821E7335. The roster
+saves' Xbox header is laid out as the dynasties' (name at 0x68, type at 0x88, "name (type)" at 0xA8, the two
+HMAC-SHA1s over 0x50..0x108 and 0x108..). MVP05-Plus `tools/saves/saves05.py` (`folder_id`, `renamed`, `new_save`).
+
 ## 2. Stream layout (GC offset / Xbox offset in the fresh pair)
 
 | Section | GC | Xbox | Contents / conversion | Status |

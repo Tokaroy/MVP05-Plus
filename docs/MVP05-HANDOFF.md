@@ -353,8 +353,10 @@ Each pad's player index is set to its port number:
   `MVP05-Plus-Launcher.log` beside the exe.
 - **Tests:** `tools/saves/tests/test_converters.py` and `tools/installer/tests/test_save_windows.py`, on a folder of
   sample saves (the names are in the first script's header; never commit them).
-- **Not done, on purpose:** importing as a *new* Xbox save (a new folder in UDATA). How the game names a save's
-  folder (12 hex digits) isn't known: if it's from the save's name, the game's next save of that name would go to a
-  second folder. Imports replace one of your saves instead.
+- **Import as a new save:** the last choice under *Pick which of your saves it replaces*. The save's folder in
+  UDATA is named as the game names it: the Xbox library's hash of "NAME (Type)" (0x3F36B5: h = h * 65536 + c, mod
+  2^48 - 59, 12 hex digits; `saves05.folder_id`, checked on KCRTEST, TESTOWN, POLLL and the STROS Astros save), so
+  the game's own next save of it goes to the same folder. Header renamed and signed again (`saves05.renamed`),
+  SaveMeta.xbx written, the picture copied from the save it was made from.
 - **Open:** spy_jam's Stros GameCube dynasty failed at the import's step 3 (Beta 2.5 build); not reproduced with the
   samples here. The message now says which part of the save failed.

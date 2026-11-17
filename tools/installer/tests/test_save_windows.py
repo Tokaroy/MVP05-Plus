@@ -86,6 +86,11 @@ imports = [(n, sample(n), not n.startswith(("mvp06", "README"))) for n in sorted
                                           ("a folder with a save in it", loose, True),
                                           ("not a save", os.path.join(REPO, "README.md"), False),
                                           ("a folder with no save", os.path.join(REPO, "docs"), False)]
+# and as new saves (the last choice in the list), named here
+for n in ("gc_dyn.gci", "ps2_own.psu", "pc_roster.sav"):
+    if sample(n):
+        imports.append((f"{n} as a new save", sample(n), "new"))
+sys.modules["tkinter"].simpledialog.askstring.side_effect = lambda *a, **k: k.get("initialvalue") or "NEW"
 for what, path, ok in imports:
     if not path:
         continue
@@ -108,11 +113,18 @@ for what, path, ok in imports:
     offered = offered[-1] if offered else []
     result = ""
     if offered and "can't" not in picked:
+        if ok == "new":
+            box.current.return_value = len(offered) - 1
         go = [c.kwargs["command"] for c in ttk.Button.return_value.configure.call_args_list if "command" in c.kwargs][1]
         go()
         res = [t for t in texts if t.startswith(("Done", "Nothing"))]
         result = res[-1] if res else "no result"
     good = result.startswith("Done") if ok else ("can't be used" in picked)
+    if ok == "new":
+        made = [x for x in S5.list_saves(root) if f'"{x["name"]}"' in result]
+        good = good and len(made) == 1 and os.path.basename(made[0]["folder"]) == S5.folder_id(
+            made[0]["name"], made[0]["type"]) and S5.savemeta_name(made[0]["folder"]).startswith(made[0]["name"])
+        result += f" [{made[0]['name']} ({made[0]['type']}) in {os.path.basename(made[0]['folder'])}]" if made else ""
     print(f"{'ok ' if good else 'BAD'} import {what:24} | {picked[:70]} | {result[:60]}")
     if not good:
         BAD.append(what)
