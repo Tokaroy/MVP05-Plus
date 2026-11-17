@@ -893,12 +893,15 @@ def saves_tab(tabs, root, tk, ttk):
     outer.bind("<Map>", lambda _: refresh[view.get()]())
 
 
-def import_window(parent, root, tk, ttk, on_close=None):
-    """Import a save, in a window of its own over the Launcher; your saves listed again when it closes."""
+def import_window(parent, root, tk, ttk, on_close=None, start=None):
+    """Import a save, in a window of its own over the Launcher; your saves listed again when it closes. start: a
+    save's path, chosen already (dragged onto the Saves tab)."""
     w = parent.winfo_toplevel()
     for c in w.winfo_children():  # one at a time
         if isinstance(c, tk.Toplevel) and getattr(c, "_import", False):
             c.lift()
+            if start and getattr(c, "_use", None):
+                c._use(start)
             return
     win = tk.Toplevel(w)
     win._import = True
@@ -911,7 +914,7 @@ def import_window(parent, root, tk, ttk, on_close=None):
                                                                           pady=(0, 2))
     body = ttk.Frame(f)
     body.grid(row=1, column=0, sticky="nwe")
-    import_tool(body, root, tk, ttk)
+    win._use = import_tool(body, root, tk, ttk, start).use
     bar = ttk.Frame(f)
     bar.grid(row=2, column=0, sticky="e", pady=(12, 0))
 
@@ -954,7 +957,7 @@ def choose_card_save(parent, tk, ttk, found):
     return out.get("v")
 
 
-def import_tool(frm, root, tk, ttk):
+def import_tool(frm, root, tk, ttk, start=None):
     """Import a save: a save from another MVP 2005 written into one of your saves here (backed up first), so it
     plays in MVP05-Plus. Rosters from the PS2, PC or another Xbox (Mad Dog's conversion, from his MVP Roster
     Toolkit); dynasties from the GameCube (spy_jam's converter), the PS2 and the PC (both of theirs)."""
@@ -1048,8 +1051,13 @@ def import_tool(frm, root, tk, ttk):
     def pick():
         p = filedialog.askopenfilename(parent=frm, title="A save from another MVP 2005", filetypes=[
             ("MVP 2005 saves", "*.gci *.psu *.ps2 *.sav *.dat"), ("All files", "*.*")])
-        if not p:
-            return
+        if p:
+            use(p)
+
+    def use(p):
+        """The save at p chosen (from the button, or dragged in); an Xbox save's folder stands for its data.dat."""
+        if os.path.isdir(p) and os.path.isfile(os.path.join(p, "data.dat")):
+            p = os.path.join(p, "data.dat")
         picked.clear()
         say("")
         try:
@@ -1150,6 +1158,12 @@ def import_tool(frm, root, tk, ttk):
     go_b.configure(command=go)
     box.bind("<<ComboboxSelected>>", lambda _: ready())
     refresh()
+    import dragdrop
+    if dragdrop.accept(frm.winfo_toplevel(), lambda paths: use(paths[0])):
+        ttk.Label(line, text="or drag it here", foreground="#888").pack(side="left")
+    if start:
+        use(start)
+    refresh.use = use
     return refresh
 
 
@@ -1301,6 +1315,9 @@ def current_saves_tab(frm, root, tk, ttk):
     ttk.Button(bar, text="Open saves folder",
                command=lambda: open_in_explorer(os.path.join(root, "hdd", B.TITLE_UDATA))).pack(side="right")
     ttk.Button(bar, text="Refresh", command=refresh).pack(side="right", padx=6)
+    import dragdrop
+    if dragdrop.accept(frm, lambda paths: import_window(frm, root, tk, ttk, refresh, start=paths[0])):
+        ttk.Label(bar, text="Or drag a save onto this tab.", foreground="#888").pack(side="left", padx=10)
     refresh()
     return refresh
 
@@ -2175,6 +2192,8 @@ def mods_tab(tabs, root, tk, ttk):
     add_btn = ttk.Button(bar, text="Add a mod\u2026", command=lambda: add_menu())
     add_btn.pack(side="left")
     ttk.Button(bar, text="Open mods folder", command=lambda: open_folder(MD.mods_dir(root))).pack(side="right")
+    hint = ttk.Label(bar, text="", foreground="#888")
+    hint.pack(side="left", padx=10)
     note = ttk.Label(frm, text="", foreground="#666", wraplength=560, justify="left")
     note.grid(row=4, column=0, sticky="w", pady=(6, 0))
     items = []
@@ -2502,6 +2521,16 @@ def mods_tab(tabs, root, tk, ttk):
         ps = filedialog.askopenfilenames(title="The mod's files (or its zip)", parent=frm)
         return list(ps) if ps else None
 
+    def dropped(paths):
+        """Dragged onto the tab: each folder and each zip a mod of its own, loose files one mod together."""
+        whole = [p for p in paths if os.path.isdir(p) or p.lower().endswith(".zip")]
+        loose = [p for p in paths if p not in whole and os.path.isfile(p)]
+        for group in [[p] for p in whole] + ([loose] if loose else []):
+            add(lambda group=group: group)
+
+    import dragdrop
+    if dragdrop.accept(frm, dropped):
+        hint.configure(text="Or drag a mod's folder, its zip or its files onto this tab.")
     refresh()
 
 
