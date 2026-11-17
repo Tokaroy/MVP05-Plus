@@ -47,8 +47,8 @@ player format and put in the 05 dynasty's draft pool. To work out first:
   *Export to PC...* is `pcdynasty05.to_pc` (`convert_body_to_pc`): the PC's 14 settings ints, platform words and
   object records from the user's PC save, everything else the Xbox's bytes (history included, all 16 seasons). On
   RESOX_Dynasty.sav, PC -> Xbox -> PC is byte for byte the PC save, and Xbox -> PC -> Xbox gives back the Xbox
-  dynasty. **Not loaded in the PC game yet;** whether the game lists a .sav under a new file name isn't known (the
-  file is named <name>2_Dynasty.sav, the name inside it still the base save's).
+  dynasty. **Not loaded in the PC game yet.** The PC game names a save's file "<name>_<Type>.sav" (RESOX_Dynasty.sav,
+  Ownerpctest_Owner_Mode.sav), so an export is named <name>2 inside and in its file name (`pcdynasty05.pc_renamed`).
 - **Low latency for MVP06-Plus;** MVP 2004.
 
 # Done

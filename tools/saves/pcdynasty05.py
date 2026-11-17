@@ -125,6 +125,22 @@ def convert_body(pc, xb):
     return bytes(out)
 
 
+def pc_name(data):
+    """(name, type) of a PC save (rosters, dynasty or owner mode: the same 200-byte header)."""
+    return tuple(bytes(data[a:b]).decode("utf-16-le", "replace").split("\0")[0] for a, b in ((0x28, 0x48), (0x48, 0x88)))
+
+
+def pc_renamed(data, name):
+    """A PC save under a new name, its header's checksum made again, and the file name the PC game gives a save of
+    that name and type ("<name>_<Type>.sav", spaces as _): (file name, bytes). Its own name and its file's have to
+    agree, or the game's next save of it goes to the file of the name inside (the save it was built on)."""
+    b = bytearray(data)
+    _, typ = pc_name(b)
+    b[0x28:0x48] = name.encode("utf-16-le").ljust(0x20, b"\0")[:0x20]
+    struct.pack_into("<I", b, 0, RO.crc(bytes(b[16:HEAD])))
+    return f"{name}_{typ.replace(' ', '_')}.sav", bytes(b)
+
+
 def to_xbox(data, xbox_dynasty, name=None):
     """A PC dynasty (.sav) as an Xbox data.dat, built on xbox_dynasty (keeping its name unless name is given)."""
     src = read(data) if not isinstance(data, dict) else data

@@ -1495,13 +1495,14 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
                 stem = os.path.splitext(os.path.basename(p))[0] + " (from MVP05-Plus)"
         elif to == "PC":
             out, ext = (OW.xbox_to_pc if owner else RO.to_pc if roster else PCD.to_pc)(data, base), ".sav"
-            stem = os.path.splitext(os.path.basename(p))[0]
-            for end in ("_Dynasty", "_Owner_Mode"):
-                if stem.endswith(end):
-                    stem = stem[:-len(end)] + "2" + end
+            # a name of its own, beside the save it's built on: the PC game names a save's file by its name
+            mine = PCD.pc_name(base)[0]
+            taken = {f.lower() for f in os.listdir(os.path.dirname(p))} if os.path.isdir(os.path.dirname(p)) else set()
+            for k in range(2, 100):
+                fname, renamed = PCD.pc_renamed(out, mine[:15 - len(str(k))] + str(k))
+                if fname.lower() not in taken:
                     break
-            else:
-                stem += " (from MVP05-Plus)"
+            out, stem = renamed, os.path.splitext(fname)[0]
         else:
             stem = os.path.splitext(os.path.basename(p))[0] + " (from MVP05-Plus)"
             on_card = None
@@ -1558,8 +1559,8 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         f"In Dolphin: Tools > Memory Card Manager > Import, and choose it. It takes the place of the GameCube {mode} "
         "it was built on, so delete that one from the card first if Dolphin says the save already exists."
         if gc else
-        "Put it in the PC game's saves folder and load it there. If it doesn't show in the game's list, save it over "
-        f"the {mode} it was built on instead (keep a copy of that one first)."
+        f"Put it in the PC game's saves folder and load it there: it's called {PCD.pc_name(out)[0]} in the game. Keep "
+        "the file's name: the PC game names a save's file by its name."
         if to == "PC" else
         "It's a copy of your memory card with the save in place of the one it was built on (your card isn't "
         "changed). In PCSX2: Settings > Memory Cards, and put it in a slot. The rest of the card is as it was."
