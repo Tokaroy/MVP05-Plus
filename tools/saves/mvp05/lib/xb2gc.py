@@ -76,6 +76,15 @@ def _blocks(d, key, sig, start):
     st = [pos[k] for k in range(0, len(pos), 4)]; assert len(st) == 126, len(st)
     return st + [Pp]
 
+def _slots(d, p, n, key):
+    """The managers' list's slots from p (after its 8-byte header): n, or (owner mode: one slot fewer in use than
+    there are) the count whose end has the table key 28 bytes on. MVP05-Plus addition, for owner mode saves."""
+    for s in range(n, n + 3):
+        if d[p + 12 * s + 24:p + 12 * s + 28] == key:
+            return s
+    return n
+
+
 def rosters_and_post(xb, gt):
     stx = _blocks(xb, KEYX, SIG_X, 0x38cb); Q = stx[-1]
     ros = b''.join(rosterblock.conv(xb[stx[k]:stx[k + 1]], be=False) for k in range(126))
@@ -85,12 +94,14 @@ def rosters_and_post(xb, gt):
         out += s16(d) if tno == 2 else d
         p += 508
     hdr, n = struct.unpack('<II', xb[p:p + 8]); out += s32(xb[p:p + 8]); p += 8
+    n = _slots(xb, p, n, b'\x1b\x3c\x8f\xf5')
     out += s32(xb[p:p + 12 * n]); p += 12 * n
     out += s32(xb[p:p + 28]); p += 28
     out += mgrconv.xb_table_to_gc(xb[p:p + 44 * n], n); p += 44 * n
     # template extent
     Pg = gt.find(KEYG, 0x12000); q = Pg + 1524
-    hg, ng = struct.unpack('>II', gt[q:q + 8]); qe = q + 8 + 12 * ng + 28 + 48 * ng
+    hg, ng = struct.unpack('>II', gt[q:q + 8]); ng = _slots(gt, q + 8, ng, b'\xf5\x8f\x3c\x1b')
+    qe = q + 8 + 12 * ng + 28 + 48 * ng
     return (0x38ce, qe, ros + bytes(out))
 
 def tagged(xb, gt):

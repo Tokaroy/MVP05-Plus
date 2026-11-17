@@ -82,7 +82,8 @@ def xbox_sigs(hdr: bytes, payload: bytes, key=XB_SIG_KEY):
 
 def build_xbox(template: bytes, d: dict, key=XB_SIG_KEY) -> bytes:
     name, typ, payload = d['name'], d['typ'], d['payload']
-    assert len(payload) == XB_PAYLOAD_LEN, 'Xbox payload must be 0x%X bytes' % XB_PAYLOAD_LEN
+    # (an owner mode's is 0x13800 bytes longer: MVP05-Plus addition)
+    assert len(payload) in (XB_PAYLOAD_LEN, XB_PAYLOAD_LEN + 0x13800), 'Xbox payload must be 0x%X bytes' % XB_PAYLOAD_LEN
     h = bytearray(template[XB_HDR:XB_HDR + XB_HDR_LEN])
     struct.pack_into('<II', h, 0, XB_PAYLOAD, len(payload)); struct.pack_into('<I', h, 0x14, d['flags'])
     h[0x18:0x38] = _pack_w(name, 0x20, 'utf-16-le'); h[0x38:0x58] = _pack_w(typ, 0x20, 'utf-16-le')

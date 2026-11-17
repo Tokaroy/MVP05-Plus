@@ -3,10 +3,12 @@
 3.0 is **owner mode save imports**, once everything in Beta 2.5 tests out (the mod manager went into Beta 2.5). Everything else that was planned for Beta 3
 has moved to *Future* below. Beta 2 was released on 2026-11-13.
 
-## Owner mode imports (3.0)
-Import owner mode saves from the PS2, GameCube, PC and Xbox, as dynasties are now. Owner mode is its own mode with its own save type. It needs matched pairs: a new owner mode save with the same team on each platform, saved straight away.
-Goes with it: tywiggins' ChangeMoney (owner mode money) and the Owner Mode bank balance in the Tools menu
-([[[0x657288]+0x34]+4]+0x12B7C, a float in dollars).
+## Owner mode imports (3.0): built 2026-11-17, being tested
+Import and export owner mode saves for the PS2, GameCube, PC and Xbox, as dynasties are (`tools/saves/owner05.py`;
+the format in tools/saves/mvp05/FORMAT_NOTES.md 3.8, from spy_jam's matched Yankees owner mode saves). The bank balance
+(section 4 + 0x12B80, the game's [[[0x657288]+0x34]+4]+0x12B7C) is in the Launcher's Payroll Budget tool too.
+Still to see: a played owner mode from the GameCube (the long finance table is empty in a new one, so its byte order
+there is assumed), and each export loaded on its console.
 
 # Future
 

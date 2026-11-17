@@ -10,7 +10,9 @@ Mods, Game Tweaks, your own season schedules, and short seasons that finish on t
 - **Export a dynasty to the GameCube, the PS2 or the PC** (*Saves → Your saves*, right-click a dynasty → *Export to…*): writes a .gci for Dolphin's Memory Card Manager, a .psu for a PS2 memory card, or a PC .sav, built on one of your own dynasty saves from there. The GameCube and the PS2 keep each player's last 6 seasons of history; the PC keeps all 16.
 - **GameCube dynasty imports** keep a traded player's older seasons that could be dropped before.
 - **Drag and drop** in the Launcher: drag a mod's folder, zip or files onto the *Mods* tab, or a save onto the *Saves* tab or the *Import a save* window. (Windows doesn't allow drops onto a program run as administrator; the buttons still work.)
-- **Payroll Budget** (*Tools* tab): your dynasty team's payroll budget, changed in its save. In the game, F10's *Dynasty* tab does the same for the dynasty that's loaded.
+- **Owner mode saves** move between consoles too: *Import a save…* takes an owner mode from the PS2, GameCube, PC or another Xbox, and *Export…* (or a right-click on it in *Your saves*) takes one to the GameCube, PS2 or PC. As with dynasties, each goes into an owner mode save of your own on the console it goes to. Being tested.
+- **Payroll Budget** (*Tools* tab): your team's payroll budget, and in owner mode the owner's bank balance, changed in the save. In the game, F10's *Dynasty* tab does the same for the one that's loaded.
+- **Unlock everything** (*Settings* tab): every stadium, team, player, jersey and Legend, for whoever signs in, without spending MVP points.
 - **Stamina Changer** (in-game Tools menu, F10, Extras): set the stamina of the pitcher on the mound, or the other team's, in the game you're playing. Based on tywiggins' Stamina Changer.
 - **EA's debug menu** (in-game Tools menu, F10, Extras): the developers' own menu is still in the game, and a button opens it: cameras, replays, rendering, fielding tests and more. It was never meant for players and can break a game in progress (being tested).
 - **Game Tweaks**: changes to how the game plays, built into MVP05-Plus. All are off unless you pick them (MVP 05 Default).
@@ -21,7 +23,7 @@ Mods, Game Tweaks, your own season schedules, and short seasons that finish on t
 - **Dynasty** (in-game Tools menu): set your **Owner Mode bank balance** and your team's **payroll budget**, and **hold your manager rating** so you keep your job.
 
 ## Changed
-- **Standings Projector** (was the Short Season Advancer): no longer needed for short seasons. It's kept for a dynasty stuck at the end of a short season from an older version.
+- **Standings Projector** (was the Short Season Advancer): no longer needed for short seasons. It's kept for a dynasty stuck at the end of a short season from an older version: in the game it's now a checkbox in F10's *Extras* tab.
 
 ## Known issues
 - **Switching schedules mid-season:** a new schedule starts with the next season, and the season you're in is played out at its own length (the game reads it from the dynasty itself). One limit: if you switch during the playoffs, the new length is used at once, so switch before the playoffs or after them.
@@ -51,7 +53,7 @@ Bring your saves over from the other versions of MVP 2005, pick the season you p
 - **GameCube:** rosters and dynasties, from the `.gci` Dolphin exports.
 - **PC:** rosters and dynasties (`.sav`).
 - **Xbox:** rosters and dynasties from another Xbox (its `data.dat`).
-- Owner mode saves aren't imported yet (being worked on).
+- Owner mode conversions are new: the GameCube's has only been checked against a new owner mode, not a played one.
 
 Roster conversion is **Mad Dog**'s, from his MVP Roster Toolkit (the same file it makes). GameCube conversion, rosters and dynasties, is **spy_jam**'s. PS2 and PC dynasties use both.
 

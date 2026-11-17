@@ -1,16 +1,20 @@
 """The payroll budget of a dynasty's own team, read and changed in its Xbox save (data.dat).
 
-  read(folder)                 {name, team, budget}: the save's name, its team and its budget in dollars
-  write(root, folder, dollars) the budget set (backed up first, the game closed)
+  read(folder)                 {name, team, budget, bank}: the save's name, its team, its budget in dollars, and in
+                               an owner mode the owner's bank balance in dollars (None in a dynasty)
+  write(root, folder, dollars, bank=None)  the budget (and an owner mode's bank balance) set: backed up first, the
+                               game closed
 
 Where it is (spy_jam's converter's notes, mvp05/FORMAT_NOTES.md 3.7, checked on Xbox saves): the 34 org records,
 84 bytes each from payload offset 0x477, start with the org's key, and their halfword s21 (at +58) is the budget,
 the game's org_budget field. The game turns it into dollars as steps * $100,000 + $100,000 (0x1AC6E0, with
-[db+0x204] and [db+0x1F4]). The user's team is the key 8 bytes after the user section's second marker.
+[db+0x204] and [db+0x1F4]). The user's team is the key 8 bytes into the user section (marker 4 in a dynasty,
+6 in an owner mode, which has two sections more: owner05.py, with the bank balance).
 """
 import os
 import struct
 
+import owner05 as OW
 import ps2dynasty05 as PD
 import saves05 as S
 import team_changer as TC
@@ -25,12 +29,11 @@ class BudgetError(Exception):
 
 
 def _team(payload):
-    """(the user's org key, the index of its org record) in a dynasty payload."""
-    try:
-        m = PD._sections(payload)
-    except PD.Ps2DynastyError as e:
-        raise BudgetError(str(e))
-    key = struct.unpack_from("<I", payload, m[4] + 8)[0]
+    """(the user's org key, the index of its org record) in a dynasty or owner mode payload."""
+    m = OW.markers(payload)
+    if len(m) not in (7, 9):
+        raise BudgetError("not a dynasty or owner mode this reads (its sections aren't there)")
+    key = struct.unpack_from("<I", payload, m[len(m) - 3] + 8)[0]
     for i in range(ORGS):
         if struct.unpack_from("<I", payload, ORGS_AT + ORG_SIZE * i)[0] == key:
             return key, i
@@ -42,9 +45,9 @@ def _load(folder):
     with open(os.path.join(folder, "data.dat"), "rb") as f:
         xf = f.read()
     m = C.parse_xbox(xf)
-    if m.get("typ") != "Dynasty":
+    if m.get("typ") not in ("Dynasty", OW.TYP):
         raise BudgetError(f"that's a{'n' if str(m.get('typ'))[:1] in 'AEIOU' else ''} {m.get('typ')} save: the "
-                          "payroll budget is in dynasty saves (owner mode's come later)")
+                          "payroll budget is in dynasty and owner mode saves")
     return C, xf, m
 
 
@@ -57,14 +60,15 @@ def read(folder):
     p = m["payload"]
     key, i = _team(p)
     steps = struct.unpack_from("<H", p, ORGS_AT + ORG_SIZE * i + BUDGET_AT)[0]
-    return dict(name=m["name"], team=team_name(key), budget=steps * STEP + BASE)
+    return dict(name=m["name"], team=team_name(key), budget=steps * STEP + BASE,
+                bank=OW.bank(p) if m["typ"] == OW.TYP else None)
 
 
 def steps_for(dollars):
     return max(0, min(MOST, int(round((dollars - BASE) / STEP))))
 
 
-def write(root, folder, dollars, say=print):
+def write(root, folder, dollars, say=print, bank=None):
     S._check_not_running()
     C, xf, m = _load(folder)
     if not C.verify_xbox(xf):
@@ -73,7 +77,9 @@ def write(root, folder, dollars, say=print):
     key, i = _team(p)
     steps = steps_for(dollars)
     struct.pack_into("<H", p, ORGS_AT + ORG_SIZE * i + BUDGET_AT, steps)
-    out = C.build_xbox(xf, dict(name=m["name"], typ="Dynasty", flags=m["flags"], payload=bytes(p)))
+    if bank is not None and m["typ"] == OW.TYP:
+        p = bytearray(OW.set_bank(p, bank))
+    out = C.build_xbox(xf, dict(name=m["name"], typ=m["typ"], flags=m["flags"], payload=bytes(p)))
     if not C.verify_xbox(out):
         raise BudgetError("the changed save didn't pass its signature check; nothing written")
     b = S.backup_folder(root, folder, "payroll budget")

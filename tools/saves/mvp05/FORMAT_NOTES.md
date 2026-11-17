@@ -115,6 +115,23 @@ field converted with the wrong one of these (4-byte swap over bytes or u16 pairs
   in 2006); probably contract year. Halfwords s27/s28 are set only on the user org (KC 52/276, Houston 1/160;
   0 at the start of 2008), meaning unknown. All of these are converted as plain fields.
 
+### 3.8 Owner mode (MVP05-Plus, from spy_jam's matched Yankees saves from all four consoles, 2026-11-17)
+An owner mode body is a dynasty body 0x13800 bytes longer (Xbox payload and PC body 0x236400, PS2 and GameCube
+0x19A400). Its stream has 9 markers: 0 to 3 as a dynasty's, then 4 the owner's finances (0x132C9 bytes on the Xbox),
+5 the owner (0x140: his name in UTF-16, six records of u16s, the team key), then the dynasty's user section,
+history and stream end. The managers' list has one slot fewer in use than its slots (the owner has no manager); the
+tables are by slots (`_slots` in gc2xb_v0 / xb2gc, and the dynasty readers in MVP05-Plus). The two owner sections
+are the same on every console but for: 4 bytes of padding on the PC and PS2 at 0x12B90, 15 bytes on the PS2 and
+GameCube before a u32 at Xbox 0x1321F, 3 before the float at Xbox 0x132C4, a final flag kept in 1 byte (Xbox, PC) or
+4 (PS2, GameCube), 82 more true/false fields kept the same ways (the last field of the 16-byte records from Xbox
+0x12CD0), and in section 5, 2 bytes of GameCube padding at 0x2E and 6 (PS2) or 4 (GameCube) before the team key.
+GameCube byte order: 4-byte values throughout section 4 (a byte or a u16 followed by padding stays one), u16s in
+section 5. The owner's bank balance is the float at section 4 + 0x12B80 (the game's owner object +0x12B7C: the
+section is that object from its +0 on, 4 bytes in); $2,000,000 in a new owner mode. MVP05-Plus `tools/saves/owner05.py`
+converts it: the dynasty part as a dynasty, the two owner sections by those maps. Checked by round trips (PC exact;
+PS2 and GameCube exact up to the history, whose link words are written as zero). The long table at the start of
+section 4 is empty in a new owner mode, so its GameCube byte order is assumed (4-byte values).
+
 ## 4. Converter files (`lib/`)
 `gc2xb_v0.py` (driver: replacement list applied back to front), `tablesconv.py` (tagged tables, header,
 org/team-season records), `postconv.py` (schedules, user section, after-schedules section, history merge),

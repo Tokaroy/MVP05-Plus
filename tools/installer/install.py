@@ -963,6 +963,7 @@ def import_tool(frm, root, tk, ttk, start=None):
     Toolkit); dynasties from the GameCube (spy_jam's converter), the PS2 and the PC (both of theirs)."""
     import dynasty05 as DY
     import gcroster05 as GR
+    import owner05 as OW
     import ps2card as PC
     import pcdynasty05 as PCD
     import ps2dynasty05 as PD
@@ -973,10 +974,10 @@ def import_tool(frm, root, tk, ttk, start=None):
     frm.columnconfigure(1, weight=1)
     ttk.Label(frm, foreground="#666", wraplength=540, justify="left", text=(
         "Brings a save from another version of MVP 2005 into this one. It works with:\n"
-        "\u2022  rosters or a dynasty from the PS2 (a .psu, a PCSX2 memory card .ps2, or the .sav file from a save)\n"
-        "\u2022  rosters or a dynasty from the GameCube (the .gci file Dolphin exports)\n"
-        "\u2022  rosters or a dynasty from the PC (.sav)\n"
-        "\u2022  rosters or a dynasty from another Xbox (its data.dat)\n"
+        "\u2022  rosters, a dynasty or an owner mode from the PS2 (a .psu, a PCSX2 memory card .ps2, or the .sav file from a save)\n"
+        "\u2022  rosters, a dynasty or an owner mode from the GameCube (the .gci file Dolphin exports)\n"
+        "\u2022  rosters, a dynasty or an owner mode from the PC (.sav)\n"
+        "\u2022  rosters, a dynasty or an owner mode from another Xbox (its data.dat)\n"
         "The save goes into one of your own saves of the same kind, which is backed up first. To take a dynasty the "
         "other way, to the GameCube, the PS2 or the PC, right-click it in your saves.")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 12))
@@ -1011,7 +1012,8 @@ def import_tool(frm, root, tk, ttk, start=None):
         "PS2 and PC dynasties use both.")).grid(
         row=10, column=0, columnspan=2, sticky="w", pady=(16, 0))
     picked, targets = {}, []
-    kinds = {"roster": ("roster save", "rosters"), "dynasty": ("dynasty save", "dynasty")}
+    kinds = {"roster": ("roster save", "rosters"), "dynasty": ("dynasty save", "dynasty"),
+             "owner": ("owner mode save", "owner mode")}
 
     def say(text, colour="#555"):
         note.configure(text=text, foreground=colour)
@@ -1025,7 +1027,8 @@ def import_tool(frm, root, tk, ttk, start=None):
         for s in S.list_saves(root):
             size = os.path.getsize(os.path.join(s["folder"], "data.dat"))
             if (kind == "roster" and size == RO.XBOX_SAVE_SIZE) or \
-                    (kind == "dynasty" and size == DY.XB_DYNASTY_SIZE and s["type"] == "Dynasty"):
+                    (kind == "dynasty" and size == DY.XB_DYNASTY_SIZE and s["type"] == "Dynasty") or \
+                    (kind == "owner" and size == DY.XB_OFF + OW.XB_LEN and s["type"] == OW.TYP):
                 targets.append(s)
         labels = [f"{s['name']} ({when_text(s['when'])})" for s in targets]
         box.configure(values=labels, state="readonly" if labels else "disabled")
@@ -1039,12 +1042,13 @@ def import_tool(frm, root, tk, ttk, start=None):
             hint.configure(text="Choose a save first: then your saves of the same kind are listed here.",
                            foreground="#666")
         elif labels:
-            hint.configure(text=f"That {kinds[kind][0]} is backed up first. A dynasty keeps the name of the save "
-                                "it goes into." if kind == "dynasty" else
+            hint.configure(text=f"That {kinds[kind][0]} is backed up first. It keeps the name of the save "
+                                "it goes into." if kind in ("dynasty", "owner") else
                            f"That {kinds[kind][0]} is backed up first.", foreground="#666")
         else:
             hint.configure(text=f"You don't have a {kinds[kind][0]} yet. In the game, " +
-                           ("save your rosters once" if kind == "roster" else "start a dynasty and save it") +
+                           ("save your rosters once" if kind == "roster" else "start a dynasty and save it"
+                            if kind == "dynasty" else "start an owner mode and save it") +
                            ", then come back here.", foreground="#a33")
         ready()
 
@@ -1066,6 +1070,9 @@ def import_tool(frm, root, tk, ttk, start=None):
             if data[:4] == b"GV4E" and b"Rosters" in data[:0x40]:
                 GR.read_gc(data)
                 picked.update(kind="roster", gc_roster=data, what="GameCube rosters")
+            elif data[:4] == b"GV4E" and "Owner".encode("utf-16-be") in data[0x2088:0x2138]:
+                meta = OW.read_gc(data)
+                picked.update(kind="owner", gc_owner=data, what=f"GameCube owner mode \"{meta['name']}\"")
             elif data[:4] == b"GV4E":
                 meta = DY.read_gc(data)
                 picked.update(kind="dynasty", data=data, what=f"GameCube dynasty \"{meta['name']}\"")
@@ -1078,7 +1085,10 @@ def import_tool(frm, root, tk, ttk, start=None):
                                 found.append((folder, name, "rosters", RO.read(b)))
                             elif len(b) == PD.HEAD + PD.SIZE:
                                 found.append((folder, name, "dynasty", PD.read(b)))
-                        except (RO.RosterError, PD.Ps2DynastyError) as e:
+                            elif len(b) == PD.HEAD + OW.PS2_LEN:
+                                OW.read_ps2(b)
+                                found.append((folder, name, "owner mode", b))
+                        except (RO.RosterError, PD.Ps2DynastyError, OW.OwnerError) as e:
                             refused.append(str(e))
                 if not found:
                     raise RO.RosterError(refused[0] if refused else "that memory card has no MVP 2005 roster or "
@@ -1089,8 +1099,19 @@ def import_tool(frm, root, tk, ttk, start=None):
                 if which[2] == "dynasty":
                     picked.update(kind="dynasty", ps2_dynasty=which[3],
                                   what=f"PS2 dynasty \"{which[3]['name']}\" ({which[1]} on the card)")
+                elif which[2] == "owner mode":
+                    picked.update(kind="owner", ps2_owner=which[3], what=f"PS2 owner mode ({which[1]} on the card)")
                 else:
                     picked.update(kind="roster", save=which[3], what=f"PS2 rosters ({which[1]} on the card)")
+            elif len(data) == DY.XB_OFF + OW.XB_LEN:
+                m = OW.read_xbox(data)
+                picked.update(kind="owner", xbox_owner=data, what=f"Xbox owner mode \"{m['name']}\"")
+            elif len(data) == PCD.HEAD + OW.XB_LEN:
+                d = OW.read_pc(data)
+                picked.update(kind="owner", pc_owner=data, what=f"PC owner mode \"{d['name']}\"")
+            elif OW.is_ps2(data):
+                d = OW.read_ps2(data)
+                picked.update(kind="owner", ps2_owner=data, what=f"PS2 owner mode \"{d['name']}\"")
             elif len(data) == DY.XB_DYNASTY_SIZE:
                 m = DY.read_xbox(data)
                 picked.update(kind="dynasty", xbox_dynasty=True, data=data, what=f"Xbox dynasty \"{m['name']}\"")
@@ -1104,7 +1125,7 @@ def import_tool(frm, root, tk, ttk, start=None):
                 save = RO.read(data)
                 picked.update(kind="roster", save=save, what=f"{save.platform} rosters")
         except (OSError, RO.RosterError, DY.DynastyError, PC.CardError, GR.GcRosterError, PD.Ps2DynastyError,
-                PCD.PcDynastyError) as e:
+                PCD.PcDynastyError, OW.OwnerError) as e:
             src_text.configure(text=f"{os.path.basename(p)}: can't be used ({e})", foreground="#a33")
             return refresh()
         picked["path"] = p
@@ -1130,7 +1151,15 @@ def import_tool(frm, root, tk, ttk, start=None):
                     raise RO.RosterError("close MVP05.exe first: the game keeps its saves open while it runs")
                 with open(dat, "rb") as f:
                     mine = f.read()
-                if picked.get("xbox_dynasty"):
+                if picked.get("xbox_owner"):
+                    out = OW.xbox_to_xbox(picked["xbox_owner"], mine)
+                elif picked.get("pc_owner"):
+                    out = OW.pc_to_xbox(picked["pc_owner"], mine)
+                elif picked.get("ps2_owner"):
+                    out = OW.ps2_to_xbox(picked["ps2_owner"], mine)
+                elif picked.get("gc_owner"):
+                    out = OW.gc_to_xbox(picked["gc_owner"], mine)
+                elif picked.get("xbox_dynasty"):
                     out = DY.xbox_to_xbox(picked["data"], mine)
                 elif picked.get("pc_dynasty"):
                     out = PCD.to_xbox(picked["pc_dynasty"], mine)
@@ -1149,7 +1178,7 @@ def import_tool(frm, root, tk, ttk, start=None):
                 msg = (f"Done. Load \"{s['name']}\" in the game. The old save is in Saves > Backups.",
                        "#1a7f37")
             except (OSError, RO.RosterError, DY.DynastyError, GR.GcRosterError, PD.Ps2DynastyError,
-                    PCD.PcDynastyError) as e:
+                    PCD.PcDynastyError, OW.OwnerError) as e:
                 msg = (f"Nothing was changed: {e}.", "#a33")
             frm.after(0, lambda: (say(*msg), refresh()))
         threading.Thread(target=work, daemon=True).start()
@@ -1168,45 +1197,56 @@ def import_tool(frm, root, tk, ttk, start=None):
 
 
 def export_dynasty(frm, folder, name, to, tk, ttk):
-    """A dynasty of yours as a GameCube .gci (spy_jam's converter), a PS2 save or a PC .sav (to: "GameCube", "PS2" or
-    "PC"), built on one of your own dynasty saves from there: it gives the new file its name and its place."""
+    """A dynasty or owner mode of yours as a GameCube .gci (spy_jam's converter), a PS2 save or a PC .sav (to:
+    "GameCube", "PS2" or "PC"), built on one of your own saves of that kind from there: it gives the new file its name
+    and its place."""
     import dynasty05 as DY
+    import owner05 as OW
     import pcdynasty05 as PCD
     import ps2card as PC
     import ps2dynasty05 as PD
     import rosters05 as RO
     from tkinter import filedialog, messagebox
     title = f"Export to {to}"
-    errors = (OSError, DY.DynastyError, PD.Ps2DynastyError, RO.RosterError, PC.CardError, PCD.PcDynastyError)
+    errors = (OSError, DY.DynastyError, PD.Ps2DynastyError, RO.RosterError, PC.CardError, PCD.PcDynastyError,
+              OW.OwnerError)
     try:
         with open(os.path.join(folder, "data.dat"), "rb") as f:
             data = f.read()
-        if len(data) != DY.XB_DYNASTY_SIZE:
-            raise DY.DynastyError(f"only dynasty saves go to the {to} (not owner mode, rosters or the others)")
-        DY.read_xbox(data)
+        owner = len(data) == DY.XB_OFF + OW.XB_LEN
+        if owner:
+            OW.read_xbox(data)
+        elif len(data) != DY.XB_DYNASTY_SIZE:
+            raise DY.DynastyError(f"only dynasty and owner mode saves go to the {to} (not rosters or the others)")
+        else:
+            DY.read_xbox(data)
     except errors as e:
         messagebox.showinfo(title, f"\"{name}\" can't be exported: {e}.", parent=frm)
         return
+    mode = "owner mode" if owner else "dynasty"
     gc = to == "GameCube"
-    how = ("If you don't have one: start a dynasty in the GameCube game and save it, then in Dolphin open "
+    how = (f"If you don't have one: start {'an owner mode' if owner else 'a dynasty'} in the GameCube game and "
+           "save it, then in Dolphin open "
            "Tools > Memory Card Manager and export that save as a .gci file.\n\n"
            "Choose that .gci next. It isn't changed: you get a new file to import with the Memory Card Manager."
            if gc else
-           "If you don't have one: start a dynasty in the PC game and save it. Choose that save next "
-           "(<name>_Dynasty.sav, where the PC game keeps its saves).\n\n"
+           f"If you don't have one: start {'an owner mode' if owner else 'a dynasty'} in the PC game and save it. "
+           f"Choose that save next (<name>_{'Owner_Mode' if owner else 'Dynasty'}.sav, where the PC game keeps its "
+           "saves).\n\n"
            "It isn't changed: you get a new .sav to put in that folder."
            if to == "PC" else
-           "If you don't have one: start a dynasty in the PS2 game and save it. Then choose your PCSX2 memory card "
+           f"If you don't have one: start {'an owner mode' if owner else 'a dynasty'} in the PS2 game and save it. "
+           "Then choose your PCSX2 memory card "
            "(.ps2) next, or that save as a .psu.\n\n"
            "It isn't changed: you get a new .psu to import (in PCSX2, with a memory card tool such as mymc; on a "
            "console, with uLaunchELF).")
     if not messagebox.askokcancel(title, (
-            f"\"{name}\" is written into a copy of one of your own {to} dynasty saves.\n\n{how}"
+            f"\"{name}\" is written into a copy of one of your own {to} {mode} saves.\n\n{how}"
             + ("" if to == "PC" else
                f"\n\nThe {to} keeps each player's last 6 seasons of history, so older seasons are left out.")),
             parent=frm):
         return
-    p = filedialog.askopenfilename(parent=frm, title=f"One of your {to} dynasty saves", filetypes=[
+    p = filedialog.askopenfilename(parent=frm, title=f"One of your {to} {mode} saves", filetypes=[
         ("GameCube saves", "*.gci") if gc else ("PC saves", "*.sav") if to == "PC" else
         ("PS2 saves and memory cards", "*.psu *.ps2 *.sav"), ("All files", "*.*")])
     if not p:
@@ -1215,35 +1255,42 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         with open(p, "rb") as f:
             base = f.read()
         if gc:
-            fname, out = DY.xbox_to_gc(data, base)
+            fname, out = (OW.xbox_to_gc if owner else DY.xbox_to_gc)(data, base)
             stem, ext = (fname[:-4] if fname.endswith(".gci") else fname) + " (from MVP05-Plus)", ".gci"
         elif to == "PC":
-            out, ext = PCD.to_pc(data, base), ".sav"
+            out, ext = (OW.xbox_to_pc if owner else PCD.to_pc)(data, base), ".sav"
             stem = os.path.splitext(os.path.basename(p))[0]
-            stem = (stem[:-8] + "2_Dynasty") if stem.endswith("_Dynasty") else stem + " (from MVP05-Plus)"
+            for end in ("_Dynasty", "_Owner_Mode"):
+                if stem.endswith(end):
+                    stem = stem[:-len(end)] + "2" + end
+                    break
+            else:
+                stem += " (from MVP05-Plus)"
         else:
             stem = os.path.splitext(os.path.basename(p))[0] + " (from MVP05-Plus)"
-            if base[:28] == PC.MAGIC:  # a memory card: its dynasty, as a .psu
+            if base[:28] == PC.MAGIC:  # a memory card: its dynasty (or owner mode), as a .psu
                 found = []
                 for card_folder, files in PC.Card(base).saves().items():
                     for n, b in files.items():
-                        if len(b) == PD.HEAD + PD.SIZE:
-                            try:
+                        try:
+                            if not owner and len(b) == PD.HEAD + PD.SIZE:
                                 found.append((card_folder, n, "dynasty", PD.read(b)))
-                            except PD.Ps2DynastyError:
-                                pass
+                            elif owner and len(b) == PD.HEAD + OW.PS2_LEN:
+                                found.append((card_folder, n, "owner mode", OW.read_ps2(b)))
+                        except (PD.Ps2DynastyError, OW.OwnerError):
+                            pass
                 if not found:
-                    raise PD.Ps2DynastyError("that memory card has no MVP 2005 dynasty on it")
+                    raise PD.Ps2DynastyError(f"that memory card has no MVP 2005 {mode} on it")
                 which = found[0] if len(found) == 1 else choose_card_save(frm, tk, ttk, found)
                 if not which:
                     return
                 base = PC.to_psu(which[0], PC.Card(base).saves()[which[0]])
                 stem = f"{which[0]} (from MVP05-Plus)"
-            ext, out = PD.to_ps2(data, base)
+            ext, out = (OW.xbox_to_ps2 if owner else PD.to_ps2)(data, base)
     except errors as e:
         messagebox.showerror(title, f"Nothing was written: {e}.", parent=frm)
         return
-    dest = filedialog.asksaveasfilename(parent=frm, title=f"Save the {to} dynasty as", initialdir=os.path.dirname(p),
+    dest = filedialog.asksaveasfilename(parent=frm, title=f"Save the {to} {mode} as", initialdir=os.path.dirname(p),
                                         initialfile=stem + ext, defaultextension=ext,
                                         filetypes=[(f"{to} saves", "*" + ext)])
     if not dest:
@@ -1259,13 +1306,13 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         messagebox.showerror(title, f"Nothing was written: {e}.", parent=frm)
         return
     messagebox.showinfo(title, f"Saved {os.path.basename(dest)}.\n\n" + (
-        "In Dolphin: Tools > Memory Card Manager > Import, and choose it. It takes the place of the GameCube dynasty "
+        f"In Dolphin: Tools > Memory Card Manager > Import, and choose it. It takes the place of the GameCube {mode} "
         "it was built on, so delete that one from the card first if Dolphin says the save already exists."
         if gc else
         "Put it in the PC game's saves folder and load it there. If it doesn't show in the game's list, save it over "
-        "the dynasty it was built on instead (keep a copy of that one first)."
+        f"the {mode} it was built on instead (keep a copy of that one first)."
         if to == "PC" else
-        "Import it onto your memory card. It takes the place of the PS2 dynasty it was built on, so delete that one "
+        f"Import it onto your memory card. It takes the place of the PS2 {mode} it was built on, so delete that one "
         "from the card first if the tool says the save already exists."), parent=frm)
 
 
@@ -2646,7 +2693,8 @@ def tools_tab(tabs, root, tk, ttk):
          adjustments_tool("Dynasty", "Dynasty adjustments",
                           "Changes to how a dynasty runs, built into MVP05-Plus. Your game files stay as they "
                           "are.")),
-        ("Payroll Budget", "Your dynasty team's payroll budget, changed in its save.", payroll_tool),
+        ("Payroll Budget", "Your team's payroll budget, and an owner mode's bank balance, changed in the save.",
+         payroll_tool),
         ("Team Changer", "Take over another organization in your dynasty or owner mode. Based on tywiggins' Team "
          "Changer.", team_changer_tool),
         ("Playoffs Editor", "Swap teams in a playoff round before its first game. Based on tywiggins' Playoffs "
@@ -2880,8 +2928,8 @@ def playoffs_tool(frm, root, tk, ttk):
 
 
 def payroll_tool(frm, root, tk, ttk):
-    """Payroll Budget: the budget of a dynasty's own team, changed in its save (budget05.py). The game's Tools menu
-    (F10, Dynasty) does the same in the dynasty that's loaded."""
+    """Payroll Budget: the budget of a dynasty's or owner mode's own team, and an owner mode's bank balance, changed
+    in its save (budget05.py). The game's Tools menu (F10, Dynasty) does the same in the one that's loaded."""
     import budget05 as BU
     import saves05 as S
 
@@ -2889,11 +2937,11 @@ def payroll_tool(frm, root, tk, ttk):
     ttk.Label(frm, text="Payroll Budget", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3,
                                                                             sticky="w")
     ttk.Label(frm, foreground="#666", wraplength=560, justify="left", text=(
-        "The most your team can pay in salaries. The game sets it to 110% of the payroll when a dynasty starts and "
-        "moves it each off-season by how the team did. Change it here in a saved dynasty, with the game closed. "
-        "In the game, F10 (Dynasty) does the same for the dynasty that's loaded.")).grid(
+        "The most your team can pay in salaries, and in owner mode the owner's money in the bank. Change them here "
+        "in a saved dynasty or owner mode, with the game closed. In the game, F10 (Dynasty) does the same for the "
+        "one that's loaded.")).grid(
         row=1, column=0, columnspan=3, sticky="w", pady=(0, 10))
-    ttk.Label(frm, text="Dynasty").grid(row=2, column=0, sticky="w")
+    ttk.Label(frm, text="Save").grid(row=2, column=0, sticky="w")
     box = ttk.Combobox(frm, state="readonly", width=40)
     box.grid(row=2, column=1, sticky="w", padx=(10, 0), pady=2)
     ttk.Label(frm, text="Team").grid(row=3, column=0, sticky="w")
@@ -2909,12 +2957,21 @@ def payroll_tool(frm, root, tk, ttk):
     want = tk.StringVar()
     ttk.Spinbox(line, textvariable=want, from_=0.1, to=3000, increment=5, width=10).pack(side="left")
     ttk.Label(line, text="million (in steps of $0.1 million)", foreground="#666").pack(side="left", padx=6)
+    ttk.Label(frm, text="Bank balance").grid(row=6, column=0, sticky="w")
+    bank_line = ttk.Frame(frm)
+    bank_line.grid(row=6, column=1, sticky="w", padx=(10, 0), pady=2)
+    ttk.Label(bank_line, text="$").pack(side="left")
+    bank = tk.StringVar()
+    bank_box = ttk.Spinbox(bank_line, textvariable=bank, from_=-1000, to=10000, increment=1, width=10)
+    bank_box.pack(side="left")
+    bank_note = ttk.Label(bank_line, text="million (owner mode only)", foreground="#666")
+    bank_note.pack(side="left", padx=6)
     bar = ttk.Frame(frm)
-    bar.grid(row=6, column=0, columnspan=3, sticky="we", pady=(12, 0))
+    bar.grid(row=7, column=0, columnspan=3, sticky="we", pady=(12, 0))
     save_b = ttk.Button(bar, text="Save", state="disabled")
     save_b.pack(side="right")
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
-    note.grid(row=7, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    note.grid(row=8, column=0, columnspan=3, sticky="w", pady=(6, 0))
     saves = []
 
     def say(text, colour="#555"):
@@ -2933,11 +2990,15 @@ def payroll_tool(frm, root, tk, ttk):
         team.configure(text=r["team"])
         now.configure(text=f"${r['budget'] / 1e6:.1f} million")
         want.set(f"{r['budget'] / 1e6:.1f}")
+        owner = r["bank"] is not None
+        bank.set(f"{r['bank'] / 1e6:.2f}" if owner else "")
+        bank_box.configure(state="normal" if owner else "disabled")
+        bank_note.configure(text="million" if owner else "million (owner mode only)")
         save_b.configure(state="normal")
 
     def load_saves():
         old = box.get()
-        saves[:] = [s for s in S.list_saves(root) if s["type"] == "Dynasty"]
+        saves[:] = [s for s in S.list_saves(root) if s["type"] in ("Dynasty", "Owner Mode")]
         labels = [f"{s['name']} ({when_text(s['when'])})" for s in saves]
         box.configure(values=labels)
         if old in labels:
@@ -2945,7 +3006,7 @@ def payroll_tool(frm, root, tk, ttk):
         elif labels:
             box.current(0)
         else:
-            box.set("(no dynasty saves yet: start a dynasty and save it)")
+            box.set("(no dynasty or owner mode saves yet: start one and save it)")
         show()
 
     def save():
@@ -2955,12 +3016,21 @@ def payroll_tool(frm, root, tk, ttk):
         except (ValueError, AssertionError):
             return say("Enter the new budget in millions of dollars, like 120 or 87.5.", "#a33")
         s = saves[box.current()]
+        money = None
+        if s["type"] == "Owner Mode":
+            try:
+                money = float(bank.get().replace("$", "").replace(",", "")) * 1e6
+                assert -1e9 <= money <= 1e10
+            except (ValueError, AssertionError):
+                return say("Enter the bank balance in millions of dollars, like 2 or 15.5.", "#a33")
         try:
-            got = BU.write(root, s["folder"], dollars, say=lambda t: None)
+            got = BU.write(root, s["folder"], dollars, say=lambda t: None, bank=money)
         except Exception as e:
             return say(f"Nothing was changed: {e}.", "#a33")
         load_saves()
-        say(f"Saved: ${got / 1e6:.1f} million. The old save is in Saves > Backups.", "#1a7f37")
+        say(f"Saved: a ${got / 1e6:.1f} million budget" + (f" and ${money / 1e6:.2f} million in the bank"
+                                                           if money is not None else "") +
+            ". The old save is in Saves > Backups.", "#1a7f37")
 
     box.bind("<<ComboboxSelected>>", lambda _: (say(""), show()))
     save_b.configure(command=save)

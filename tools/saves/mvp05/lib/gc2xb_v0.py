@@ -22,6 +22,15 @@ def _tables(d,lo=0x1e000,hi=0x122000,minrows=30):
             if n>=minrows: out.append((i,n)); i=j; continue
         i+=1
     return out
+def _slots(d, p, n, key):
+    """The managers' list's slots from p (after its 8-byte header): n, or (owner mode: one slot fewer in use than
+    there are) the count whose end has the table key 28 bytes on. MVP05-Plus addition, for owner mode saves."""
+    for s in range(n, n + 3):
+        if d[p + 12 * s + 24:p + 12 * s + 28] == key:
+            return s
+    return n
+
+
 def convert(gc,xb_tpl,sched=True,hist=True,shift=0):
     """gc: GC payload (0x186C00). xb_tpl: Xbox payload (0x222C00) used as base. Returns new Xbox payload."""
     reps=[]  # (xb_start, xb_end, new_bytes)  in template coordinates
@@ -48,11 +57,13 @@ def convert(gc,xb_tpl,sched=True,hist=True,shift=0):
         out+= b''.join(d[i:i+2][::-1] for i in range(0,len(d),2)) if tno==2 else d
         p+=508
     hdr,n=struct.unpack('>II',gc[p:p+8]); out+=s32(gc[p:p+8]); p+=8
+    n=_slots(gc,p,n,b'\xf5\x8f\x3c\x1b')
     out+=s32(gc[p:p+12*n]); p+=12*n
     out+=s32(gc[p:p+28]); p+=28           # 24 zero bytes + key f58f3c1b
     out+=mgrconv.gc_table_to_xb(gc[p:p+48*n],n); p+=48*n
     # template extent of the same block (template has its own count)
-    q=Q+1524; hx,nx=struct.unpack('<II',xb_tpl[q:q+8]); qe=q+8+12*nx+28+44*nx
+    q=Q+1524; hx,nx=struct.unpack('<II',xb_tpl[q:q+8]); nx=_slots(xb_tpl,q+8,nx,b'\x1b\x3c\x8f\xf5')
+    qe=q+8+12*nx+28+44*nx
     reps.append((0x38cb,Q+1524+0,ros+bytes(out)[:1524]))   # roster section + 3 tables
     reps.append((Q+1524,qe,bytes(out)[1524:]))
     # 4 per-player DB tables #8..#15 (60 B players, PackF x2, 4 B x2, Rec70004 x3) by tag ordinal

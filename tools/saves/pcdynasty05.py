@@ -53,8 +53,14 @@ def _layout(d):
     q += 1524
     _, n = struct.unpack_from("<II", d, q)
     _check(20 <= n <= 40, "the dynasty's managers aren't where they should be")
-    mgr = q + 8 + 12 * n + 28
+    # n: the managers' list's slots in use; in owner mode one fewer than its slots (the owner has no manager of
+    # his own), the last slot empty. The tables are by slots, so that's the n used from here on
+    for slots in range(n, n + 3):
+        mgr = q + 8 + 12 * slots + 28
+        if d[mgr - 4:mgr] == PD.TAG:
+            break
     _check(d[mgr - 4:mgr] == PD.TAG, "the dynasty's managers aren't where they should be")
+    n = slots
     after = mgr + 44 * n
     tags = [mgr - 4] + PD._tags(d, after, m[2])
     _check(len(tags) == 24, f"the dynasty's tables aren't where they should be ({len(tags)} found)")
