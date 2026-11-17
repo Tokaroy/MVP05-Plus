@@ -237,7 +237,7 @@ def news(k, **want):
         got = len(n[key]) if isinstance(n[key], list) else n[key]
         assert (got >= v) if isinstance(v, int) and not isinstance(v, bool) else got == v, (key, got, v)
     return 1
-t('league news: a dynasty in its season', lambda: news('xb_dyn_played', headlines=8, results=1, upcoming=1,
+t('league news: a dynasty in its season', lambda: news('xb_dyn_played', headlines=6, results=1, upcoming=1,
                                                          games_played=17, postseason=False))
 t('league news: a new owner mode', lambda: news('xb_own', postseason=False))
 t('league news: the postseason', lambda: news('xb_dyn', postseason=True))

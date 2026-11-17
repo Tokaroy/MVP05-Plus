@@ -80,13 +80,15 @@ class Database:
                        for r in rows("roster.dat").values() if r.get(0) and r.get(1)}
         self.franchises = sorted((k for k, v in orgs.items() if v.get(5) == "1"),
                                  key=lambda k: int(self.teams.get(k, {}).get(6, 99) or 99))
-        self.org_of = {}
+        self.injuries = {}  # kind -> name: from the game's text file, once its layout is known
+        self.org_of, self.levels = {}, {}
         for k in self.franchises:
             self.org_of[k] = k
-            for c in (2, 3, 4):
-                v = orgs[k].get(c)
-                if v:
-                    self.org_of[int(v, 16) & 0xFFFFFFFF] = k
+            for c, lv in ((2, "AAA"), (3, "AA"), (4, "A")):
+                v = orgs[k].get(c)  # (org.dat's team ids are written in decimal)
+                if v and v.isdigit() and int(v):
+                    self.org_of[int(v)] = k
+                    self.levels[int(v)] = lv
         # (not the All-Star, Legends or Heroes teams: a club's or one of its farm teams')
         self.team_of = {p: t for p, t in team_of.items() if t in self.org_of}
 
@@ -103,6 +105,45 @@ class Database:
 
     def city(self, key):
         return self.teams.get(key, {}).get(1) or "?"
+
+    def injury(self, kind):
+        """The injury's name (from the game's text, when it's read), or "" """
+        return self.injuries.get(kind, "")
+
+    def full(self, key):
+        """ "Kansas City Royals" """
+        t = self.teams.get(key, {})
+        return " ".join(f"{t.get(1, '')} {t.get(2, '')}".split()) or "?"
+
+    def level(self, key):
+        """AAA, AA, A for a farm team, "" for a big-league club."""
+        org = self.org_of.get(key)
+        return "" if org in (None, key) else self.levels.get(key, "")
+
+    def farm(self, key):
+        """ "Omaha (AAA)" for a farm team, the full name for a big-league club."""
+        lv = self.level(key)
+        return f"{self.city(key)} ({lv})" if lv else self.full(key)
+
+    def named(self, key):
+        """ "the Omaha Royals (Kansas City Royals, AAA)", "the Kansas City Royals" """
+        lv = self.level(key)
+        return f"the {self.full(key)}" + (f" ({self.full(self.org_of[key])}, {lv})" if lv else "")
+
+    def tag(self, key):
+        """ "KC" for a big-league club, "Omaha, AAA" for a farm team """
+        lv = self.level(key)
+        return f"{self.city(key)}, {lv}" if lv else self.short(key)
+
+    def pos(self, key):
+        """RHP, LHP, C, 1B ... OF, DH, or "" when the database doesn't have him."""
+        p = self.players.get(key)
+        if not p:
+            return ""
+        code = int(p.get(5) or -1)
+        if code in (0, 10):
+            return "LHP" if p.get(4) == "1" else "RHP"
+        return {1: "C", 2: "1B", 3: "2B", 4: "3B", 5: "SS", 6: "OF", 7: "OF", 8: "OF", 9: "DH"}.get(code, "")
 
     def importance(self, key):
         """0..1.3: star power, salary and top prospect flag (a player the dynasty made: 0.15)."""
@@ -172,18 +213,73 @@ def read_save(data):
         trades.append(dict(day=struct.unpack_from("<H", r, 40)[0], sides=sides))
     moves = [dict(zip(("player", "team", "day"), struct.unpack_from("<IIH", x, end + 1272 + 10 * i)))
              for i in range(mc)]
-    ic = struct.unpack_from("<I", x, end + 1872)[0]
-    latest = {}  # (the list keeps a player's earlier injuries too: his latest one)
-    for i in range(min(ic, 32)):
-        k, _, _, _, d1, _ = struct.unpack_from("<IIIIHH", x, end + 1876 + 20 * i)
-        if k and d1 and d1 >= latest.get(k, 0):
-            latest[k] = d1
-    injuries = [dict(player=k, day=d) for k, d in latest.items()]
+    # the game's own news list (32 events, FORMAT_NOTES 3.5): kept for when its kinds are known
+    feed = []
+    for i in range(min(struct.unpack_from("<I", x, end + 1872)[0], 32)):
+        k, a, _, w, d1, _ = struct.unpack_from("<IIIIHH", x, end + 1876 + 20 * i)
+        feed.append(dict(key=k, value=a, kind=(w >> 2) & 0x3F, word=w, day=d1))
+    names, hurt = _players(x)
+    rosters = _rosters(x)
     user = None
     if len(marks) in (7, 9):  # the user section: marker 4 in a dynasty, 6 in an owner mode (budget05 reads it too)
         user = struct.unpack_from("<I", x, marks[len(marks) - 3] + 8)[0]
-    return dict(name=name, kind=kind, records=records, games=games, trades=trades, moves=moves, injuries=injuries,
-                user=user)
+    return dict(name=name, kind=kind, records=records, games=games, trades=trades, moves=moves, hurt=hurt,
+                names=names, rosters=rosters, feed=feed, user=user)
+
+
+def _lib():
+    import sys
+    lib = os.path.join(HERE, "mvp05", "lib")
+    if lib not in sys.path:
+        sys.path.insert(0, lib)
+
+
+def _players(x):
+    """{player key: name} and [(key, injury kind, days left)] from the save's player records (tagged table 8,
+    3250 records of 60 bytes: first name at 8, last at 20; field 0x1E the injury's kind, 0x1F its days left, the
+    fields the in-game injury hook reads), found through the player key list (key, record, record)."""
+    import dynasty05 as DY
+    with DY._in_lib():  # (the converter's tables load from its own folder)
+        import packe_decomp_layout as L
+        import tablesconv as T
+    tg = T.tags(x, T.TX)
+    t8 = x[tg[8] + 4:tg[9]]
+    if len(t8) != 3250 * 60:
+        raise NewsError("this save's player records aren't where they should be")
+    for start in range(tg[6], tg[6] + 1024, 4):
+        if struct.unpack_from("<II", x, start) == (3250, 3250):
+            break
+    else:
+        raise NewsError("this save's player list isn't where it should be")
+    twice = t8 + t8[:60]  # (the records start 24 bytes in and the last one wraps to the table's start)
+    names, hurt = {}, []
+    for i in range(3250):
+        key, row, _ = struct.unpack_from("<III", x, start + 8 + 12 * i)
+        if row >= 3250:
+            continue
+        o = (24 + 60 * row) % len(t8)
+        r = twice[o:o + 60]
+        first = r[8:20].split(b"\0")[0].decode("latin-1").strip()
+        last = r[20:36].split(b"\0")[0].decode("latin-1").strip()
+        if first or last:
+            names[key] = " ".join(f"{first} {last}".split())
+        f = L.xb_fields(r)
+        if f.get("f1F"):
+            hurt.append(dict(player=key, kind=f.get("f1E", 0), days=f["f1F"]))
+    return names, hurt
+
+
+def _rosters(x):
+    """{franchise index 0-29: [player keys]}: the 25 on each big-league club, from the roster blocks (FORMAT_NOTES
+    3.1: 4 lineup units, then 25 player keys), in the franchises' order."""
+    import dynasty05 as DY
+    with DY._in_lib():
+        import xb2gc as X
+    try:
+        st = X._blocks(x, X.KEYX, X.SIG_X, 0x38CB)
+    except AssertionError:
+        return {}
+    return {k: [p for p in struct.unpack_from("<25I", x, st[k] + 192) if p and p != 0xFFFFFFFF] for k in range(30)}
 
 
 # ---- the news ---------------------------------------------------------------------------------------------------
@@ -196,6 +292,7 @@ def build(save, db):
     played = sorted((g for g in save["games"] if g["played"]), key=lambda g: g["day"])
     upcoming = sorted((g for g in save["games"] if not g["played"]), key=lambda g: g["day"])
     last_day = played[-1]["day"] if played else None
+    season_end = max((g["day"] for g in save["games"]), default=None)
     next_day = upcoming[0]["day"] if upcoming else None
     today = last_day or next_day or 0
 
@@ -273,8 +370,27 @@ def build(save, db):
     def fade(d):  # (never below a tenth: last month's blockbuster still beats this week's call-up of a nobody)
         return max(0.1, math.exp(-max(0, today - d) / WEIGHTS["fade_days"]))
 
-    def who(k):
-        return db.name(k) or "a young player"
+    names = save["names"]
+
+    def who(k, with_pos=True):
+        """ "RHP Vicente Padilla" (the save's name for him, the database's position)"""
+        n = names.get(k) or db.name(k) or "an unnamed player"
+        p = db.pos(k) if with_pos else ""
+        return f"{p} {n}" if p else n
+
+    def last(k):
+        n = names.get(k) or db.name(k) or "?"
+        return n.split()[-1]
+
+    def listed(keys):
+        w = [who(k) for k in keys]
+        return w[0] if len(w) == 1 else ", ".join(w[:-1]) + " and " + w[-1] if w else "nobody"
+
+    # where each player is now: a big-league roster in the save, else the last trade or move, else 2005's team
+    team_of = _teams_of_players(save, db)
+    for i, keys in save["rosters"].items():
+        for k in keys:
+            team_of[k] = teams[i]
 
     stories = []
 
@@ -284,54 +400,82 @@ def build(save, db):
                             raw_teams=list(teams_),
                             teams=[db.org_of.get(t, t) for t in teams_], players=list(players), mine=mine(*teams_)))
 
+    words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
     for tr in save["trades"]:
-        a, b = tr["sides"]
+        a, b = tr["sides"]  # each side: a team and the players it gave up
         big = a["team"] in rec and b["team"] in rec
         imp_a = sum(db.importance(k) for k in a["players"])
         imp_b = sum(db.importance(k) for k in b["players"])
-        size = WEIGHTS["trade" if big or db.org_of.get(a["team"]) == a["team"] else "trade_minors"]
-        if not big and a["team"] not in rec and b["team"] not in rec:
-            size = WEIGHTS["trade_minors"]
+        size = WEIGHTS["trade"] if a["team"] in rec or b["team"] in rec else WEIGHTS["trade_minors"]
         score = size * (imp_a + imp_b) * max(contention(a["team"]), contention(b["team"]))
-        star_side, other = (a, b) if imp_a >= imp_b else (b, a)
-        star = max(star_side["players"], key=db.importance, default=None)
-        got = other["team"]  # the team that gets the star
+        # told from the side of the team that got the biggest name
+        give, get = (a, b) if imp_a >= imp_b else (b, a)
+        star = max(give["players"], key=db.importance, default=None)
+        n = len(a["players"]) + len(b["players"])
         lop = abs(imp_a - imp_b) > 0.6
-        if star is not None and big:
-            head = (f"{db.club(got)} land {who(star)}" if lop else
-                    f"{db.club(a['team'])}, {db.club(b['team'])} swap {len(a['players']) + len(b['players'])} players")
+        buyer, seller = get["team"], give["team"]
+        if star is None:
+            head = f"{db.city(buyer)} and {db.city(seller)} make a deal"
+        elif lop:
+            head = f"{db.club(buyer)} land {last(star)} from {db.city(seller)}"
+        elif n > 2:
+            stars = sorted(give["players"] + get["players"], key=db.importance, reverse=True)[:2]
+            head = f"{last(stars[0])}, {last(stars[1])} in {words.get(n, str(n))}-player deal"
         else:
-            head = f"{db.city(a['team'])} and {db.city(b['team'])} make a deal"
-        body = (f"{db.club(a['team'])} send {', '.join(who(k) for k in a['players']) or 'nobody'} to "
-                f"{db.club(b['team'])} for {', '.join(who(k) for k in b['players']) or 'nobody'}.")
-        if lop and big:
-            body += f" A big get for {db.city(got)}."
-        add(score, "Trade", head, body, tr["day"], [a["team"], b["team"]], a["players"] + b["players"])
+            head = f"{db.club(buyer)} trade {last(get['players'][0]) if get['players'] else ''} for {last(star)}"
+        body = (f"{db.named(buyer)[0].upper()}{db.named(buyer)[1:]} acquired {listed(give['players'])} from "
+                f"{db.named(seller)} for {listed(get['players'])}.")
+        if big and lop:
+            body += f" A big pickup for {db.city(buyer)}."
+        add(score, "Trade", head.replace("  ", " "), body, tr["day"], [a["team"], b["team"]],
+            a["players"] + b["players"])
 
-    for mv in save["moves"]:
-        up = mv["team"] in rec
-        imp = db.importance(mv["player"])
-        score = WEIGHTS["callup" if up else "senddown"] * imp * contention(mv["team"])
+    seen_on = {}  # where a player was before each move, by date
+    for mv in sorted(save["moves"], key=lambda m: m["day"]):
+        k, to = mv["player"], mv["team"]
+        before = seen_on.get(k, db.team_of.get(k))
+        seen_on[k] = to
+        up = to in rec
+        imp = db.importance(k)
+        score = WEIGHTS["callup" if up else "senddown"] * imp * contention(to)
+        org = db.org_of.get(to)
+        same_org = before is not None and db.org_of.get(before) == org
         if up:
-            head = f"{db.club(mv['team'])} call up {who(mv['player'])}"
-            body = f"{who(mv['player'])} joins the big-league club."
+            head = f"{db.club(to)} call up {last(k)}"
+            body = f"The {db.full(to)} called up {who(k)}" + (
+                f" from {db.farm(before)}." if same_org and before != to else ".")
+        elif same_org and before in rec:
+            head = f"{db.club(org)} send {last(k)} down"
+            body = f"The {db.full(org)} optioned {who(k)} to {db.farm(to)}."
+        elif same_org:
+            head = f"{last(k)} moves to {db.city(to)}"
+            body = f"The {db.full(org)} moved {who(k)} from {db.farm(before)} to {db.farm(to)}."
         else:
-            org = db.org_of.get(mv["team"])
-            head = f"{who(mv['player'])} sent to {db.city(mv['team'])}"
-            body = f"{who(mv['player'])} heads to {db.city(mv['team'])} {db.club(mv['team'])}" + (
-                f", {db.club(org)} farm club." if org and org != mv["team"] else ".")
-        add(score, "Roster move", head, body, mv["day"], [mv["team"]], [mv["player"]])
+            head = f"{last(k)} assigned to {db.city(to)}"
+            body = f"{who(k)} was assigned to {db.named(to)}."
+        add(score, "Roster move", head, body, mv["day"], [to], [k])
 
-    team_of = _teams_of_players(save, db)
-    for inj in save["injuries"]:
-        if not db.name(inj["player"]):  # (a new save's list holds a placeholder)
-            continue
-        t = team_of.get(inj["player"])
-        imp = db.importance(inj["player"])
-        score = WEIGHTS["injury"] * imp * (contention(t) if t else 1.0)
-        head = f"{who(inj['player'])} hurt" + (f", a blow to {db.city(t)}" if t in rec and imp > 0.6 else "")
-        body = f"{who(inj['player'])}" + (f" ({db.short(t)})" if t else "") + " goes on the injured list."
-        add(score, "Injury", head, body, inj["day"], [t] if t else [], [inj["player"]])
+    for h in save["hurt"]:
+        k, days = h["player"], h["days"]
+        t = team_of.get(k)
+        big_club = t in rec
+        imp = db.importance(k)
+        # the longer he's out and the bigger he is, the bigger the story; farm teams' injuries stay in the report
+        length = min(days, 120) / 30
+        score = WEIGHTS["injury"] * imp * (0.4 + length) * (contention(t) if t else 1.0) * (1 if big_club else 0.12)
+        back = day(today + days) if today else None
+        kind = db.injury(h["kind"])
+        rest_of_year = bool(season_end and today + days > season_end)
+        span = "the postseason" if postseason else "the season"
+        out = (f"for the postseason ({_out_for(days)})" if postseason else
+               f"for the rest of the season ({_out_for(days)})") if rest_of_year else _out_for(days)
+        where = f" ({db.tag(t)})" if t else ""
+        short_out = f"for {span}" if rest_of_year else _out_for(days)
+        head = (f"{db.club(t)} lose {last(k)} {short_out}" if big_club and imp > 0.5 else f"{last(k)} out {short_out}")
+        body = (f"{who(k)}{where} is out {out}" + (f" with {kind}" if kind else "") +
+                (f", expected back around {back.strftime('%B')} {back.day}." if back and not rest_of_year else "."))
+        add(score, "Injury", head, body, today, [t] if t else [], [k])
+        stories[-1].update(days=days, big_club=big_club)
 
     for g in played:
         win, lose = (g["away"], g["home"]) if g["ar"] > g["hr"] else (g["home"], g["away"])
@@ -389,10 +533,19 @@ def build(save, db):
                 # big-league clubs' deals first, then the farm teams'
                 trades=sorted((s for s in stories if s["kind"] == "Trade"),
                               key=lambda s: (not any(t in rec for t in s["raw_teams"]), -s["day"])),
-                injuries=sorted((s for s in stories if s["kind"] == "Injury"), key=lambda s: -s["day"]),
+                injuries=sorted((s for s in stories if s["kind"] == "Injury"),
+                                key=lambda s: (not s["big_club"], -s["days"])),
                 moves=sorted((s for s in stories if s["kind"] == "Roster move"),
                              key=lambda s: (not any(t in rec for t in s["raw_teams"]), -s["day"])),
                 user=save["user"], games_played=games_played, db=db)
+
+
+def _out_for(days):
+    if days <= 10:
+        return f"{days} day{'s' if days != 1 else ''}"
+    if days < 60:
+        return f"about {round(days / 7)} weeks"
+    return f"about {round(days / 30)} months"
 
 
 def _teams_of_players(save, db):
@@ -410,17 +563,18 @@ def _teams_of_players(save, db):
     return out
 
 
-def _spread(stories, most=12, per_team=2, recent=0):
-    """The front page: the best stories, no more than per_team about one club, your team's best of the last ten
-    days always among the first five."""
-    out, count = [], collections.Counter()
+def _spread(stories, most=12, per_team=2, recent=0, per_kind=3):
+    """The front page: the best stories, no more than per_team about one club and per_kind of one kind (injuries,
+    trades ...), your team's best of the last ten days always among the first five."""
+    out, count, kinds = [], collections.Counter(), collections.Counter()
     for s in stories:
         if len(out) >= most:
             break
-        if any(count[t] >= per_team for t in s["teams"]):
+        if any(count[t] >= per_team for t in s["teams"]) or kinds[s["kind"]] >= per_kind:
             continue
         out.append(s)
         count.update(set(s["teams"]))
+        kinds[s["kind"]] += 1
     mine = next((s for s in stories if s["mine"] and s["day"] >= recent), None)
     if mine and mine not in out[:5]:
         if mine in out:
@@ -513,10 +667,16 @@ def render(news):
     if not news["trades"] and not news["moves"]:
         out.append("<li>None yet.</li>")
     out.append("</ul><h2 id=injuries>Injury report</h2><ul class=list>")
-    for s in news["injuries"]:
-        out.append(f"<li><span class=date>{short(day(s['day']))}</span> {e(s['body'])}</li>")
-    if not news["injuries"]:
-        out.append("<li>Everybody's healthy.</li>")
+    majors = [s for s in news["injuries"] if s["big_club"]]
+    minors = [s for s in news["injuries"] if not s["big_club"]]
+    for s in majors:
+        out.append(f"<li>{e(s['body'])}</li>")
+    if not majors:
+        out.append("<li>Every big-league club is healthy.</li>")
+    if minors:
+        out.append(f"<li class=date>In the minors and elsewhere: {len(minors)} more</li>")
+        for s in minors[:25]:
+            out.append(f"<li>{e(s['body'])}</li>")
     out.append("</ul></div><aside>")
     out.append("<h2 id=standings>Standings</h2>")
     if news["postseason"]:
