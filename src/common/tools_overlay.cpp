@@ -30,6 +30,7 @@ uint32_t g_rain = 0;
 bool g_daylight_parks = false;
 uint32_t g_dev_speed = 100, g_aging = 100, g_retirement = 100, g_contract_prices = 100, g_resign_chance = 100,
          g_rookie_quality = 0;
+bool g_unlock_all = false;
 std::atomic<int> g_unlock_request{0};
 std::atomic<int> g_points_request{0};
 std::atomic<int> g_debug_menu_request{0};
@@ -417,6 +418,17 @@ void Extras() {
     }
     if (dm == 2) ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1), "Done. Close this menu (F10) to use it.");
     if (dm == 3) ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "The game hasn't made its debug menu yet: try from a menu or a game.");
+    ImGui::Separator();
+    // the Standings Projector, rarely needed now that short seasons end by themselves: shown when asked for
+    static bool projector = false;
+    ImGui::Checkbox("Standings Projector", &projector);
+    ImGui::SameLine();
+    ImGui::TextDisabled("(for a dynasty stuck at the end of a short season)");
+    if (projector) {
+        ImGui::Indent();
+        ShortSeason();
+        ImGui::Unindent();
+    }
 }
 
 // Dynasty: EA's debug menu's Owner Bank Balance and Override Manager Rating, on the dynasty loaded
@@ -560,10 +572,6 @@ void Ui(double) {
             }
             if (ImGui::BeginTabItem("Playoffs Editor")) {
                 PlayoffsCreator();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Standings Projector")) {
-                ShortSeason();
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Dynasty")) {

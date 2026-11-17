@@ -18,6 +18,7 @@ extern bool g_player_full_detail;  // a request for detail level 2 or 3 becomes 
 // rookie_quality 1 better / 2 much better
 extern uint32_t g_dev_speed, g_aging, g_retirement, g_contract_prices, g_resign_chance, g_rookie_quality;
 // asked for from the Tools menu, done by the game's own thread at the end of a frame (src/game/hooks.cpp)
+extern bool g_unlock_all;  // the Launcher's Unlock everything: done for each profile that signs in
 extern std::atomic<int> g_unlock_request;  // 1: asked, 2: done, 3: no profile signed in
 // Stamina Changer: the two pitchers who last threw in the game being played (hooks.cpp keeps them: the in-game team's
 // pitcher table, the record and his stamina now; table 0: none), newest first, and a stamina to give one of them

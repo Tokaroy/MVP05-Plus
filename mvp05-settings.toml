@@ -8,6 +8,9 @@ vsync = true
 # Low latency: at most one finished frame waits for the screen instead of up to three, for less delay between a
 # button and the screen. Off by default: it can stutter on a slower PC. Restart after changing.
 low_latency = false
+# Unlock everything (every stadium, team, player, jersey and Legend the game hides behind MVP points) for whoever
+# signs in, each time the game starts. Turned off again, what was unlocked stays unlocked in a profile once saved.
+unlock_all = false
 anisotropic_filtering = 16
 # Advertise Xbox 720p and HDTV AV pack on widescreen output. Restart after changing.
 xbox_720p = true

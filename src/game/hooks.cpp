@@ -538,6 +538,22 @@ X86_FUNC(sub_002A74F0) {
 // that hand a finished frame to D3D (0x2F9320 and 0x2F8D00, around D3DDevice_Swap).
 namespace {
 void RunToolRequests(X86Context& ctx) {
+    // the Launcher's Unlock everything: done for a profile when it signs in (checked once a second, from 20 seconds
+    // after the start, by the same call as the Tools menu's button below)
+    static uint32_t frames = 0, unlocked_for = 0xFFFFFFFFu;
+    if (tools::g_unlock_all && ++frames >= 1200 && frames % 60 == 0 && tools::g_unlock_request.load() != 1) {
+        uint32_t profiles = kernel::R32(0x657288), saved_ecx = ctx.ecx;
+        ctx.ecx = profiles;
+        uint32_t who = profiles ? kernel::CallGuest(ctx, 0x311650, {}) : 0xFFFFFFFFu;
+        ctx.ecx = saved_ecx;
+        if (who != unlocked_for) {
+            unlocked_for = who;
+            if (who != 0xFFFFFFFFu) {
+                kernel::CallGuest(ctx, 0x204600, {});
+                LOGR("extras: unlocked everything for profile %u (the Launcher's Unlock everything)", who);
+            }
+        }
+    }
     if (tools::g_unlock_request.load() == 1) {
         // EA's "Unlock All Unlockables" (debug menu button, 0x204600): every unlockable for the profile signed in
         // (0x311650 on the profile manager at 0x657288; -1 when there's none)

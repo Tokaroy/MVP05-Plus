@@ -1312,6 +1312,21 @@ def current_saves_tab(frm, root, tk, ttk):
     bar.grid(row=2, column=0, sticky="we", pady=(8, 0))
     ttk.Button(bar, text="Import a save\u2026", command=lambda: import_window(frm, root, tk, ttk, refresh)).pack(
         side="left")
+    export_btn = ttk.Button(bar, text="Export\u2026", command=lambda: export_menu())
+    export_btn.pack(side="left", padx=(6, 0))
+
+    def export_menu():
+        """The save picked in the list, to another console: a menu under the button, as the right-click one."""
+        sel = tree.selection()
+        if not sel:
+            note.configure(text="Pick a save in the list first, then Export.", foreground="#a33")
+            return
+        iid = sel[0]
+        m = tk.Menu(frm, tearoff=0)
+        for to in ("GameCube", "PS2", "PC"):
+            m.add_command(label=f"To {to}\u2026", command=lambda to=to: export_dynasty(
+                frm, folders[iid], tree.item(iid, "text"), to, tk, ttk))
+        m.tk_popup(export_btn.winfo_rootx(), export_btn.winfo_rooty() + export_btn.winfo_height())
     ttk.Button(bar, text="Open saves folder",
                command=lambda: open_in_explorer(os.path.join(root, "hdd", B.TITLE_UDATA))).pack(side="right")
     ttk.Button(bar, text="Refresh", command=refresh).pack(side="right", padx=6)
@@ -1652,6 +1667,9 @@ def settings_tab(tabs, root, tk, ttk):
     x720_box.grid(row=9, column=0, columnspan=3, sticky="w")
     ttk.Checkbutton(frm, text="Low latency (1 frame queued for the screen, not 3: less input delay, may stutter)",
                     variable=low_latency).grid(row=10, column=0, columnspan=3, sticky="w")
+    unlock_all = tk.BooleanVar()
+    ttk.Checkbutton(frm, text="Unlock everything (every stadium, team, player, jersey and Legend, for whoever signs in)",
+                    variable=unlock_all).grid(row=11, column=0, columnspan=3, sticky="w")
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
     note.grid(row=12, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
@@ -1720,6 +1738,7 @@ def settings_tab(tabs, root, tk, ttk):
         aniso.set(name_of(aniso_names, s["anisotropic_filtering"]))
         vsync.set(bool(s["vsync"]))
         low_latency.set(bool(s.get("low_latency", False)))
+        unlock_all.set(s.get("unlock_all", False) is True)
         wide_720[0] = bool(s["xbox_720p"]) if aspect.get() == WIDE else True
         x720.set(wide_720[0] if aspect.get() == WIDE else False)
 
@@ -1746,6 +1765,7 @@ def settings_tab(tabs, root, tk, ttk):
             return
         ST.write(root, {"display_mode": mode.get().lower(), "width": w, "height": h, "render_percent": sc,
                         "fps_cap": fp, "vsync": vsync.get(), "low_latency": low_latency.get(),
+                        "unlock_all": unlock_all.get(),
                         "anisotropic_filtering": an,
                         "xbox_720p": x720.get()})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
@@ -2268,7 +2288,7 @@ def mods_tab(tabs, root, tk, ttk):
         say("Memory doubled. Restart the game if it's running." if more_ram.get() else
             "Memory back to the Xbox's. Restart the game if it's running.")
     # (one line, and the list two rows shorter for it: the Launcher stays the height it was)
-    ttk.Checkbutton(frm, text="Double the game's memory (128 MB): for mods bigger than the Xbox could hold (experimental)",
+    ttk.Checkbutton(frm, text="Double the game's memory (128 MB): for mods bigger than the Xbox could fit (experimental)",
                     variable=more_ram, command=ram_changed).grid(row=5, column=0, sticky="w", pady=(4, 0))
     frm.bind("<Map>", lambda _: more_ram.set(ST.read(root).get("memory_mb", 64) == 128), add="+")
 
