@@ -759,17 +759,15 @@ def build(save, db):
                 next_day=day(next_day) if next_day else None, divisions=divisions, wildcard=wildcard,
                 results=results, upcoming=tomorrow, headlines=headlines, postseason=postseason,
                 # big-league clubs' deals first, then the farm teams'
-                trades=sorted((s for s in stories if s["kind"] == "Trade"),
-                              key=lambda s: (not any(t in rec for t in s["raw_teams"]), -s["day"])),
+                trades=sorted((s for s in stories if s["kind"] == "Trade"), key=lambda s: -s["day"]),
                 injuries=sorted((s for s in stories if s["kind"] == "Injury"),
                                 key=lambda s: (not s["big_club"], -s["days"])),
-                moves=sorted((s for s in stories if s["kind"] == "Roster move"),
-                             key=lambda s: (not any(t in rec for t in s["raw_teams"]), -s["day"])),
+                moves=sorted((s for s in stories if s["kind"] == "Roster move"), key=lambda s: -s["day"]),
                 user=save["user"], games_played=games_played, db=db,
                 days=recaps(save["games"], db, save["user"], postseason),
                 leaders={} if postseason else season_leaders(save, db, stats=stats), names=save["names"],
                 stats=stats, rosters=save["rosters"], games=save["games"], records=rec, stories=stories,
-                history=save["history"])
+                history=save["history"], team_of=team_of)
 
 
 def _out_for(days):
@@ -1153,10 +1151,12 @@ function tm(i,txt){return i<0?esc(txt):"<a href='#team-"+i+"'><i class='lg lg"+i
 function showPlayer(k){var el=document.getElementById('playerpage'),p=PD[k],h=[];
  h.push("<a class=back href='#top'>&lsaquo; Back to the front page</a>");
  if(!p){el.innerHTML=h.join('')+"<p>No page for that player.</p>";return el;}
- var team=p.t>=0?TT[p.t]:null,now=p.rows.length?p.rows[p.rows.length-1][0]:0;
+ var now=NOW;
  h.push("<div class=mod><div class=mh>"+esc(p.n)+"</div><div class='mb thead'>"+(p.t>=0?"<i class='lgb lg"+p.t+"b'></i>":"")+
-  "<div><h1>"+esc(p.n)+"</h1><p class=big>"+esc(p.pos)+(p.t>=0?(p.pos?" &middot; ":"")+tm(p.t,document.querySelector('#team-'+p.t+' h1').textContent):"")+
+  "<div><h1>"+esc(p.n)+"</h1><p class=big>"+esc(p.pos)+(p.t>=0?(p.pos?" &middot; ":"")+tm(p.t,document.querySelector('#team-'+p.t+' h1').textContent)+(p.f?" ("+esc(p.f)+")":""):"")+
   "</p><p>"+p.bio+"</p></div></div></div>");
+ if(p.status&&p.status.length){h.push("<div class=mod><div class=mh>Status</div><div class=mb><ul class=list>");
+  p.status.forEach(function(x){h.push("<li><b>"+esc(x[0])+":</b> "+esc(x[1])+"</li>");});h.push("</ul></div></div>");}
  var head=p.b?['Year','Team','AB','H','HR','RBI','R','SB','AVG']:['Year','Team','G','W','L','SV','IP','ER','SO','BB','ERA'];
  var t=["<div class=mod><div class=mh>"+(p.b?'Batting':'Pitching')+" by season</div><div class=mb><table class=career><tr>"];
  head.forEach(function(x){t.push('<th>'+x+'</th>');});t.push('</tr>');var tot=[];
@@ -1391,7 +1391,7 @@ def render(news):
     out.append("</ul></div></div>")
     if news["days"]:  # every game of the last week, written up; the day's best first, as the Game of the Day
         out.append("<div class=mod id=recaps><div class=mh>Scores &amp; recaps</div><div class=subtabs>")
-        for i, (d, _) in enumerate(news["days"]):
+        for i, (d, _) in reversed(list(enumerate(news["days"]))):  # oldest on the left, the newest (picked) right
             out.append(f"<button data-g=day data-i={i} onclick='pickday({i})'>{day(d).strftime('%a')} "
                        f"{day(d).month}/{day(d).day}</button>")
         out.append("</div><div class=mb>")
@@ -1418,7 +1418,7 @@ def render(news):
             out.append("</div>")
         out.append("</div></div>")
     out.append("<div class=mod id=wire><div class=mh>Transactions</div><div class=mb><ul class=list>")
-    for s in (news["trades"] + news["moves"])[:40]:
+    for s in sorted(news["trades"] + news["moves"], key=lambda s: -s["day"])[:40]:  # newest first
         out.append(f"<li><span class=date>{short(day(s['day']))}:</span> {story(s)}</li>")
     if not news["trades"] and not news["moves"]:
         out.append("<li>None yet.</li>")
@@ -1455,7 +1455,7 @@ def render(news):
     if not heads:
         out.append("<li>Nothing yet.</li>")
     out.append("</ul><a class=x href='#news'>More news &rsaquo;</a></div>")
-    wire = (news["trades"] + news["moves"])[:6]
+    wire = sorted(news["trades"] + news["moves"], key=lambda s: -s["day"])[:6]
     if wire:
         out.append("<div class=mod><div class=mh>Transactions</div><ul>")
         for s in wire:
@@ -1470,7 +1470,8 @@ def render(news):
     out.append("</div></div>")
     out.append(team_pages(news, lg, gid, PL, TM, story))
     out.append("<div id=playerpage class=teampage></div>")
-    out.append(f"<script>var PD={player_data(news, need)},TT={team_table(db)};</script>")
+    season = (news["today"] or day(min((g["day"] for g in news["games"]), default=21000))).year
+    out.append(f"<script>var PD={player_data(news, need)},TT={team_table(db)},NOW={season};</script>")
     out.append("<div class=foot><div class=links><a href='#news'>Headlines</a><a href='#scores'>Scores</a>"
                "<a href='#allstandings'>Standings</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></div>"
                "<div class=fine>Made by the MVP05-Plus Launcher from your save. Names, teams and logos are read from your "
@@ -1606,8 +1607,9 @@ def player_data(news, keys):
     hist = news["history"]
     stats = news["stats"] or {}
     on = {k: db.franchises[i] for i, ks in news["rosters"].items() for k in ks if i < len(db.franchises)}
+    now = (news["today"] or day(min((g["day"] for g in news["games"]), default=21000))).year
     about = collections.defaultdict(list)
-    for st in news["stories"]:
+    for st in sorted(news["stories"], key=lambda st: -st["day"]):
         for k in st["players"]:
             if len(about[k]) < 6:
                 about[k].append([f"{day(st['day']).month}/{day(st['day']).day}", st["kind"], st["head"], st["body"]])
@@ -1615,10 +1617,19 @@ def player_data(news, keys):
     for k in keys:
         rows = hist.get(k, [])
         hitter = sum(r["batter"] for r in rows) * 2 >= len(rows) if rows else db.pos(k) not in ("RHP", "LHP")
-        team = on.get(k) or getattr(stats.get("bat" if hitter else "pit", {}).get(k), "team", None)
-        if team is None and rows:
-            t = db.team_at(rows[-1]["team"])
-            team = db.org_of.get(t, t)
+        # where he is: a big-league roster, else his latest trade or move, else this season's line, else his last row
+        farm = None
+        team = on.get(k)
+        if team is None and any(k in st["players"] for st in news["trades"] + news["moves"]):
+            farm = news["team_of"].get(k)
+        if team is None and farm is None:
+            farm = getattr(stats.get("bat" if hitter else "pit", {}).get(k), "team", None)
+            if farm is None and rows:
+                farm = db.team_at(rows[-1]["team"])
+        if team is None and farm is not None:
+            team = db.org_of.get(farm, farm)
+            if farm == team:
+                farm = None
         cells = []
         for r in sorted(rows, key=lambda r: r["year"]):
             x = r["stats"]
@@ -1627,18 +1638,35 @@ def player_data(news, keys):
         p = db.players.get(k, {})
         bio = []
         if p:
-            if p.get(4) in ("0", "1"):
-                bio.append(f"Throws {'left' if p.get(4) == '1' else 'right'}")
-            try:
-                if int(p.get(40) or 0):
-                    bio.append(f"2005 salary ${int(p[40]) / 10:.1f}M".replace(".0M", "M"))
-            except ValueError:
-                pass
+            num = lambda c: int(p.get(c) or 0) if str(p.get(c) or "").isdigit() else None
+            if num(2) is not None:
+                bio.append(f"#{num(2)}")
+            if num(3) is not None:
+                bio.append(f"Bats {['right', 'left', 'both'][min(num(3), 2)]}")
+            if num(4) is not None:
+                bio.append(f"Throws {'left' if num(4) == 1 else 'right'}")
+            if num(45):  # the birth date, in days from 1948-01-01 (as the schedule's dates)
+                born = DAY0 + datetime.timedelta(days=num(45))
+                ref = news["today"] or datetime.date(now, 4, 1)
+                bio.append(f"Age {ref.year - born.year - ((ref.month, ref.day) < (born.month, born.day))}")
+            if num(40) and num(41):  # the 2005 contract, while it runs (re-signings aren't read from the save yet)
+                through = 2005 + num(41) - 1
+                if through >= now:
+                    bio.append(f"Contract: ${num(40) / 10:.1f}M a year through {through}".replace(".0M", "M"))
         else:
             bio.append("Created in this dynasty")
+        status = []
+        for st in news["injuries"]:
+            if k in st["players"]:
+                status.append(["Injury", st["body"]])
+        moves = [st for st in news["trades"] + news["moves"] if k in st["players"]]
+        if moves:
+            last = max(moves, key=lambda st: st["day"])
+            status.append([f"Latest move ({day(last['day']).month}/{day(last['day']).day})", last["body"]])
         out[f"{k:x}"] = dict(n=news["names"].get(k) or db.name(k) or "?", pos=db.pos(k) or ("Pitcher" if not hitter else ""),
                              t=db.franchises.index(team) if team in db.franchises else -1, b=int(hitter),
-                             bio=" &middot; ".join(bio), rows=cells, news=about.get(k, []))
+                             bio=" &middot; ".join(bio), rows=cells, news=about.get(k, []), status=status,
+                             f=f"{db.full(farm)}, {db.level(farm)}" if farm else "")
     return json.dumps(out, separators=(",", ":")).replace("</", "<\\/")
 
 
