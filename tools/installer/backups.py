@@ -103,11 +103,23 @@ def list_backups(root):
     return sorted(out, key=lambda b: b["when"], reverse=True)
 
 
+def only_some(backup):
+    """Whether a backup holds only the saves the Launcher backed up before changing them (not the whole drive)."""
+    try:
+        with open(os.path.join(backup, LIST), encoding="utf-8", errors="replace") as f:
+            return f.readline().startswith("one save, backed up by MVP05-Plus Launcher")
+    except OSError:
+        return False
+
+
 def restore(root, backup, say=print, ids=None):
     """backup's saves in place of the game's (all of them, or only the save folders in ids), after making a
-    backup of the game's own."""
+    backup of the game's own. A backup of only some saves (the Launcher's, before it changed one) puts back just
+    those: the rest of your saves stay."""
     if game_running():
         raise BackupError("close MVP05.exe first: the game keeps its saves open while it runs")
+    if not ids and only_some(backup):
+        ids = list(save_folders(backup))
     src = os.path.join(backup, "E")
     if not os.path.isfile(os.path.join(backup, LIST)) or not os.path.isdir(src):
         raise BackupError("that backup isn't complete")

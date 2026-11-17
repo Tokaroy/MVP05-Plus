@@ -84,14 +84,28 @@ def list_saves(root):
     return sorted(out, key=lambda s: s["when"], reverse=True)
 
 
+ONE_SAVE = "one save, backed up by MVP05-Plus Launcher"  # how backup_folder's lists start (backups.py reads it)
+
+
 def backup_folder(root, folder, why):
-    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S")
-    dest = os.path.join(root, "save backups", f"{stamp} before {why}", os.path.basename(folder))
+    """A copy of one save before the Launcher changes it, as the game's own backups are laid out
+    (save backups/<date> before <why>/E/UDATA/<title>/<save>, its list written last), so Saves > Backups lists it
+    and brings it back; the game counts it with its own when it prunes them."""
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+    top = os.path.join(root, "save backups", f"{stamp} before {why}")
     n = 2
-    while os.path.exists(dest):  # a second backup of the same save in the same second
-        dest = os.path.join(root, "save backups", f"{stamp} before {why} ({n})", os.path.basename(folder))
+    while os.path.exists(top):  # a second backup in the same second
+        top = os.path.join(root, "save backups", f"{stamp} before {why} ({n})")
         n += 1
+    dest = os.path.join(top, "E", "UDATA", TITLE, os.path.basename(folder))
     shutil.copytree(folder, dest)
+    lines = [f"{ONE_SAVE} before {why}"]
+    for d, _, files in os.walk(dest):
+        for f in sorted(files):
+            q = os.path.join(d, f)
+            lines.append(f"{os.path.relpath(q, top)}\t{os.path.getsize(q)}")
+    with open(os.path.join(top, "backup-contents.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
     return dest
 
 
@@ -180,6 +194,14 @@ def rename_save(root, folder, name):
     backup_folder(root, folder, "renaming")
     shutil.rmtree(folder)
     return new
+
+
+def delete_save(root, folder):
+    """One of your saves taken out of the game's list: backed up first (Saves > Backups brings it back)."""
+    _check_not_running()
+    b = backup_folder(root, folder, "deleting")
+    shutil.rmtree(folder)
+    return b
 
 
 def _check_not_running():

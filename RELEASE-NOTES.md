@@ -34,6 +34,7 @@ Mods, Game Tweaks, your own season schedules, and short seasons that finish on t
 - **Saves in a zip or a folder:** *Import a save* (or a drop on the Saves tab) takes a zip or a folder as people share them, and finds the save in it (you pick one if there are several). *Export… → As a zip, to share* (or right-click a save) makes that zip from one of yours.
 - **Import and export remember where you were:** the file pickers open in the folder you last chose from, or the first time in Dolphin's or PCSX2's own card folder.
 - **Problems are written down:** a failed import or export, or anything unexpected in the Launcher, goes to `MVP05-Plus-Launcher.log` beside MVP05.exe, and the message says which part of the save it was.
+- **The Launcher's backups show in Saves → Backups:** the copy of a save made before an import, a Payroll Budget or Playoffs change, a rename or a delete is listed by date ("before importing a dynasty" and so on) and restores from there. Restoring one of those puts back only that save; your other saves stay. (The ones the earlier Beta 2.5 builds made are in the *save backups* folder beside MVP05.exe, but not in the list.)
 
 ## Changed
 - **Standings Projector** (was the Short Season Advancer): no longer needed for short seasons. It's kept for a dynasty stuck at the end of a short season from an older version: in the game it's now a checkbox in F10's *Extras* tab.

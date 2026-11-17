@@ -1607,6 +1607,20 @@ def copy_or_rename(frm, root, folder, rename, done):
     done()
 
 
+def delete_save(frm, root, folder, name, done):
+    import saves05 as S
+    from tkinter import messagebox
+    if not messagebox.askyesno("Delete a save", f"Delete \"{name}\"?\n\nIt's backed up first: Saves > Backups "
+                                                "brings it back.", parent=frm):
+        return
+    try:
+        S.delete_save(root, folder)
+    except (S.SaveError, OSError) as e:
+        messagebox.showerror("Delete a save", f"Not deleted: {e}.", parent=frm)
+        return
+    done()
+
+
 def share_save(frm, folder, name):
     """One of your saves as a zip (its folder as the game keeps it), for another MVP05-Plus's Import a save, or an
     Xbox's save tools."""
@@ -1670,7 +1684,8 @@ def current_saves_tab(frm, root, tk, ttk):
         ("Export to PC\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PC", tk, ttk)),
         ("Share as a zip\u2026", lambda: share_save(frm, folders[iid], tree.item(iid, "text"))),
         ("Copy\u2026", lambda: copy_or_rename(frm, root, folders[iid], False, refresh)),
-        ("Rename\u2026", lambda: copy_or_rename(frm, root, folders[iid], True, refresh))])
+        ("Rename\u2026", lambda: copy_or_rename(frm, root, folders[iid], True, refresh)),
+        ("Delete\u2026", lambda: delete_save(frm, root, folders[iid], tree.item(iid, "text"), refresh))])
 
     bar = ttk.Frame(frm)
     bar.grid(row=2, column=0, sticky="we", pady=(8, 0))
@@ -3694,7 +3709,8 @@ def backups_tab(frm, root, tk, ttk, refresh_current):
         tree.delete(*tree.get_children())
         rows.clear()
         for b in B.list_backups(root):
-            when = when_text(b["when"]) + (" (before restore)" if "before restore" in b["name"] else "")
+            why = b["name"][20:] if b["name"][19:20] == " " and b["name"][20:].startswith("before ") else ""
+            when = when_text(b["when"]) + (f" ({why})" if why else "")
             n = len(b["items"])
             parent = tree.insert("", "end", text=when, values=(f"{n} save{'s' if n != 1 else ''}",))
             rows[parent] = ("backup", b, None)
