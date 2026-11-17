@@ -2153,6 +2153,8 @@ def schedule_tab(tabs, root, tk, ttk):
         # an imported schedule has no blurb: its name and "(imported by you)" say what it is
         blurb.configure(text=(e.get("short") or e.get("about", "")) if e and e.get("kind") != "imported" else "")
         remove.configure(state="normal" if e and e.get("kind") in ("imported", "made") else "disabled")
+        share.configure(state="normal" if e and e.get("folder") and e.get("kind") in ("imported", "made", "custom")
+                        else "disabled")
     box.bind("<<ComboboxSelected>>", shown)
     buttons = ttk.Frame(frm)
     buttons.grid(row=5, column=0, sticky="we", pady=(10, 0))
@@ -2160,6 +2162,8 @@ def schedule_tab(tabs, root, tk, ttk):
     use.pack(side="left")
     remove = ttk.Button(buttons, text="Remove", state="disabled")
     remove.pack(side="right")
+    share = ttk.Button(buttons, text="Export\u2026", state="disabled")
+    share.pack(side="right", padx=(6, 0))
     add = ttk.Button(buttons, text="Import a schedule\u2026")
     add.pack(side="right", padx=6)
     make = ttk.Button(buttons, text="Create a schedule\u2026")
@@ -2167,7 +2171,7 @@ def schedule_tab(tabs, root, tk, ttk):
     ttk.Label(frm, foreground="#777", wraplength=560, justify="left", text=(
         "Create a schedule: any length, with your choice of interleague and All-Star host, a different season each "
         "dynasty year. Import a schedule: a schedule.big, or its mlb162_1/2/3.dat files, from any version of MVP 2005 "
-        "(Xbox, PS2, GameCube or PC: the schedules are the same everywhere).")).grid(
+        "(Xbox, PS2, GameCube or PC: the schedules are the same everywhere), or a zip from Export.")).grid(
         row=7, column=0, sticky="w", pady=(14, 0))
     note = ttk.Label(frm, wraplength=560, justify="left")
     note.grid(row=6, column=0, sticky="w", pady=(6, 0))
@@ -2213,8 +2217,8 @@ def schedule_tab(tabs, root, tk, ttk):
 
     def do_import():
         from tkinter import filedialog, simpledialog
-        paths = filedialog.askopenfilenames(parent=frm, title="A schedule.big, or mlb162 .dat files", filetypes=[
-            ("MVP 2005 schedules", "*.big *.dat"), ("All files", "*.*")])
+        paths = filedialog.askopenfilenames(parent=frm, title="A schedule.big, mlb162 .dat files, or a zip", filetypes=[
+            ("MVP 2005 schedules", "*.big *.dat *.zip"), ("All files", "*.*")])
         if not paths:
             return
         try:
@@ -2254,8 +2258,26 @@ def schedule_tab(tabs, root, tk, ttk):
         box.set(label[SCH.ORIGINAL])
         shown()
         note.configure(text=f"Removed \"{e['name']}\".", foreground="#555")
+    def do_export():
+        from tkinter import filedialog
+        e = next((x for x in cat if x["id"] == pick.get()), None)
+        if not e:
+            return
+        dest = filedialog.asksaveasfilename(parent=frm, title=f"Export \"{e['name']}\"", defaultextension=".zip",
+                                            initialfile=f"{e['name']} (MVP05-Plus schedule).zip",
+                                            filetypes=[("Zip files", "*.zip")])
+        if not dest:
+            return
+        try:
+            games = SCH.export_zip(e, dest)
+        except (SCH.ScheduleError, OSError) as err:
+            note.configure(text=f"Not exported: {err}", foreground="#a33")
+            return
+        note.configure(text=f"Exported \"{e['name']}\" ({games} games a team) to {os.path.basename(dest)}. Anyone "
+                            "with MVP05-Plus can bring it in with Import a schedule.", foreground="#1a7f37")
     add.configure(command=do_import)
     remove.configure(command=do_remove)
+    share.configure(command=do_export)
 
     def saved(e):
         load_catalog()

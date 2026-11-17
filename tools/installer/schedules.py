@@ -14,6 +14,7 @@ import os
 import random
 import shutil
 import struct
+import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SEASON_FILES = ("mlb162_1.dat", "mlb162_2.dat", "mlb162_3.dat")
@@ -62,7 +63,22 @@ def imported(root):
 
 
 def read_schedule_files(paths):
-    """The three season files from a schedule.big, or from one to three .dat files (one: every year the same)."""
+    """The three season files from a schedule.big, or from one to three .dat files (one: every year the same), or
+    from a zip holding either (as Export a schedule writes it)."""
+    if len(paths) == 1 and zipfile.is_zipfile(paths[0]):
+        with zipfile.ZipFile(paths[0]) as z:
+            names = {n.replace("\\", "/").split("/")[-1].lower(): n for n in z.namelist()}
+            if all(n in names for n in SEASON_FILES):
+                return [_text(z.read(names[n])) for n in SEASON_FILES]
+            if "schedule.big" in names:
+                big = read_big(z.read(names["schedule.big"]))
+                have = {n.replace("\\", "/").split("/")[-1].lower(): d for n, d in big}
+                if all(n in have for n in SEASON_FILES):
+                    return [unpacked(have[n]) for n in SEASON_FILES]
+            one = [n for n in names if n.startswith("mlb162") and n.endswith(".dat")]
+            if len(one) == 1:
+                return [_text(z.read(names[one[0]]))] * 3
+        raise ScheduleError("that zip has no schedule in it (mlb162_1, _2 and _3.dat, or a schedule.big)")
     if len(paths) == 1 and paths[0].lower().endswith(".big"):
         with open(paths[0], "rb") as f:
             have = {n.replace("\\", "/").split("/")[-1].lower(): d for n, d in read_big(f.read())}
@@ -85,6 +101,30 @@ def read_schedule_files(paths):
     if sorted(texts) != [1, 2, 3]:
         raise ScheduleError("pick the three files mlb162_1, _2 and _3 (or just one, for every year)")
     return [texts[1], texts[2], texts[3]]
+
+
+def _text(data):
+    return unpacked(data) if data[1:2] == b"\xfb" else data
+
+
+def export_zip(entry, dest):
+    """A schedule from the list as a zip of its three season files, to share: Import a schedule takes it back."""
+    folder = entry.get("folder")
+    if not folder or entry.get("kind") not in ("imported", "made", "custom"):
+        raise ScheduleError("only the schedules made for MVP05-Plus, created or imported by you can be exported")
+    texts = []
+    for n in SEASON_FILES:
+        with open(os.path.join(folder, n), "rb") as f:
+            texts.append(_text(f.read()))
+    games = check_season(texts)
+    about = (f"{entry['name']}: {games} games a team, a season file for each of the three dynasty years.\r\n"
+             "In the MVP05-Plus Launcher: Schedule, Import a schedule, and choose this zip.\r\n")
+    with zipfile.ZipFile(dest + ".part", "w", zipfile.ZIP_DEFLATED) as z:
+        for n, t in zip(SEASON_FILES, texts):
+            z.writestr(n, t)
+        z.writestr("about.txt", about)
+    os.replace(dest + ".part", dest)
+    return games
 
 
 def check_season(texts):
