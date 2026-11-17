@@ -337,3 +337,24 @@ Each pad's player index is set to its port number:
 - **Credits:** Mad Dog (github.com/maddog847) made the MVP 2005 port; it's built with TGP482's XboxXBERecomp (github.com/TGP482/XboxXBERecomp), the SDK under `sdk/`.
 - **No game installed:** the message MVP05.exe shows (`.missing` in `src/common/game_info.cpp`) now sends people to MVP05-Plus Launcher first, with the by-hand way in brackets.
 - **Esc to quit:** `AskQuit` in `sdk/runtime/app/main.cpp` (the host shortcuts in `WndProc`, beside Alt+F4): a Yes/No box, No by default, warning not to quit while the game is saving; Yes posts WM_CLOSE. While it's up, a changed display mode isn't dropped and the window isn't minimized (`g_asking_quit`).
+
+## Save conversions (Beta 2.5 and 3.0)
+
+- **What converts:** rosters, dynasties and owner modes, from the PS2, GameCube, PC and another Xbox into one of your
+  Xbox saves (*Saves > Import a save*), and from your Xbox saves out to the GameCube, PS2 and PC (*Export…*), each
+  built on a save of yours from that console. Modules in `tools/saves/`: `rosters05` (Mad Dog's roster conversion),
+  `gcroster05`, `dynasty05` (spy_jam's GameCube converter in `mvp05/lib`), `ps2dynasty05`, `pcdynasty05`,
+  `owner05` (owner mode: the dynasty part through those, the two owner sections by maps; FORMAT_NOTES 3.8).
+- **Memory cards:** `ps2card` reads PCSX2 cards and writes a save back into a copy of the card (page codes
+  rewritten); `gccard` does the same for Dolphin's .raw cards (FORMAT_NOTES 3.9). Imports read a save off a card;
+  exports built on a card give a copy of the card. The GameCube card code is checked on made-up cards only.
+- **Errors:** a converter's exception names the part of the save it came from (`dynasty05.conversion_error`); the
+  Launcher writes failed imports and exports, and any unexpected error (`catch_errors`), to
+  `MVP05-Plus-Launcher.log` beside the exe.
+- **Tests:** `tools/saves/tests/test_converters.py` and `tools/installer/tests/test_save_windows.py`, on a folder of
+  sample saves (the names are in the first script's header; never commit them).
+- **Not done, on purpose:** importing as a *new* Xbox save (a new folder in UDATA). How the game names a save's
+  folder (12 hex digits) isn't known: if it's from the save's name, the game's next save of that name would go to a
+  second folder. Imports replace one of your saves instead.
+- **Open:** spy_jam's Stros GameCube dynasty failed at the import's step 3 (Beta 2.5 build); not reproduced with the
+  samples here. The message now says which part of the save failed.
