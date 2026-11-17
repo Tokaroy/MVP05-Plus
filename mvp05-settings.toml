@@ -41,9 +41,7 @@ daylight_parks = false
 rain = 0
 # Umpires and fielders away from the play are given the game's second-best player model (it has ten of them)
 # before its two simplest. The six at full detail stay six: the game's model files hold no more.
-player_full_detail = false
-# EA's depth of field (background blur), which the Xbox version has turned off (being tested).
-depth_of_field = false
+player_full_detail = true
 # Dynasty tweaks (the game's data tables), as percents of the game's own (100: as the game):
 # how often ratings go up (dev_speed) and down (aging) each season, how often players retire, free agents' asking
 # prices; resign_chance 100 plus or minus points; rookie_quality 1 or 2 for more, 3 for fewer

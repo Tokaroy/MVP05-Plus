@@ -1345,7 +1345,7 @@ def desktop_resolution():
 TWEAKS = {
     "Graphics": [
         ("player_full_detail", None, "More detail: umpires and fielders away from the play get the game's "
-                                     "second-best player model, not its two simplest (test)", None),
+                                     "second-best player model, not its two simplest", None),
         ("daylight_parks", None, "Daylight day games: day lighting and sky at Fenway, Turner Field and the other "
                                  "parks EA lit as dusk (test)", None),
         ("rain", "Rain",
@@ -1354,7 +1354,6 @@ TWEAKS = {
          {"MVP 05 Default: showers at SBC Park and Safeco Field": 0,
           "Showers at every outdoor park, about 2 games in 9": 1,
           "Rain in every game, at every outdoor park": 2}),
-        ("depth_of_field", None, "Depth of field: EA's background blur, turned off on the Xbox (test)", None),
         ("memory_mb", "Memory",
          "Room for what the game loads: stadiums, players, crowds. The Xbox had 64 MB, and the game keeps about 41 MB "
          "of it for these. Double it for mods that add more than the Xbox could hold.",
@@ -1442,6 +1441,9 @@ TWEAKS = {
 }
 
 
+CHECK_DEFAULTS = {"player_full_detail": True}  # checkboxes on by default (the others are off)
+
+
 def default_choice(choices):
     """The value of a setting's MVP 05 Default choice (the first, if none is named that)."""
     return next((v for k, v in choices.items() if k.startswith("MVP 05 Default")), list(choices.values())[0])
@@ -1486,7 +1488,7 @@ def tweak_controls(parent, items, saved, tk, ttk, row=0, width=58, about=None):
     def load(saved):
         for key, var, c in controls:
             if c is None:
-                var.set(saved.get(key, False) is True)
+                var.set(saved.get(key, CHECK_DEFAULTS.get(key, False)) is True)
                 continue
             choices, box = c
             first = default_choice(choices)
@@ -2616,6 +2618,7 @@ def tools_tab(tabs, root, tk, ttk):
          adjustments_tool("Dynasty", "Dynasty adjustments",
                           "Changes to how a dynasty runs, built into MVP05-Plus. Your game files stay as they "
                           "are.")),
+        ("Payroll Budget", "Your dynasty team's payroll budget, changed in its save.", payroll_tool),
         ("Team Changer", "Take over another organization in your dynasty or owner mode. Based on tywiggins' Team "
          "Changer.", team_changer_tool),
         ("Playoffs Editor", "Swap teams in a playoff round before its first game. Based on tywiggins' Playoffs "
@@ -2846,6 +2849,94 @@ def playoffs_tool(frm, root, tk, ttk):
     change_b.configure(command=go)
     how.trace_add("write", lambda *_: (state.clear(), show([]), ready(), say("")))
     return load_saves
+
+
+def payroll_tool(frm, root, tk, ttk):
+    """Payroll Budget: the budget of a dynasty's own team, changed in its save (budget05.py). The game's Tools menu
+    (F10, Dynasty) does the same in the dynasty that's loaded."""
+    import budget05 as BU
+    import saves05 as S
+
+    frm.columnconfigure(1, weight=1)
+    ttk.Label(frm, text="Payroll Budget", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3,
+                                                                            sticky="w")
+    ttk.Label(frm, foreground="#666", wraplength=560, justify="left", text=(
+        "The most your team can pay in salaries. The game sets it to 110% of the payroll when a dynasty starts and "
+        "moves it each off-season by how the team did. Change it here in a saved dynasty, with the game closed. "
+        "In the game, F10 (Dynasty) does the same for the dynasty that's loaded.")).grid(
+        row=1, column=0, columnspan=3, sticky="w", pady=(0, 10))
+    ttk.Label(frm, text="Dynasty").grid(row=2, column=0, sticky="w")
+    box = ttk.Combobox(frm, state="readonly", width=40)
+    box.grid(row=2, column=1, sticky="w", padx=(10, 0), pady=2)
+    ttk.Label(frm, text="Team").grid(row=3, column=0, sticky="w")
+    team = ttk.Label(frm, text="")
+    team.grid(row=3, column=1, sticky="w", padx=(10, 0), pady=2)
+    ttk.Label(frm, text="Budget now").grid(row=4, column=0, sticky="w")
+    now = ttk.Label(frm, text="")
+    now.grid(row=4, column=1, sticky="w", padx=(10, 0), pady=2)
+    ttk.Label(frm, text="New budget").grid(row=5, column=0, sticky="w")
+    line = ttk.Frame(frm)
+    line.grid(row=5, column=1, sticky="w", padx=(10, 0), pady=2)
+    ttk.Label(line, text="$").pack(side="left")
+    want = tk.StringVar()
+    ttk.Spinbox(line, textvariable=want, from_=0.1, to=3000, increment=5, width=10).pack(side="left")
+    ttk.Label(line, text="million (in steps of $0.1 million)", foreground="#666").pack(side="left", padx=6)
+    bar = ttk.Frame(frm)
+    bar.grid(row=6, column=0, columnspan=3, sticky="we", pady=(12, 0))
+    save_b = ttk.Button(bar, text="Save", state="disabled")
+    save_b.pack(side="right")
+    note = ttk.Label(frm, text="", wraplength=560, justify="left")
+    note.grid(row=7, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    saves = []
+
+    def say(text, colour="#555"):
+        note.configure(text=text, foreground=colour)
+
+    def show(*_):
+        team.configure(text="")
+        now.configure(text="")
+        save_b.configure(state="disabled")
+        if box.current() < 0 or not saves:
+            return
+        try:
+            r = BU.read(saves[box.current()]["folder"])
+        except Exception as e:
+            return say(f"Can't read that save: {e}", "#a33")
+        team.configure(text=r["team"])
+        now.configure(text=f"${r['budget'] / 1e6:.1f} million")
+        want.set(f"{r['budget'] / 1e6:.1f}")
+        save_b.configure(state="normal")
+
+    def load_saves():
+        old = box.get()
+        saves[:] = [s for s in S.list_saves(root) if s["type"] == "Dynasty"]
+        labels = [f"{s['name']} ({when_text(s['when'])})" for s in saves]
+        box.configure(values=labels)
+        if old in labels:
+            box.set(old)
+        elif labels:
+            box.current(0)
+        else:
+            box.set("(no dynasty saves yet: start a dynasty and save it)")
+        show()
+
+    def save():
+        try:
+            dollars = float(want.get().replace("$", "").replace(",", "")) * 1e6
+            assert 100000 <= dollars <= 3.3e9
+        except (ValueError, AssertionError):
+            return say("Enter the new budget in millions of dollars, like 120 or 87.5.", "#a33")
+        s = saves[box.current()]
+        try:
+            got = BU.write(root, s["folder"], dollars, say=lambda t: None)
+        except Exception as e:
+            return say(f"Nothing was changed: {e}.", "#a33")
+        load_saves()
+        say(f"Saved: ${got / 1e6:.1f} million. The old save is in Saves > Backups.", "#1a7f37")
+
+    box.bind("<<ComboboxSelected>>", lambda _: (say(""), show()))
+    save_b.configure(command=save)
+    return lambda: (say(""), load_saves())
 
 
 def short_season_tool(frm, root, tk, ttk):

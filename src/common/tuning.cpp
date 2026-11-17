@@ -82,7 +82,8 @@ int EditText(std::string& text, const std::vector<Edit>& edits) {
 
 void Apply() {
     std::vector<Edit> edits;
-    if (tools::g_depth_of_field) edits.push_back({"xbox_render", "IsActive", "1"});
+    // (none at present: depth of field, its one edit, was taken out in Beta 2.5. The copy an earlier version
+    // left is still cleared below)
     std::error_code rm;
     fs::remove(app::ExeDir() / "tweaks" / "data" / "datafile" / "datafile.big", rm);  // last time's, if any
     if (edits.empty()) return;

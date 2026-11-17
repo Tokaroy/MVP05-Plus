@@ -14,7 +14,6 @@ extern uint32_t g_memory_mb;  // the Xbox's RAM: 64 (as the console) or 128, wit
 extern uint32_t g_rain;  // 0 the game's own (rain at SBC Park, Safeco at night), 1 at every outdoor park, 2 in every game
 extern bool g_daylight_parks;  // day games in daylight at the parks EA lit as dusk (Fenway, ...): lighting and sky
 extern bool g_player_full_detail;  // a request for detail level 2 or 3 becomes one for level 1 (hooks.cpp)
-extern bool g_depth_of_field;  // EA's depth of field (xbox_render's DOF IsActive, off on the Xbox)
 // dynasty data tweaks (dynasty_data.cpp): percents of the game's own (100: as the game), resign_chance 100 +/- points,
 // rookie_quality 1 better / 2 much better
 extern uint32_t g_dev_speed, g_aging, g_retirement, g_contract_prices, g_resign_chance, g_rookie_quality;
