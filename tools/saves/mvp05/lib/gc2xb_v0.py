@@ -5,7 +5,7 @@ import struct,sys,re,glob
 sys.path.insert(0,'.'); sys.path.insert(0,'tools/out')
 import teamconv,rosterblock,mgrconv,player_conv,containers
 def s32(b): return b''.join(b[i:i+4][::-1] for i in range(0,len(b),4))
-SIG=re.compile(rb'(?s).{10}\xbb\x55\x00\x00\x00[\x00-\x40]')
+SIG=re.compile(rb'(?s).{10}\xbb\x55')  # a lineup unit (see xb2gc.SIG_G)
 KEYG=b'\x69\x3d\xbc\x6a'; KEYX=b'\x6a\xbc\x3d\x69'
 PAT=re.compile(rb"^[A-Za-z][A-Za-z .'\-]{0,11}$")
 def _okrow(d,o):

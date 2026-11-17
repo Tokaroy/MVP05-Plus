@@ -219,6 +219,20 @@ def played_rt():
     assert len(d) <= 18 and all(marks[3] - 0x600 < i < marks[3] for i in d), [hex(i) for i in d[:5]]
     return 1
 t('played xb dynasty -> gc -> xb exact before history (but the 9 kept values)', played_rt)
+# a lineup slot outside 0..0x40 (an empty slot): its team's 4th unit didn't match and the teams' bounds shifted
+def odd_slot():
+    import struct as st
+    with DY._in_lib():
+        import containers as C
+        import xb2gc as X
+    m = C.parse_xbox(F['xb_dyn'])
+    d = bytearray(m['payload'])
+    starts = X._blocks(bytes(d), X.KEYX, X.SIG_X, 0x38cb)
+    st.pack_into('<I', d, starts[40] + 3 * 48 + 12, 0xFFFFFFFF)
+    out = C.build_xbox(F['xb_dyn'], dict(name=m['name'], typ=m['typ'], flags=m['flags'], payload=bytes(d)))
+    DY.xbox_to_gc(out, F['gc_dyn'])
+    return 1
+t('xb dynasty with an empty lineup slot -> gc', odd_slot)
 # League News: the news from a dynasty in its season, a fresh owner mode and one in the postseason
 def news(k, **want):
     import shutil

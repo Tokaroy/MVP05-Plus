@@ -9,8 +9,10 @@ from rosterblock import team_starts
 import hist_conv as H
 
 KEYG = b'\x69\x3d\xbc\x6a'; KEYX = b'\x6a\xbc\x3d\x69'
-SIG_G = re.compile(rb'(?s).{10}\xbb\x55\x00\x00\x00[\x00-\x40]')
-SIG_X = re.compile(rb'(?s).{10}\x55\xbb[\x00-\x40]\x00\x00\x00')
+# a lineup unit: 10 bytes, the u16 0xBB55, 9 u32 (its first, a lineup slot, was required to be 0..0x40; a played
+# save can hold another value there, so only the u16 is matched: team_starts takes runs of 4 units 48 bytes apart)
+SIG_G = re.compile(rb'(?s).{10}\xbb\x55')
+SIG_X = re.compile(rb'(?s).{10}\x55\xbb')
 def s32(b): return b''.join(b[i:i+4][::-1] for i in range(0, len(b), 4))
 def s16(b): return b''.join(b[i:i+2][::-1] for i in range(0, len(b), 2))
 
