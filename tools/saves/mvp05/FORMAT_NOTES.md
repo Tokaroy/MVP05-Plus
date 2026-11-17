@@ -159,6 +159,22 @@ beside it, most likely the starting one; income is added to +0x12B7C as a float 
   .gci's blocks over the old save's in a copy of the card and leaves the directory and table alone. Checked on
   made-up cards only.
 
+### 3.10 What League News reads (MVP05-Plus `tools/saves/news05.py`)
+- **Player records** (tagged table 8: 3250 x 60 B from 24 bytes in, the last wrapping; found by the key list's row):
+  first name at 8 (12 B), last name at 20 (16 B), latin-1. Field 0x1E is the injury's kind, 0x1F its days left
+  (`packe_decomp_layout`; the fields the in-game injury hook reads).
+- **Injury names:** default.xbe 0x1E03A0 maps kind 0..49 to a text id: 0 none, 1..22 = 19700..19721, 23 = 23753
+  ("a bruised ankle"), 24..48 = 19722..19746, 49 = 17990 ("suspension").
+- **feeng.loc** (assets/data): LOCH (20 B), LOCI (u32 count at 8, then (id u16, index u16) pairs from 16), LOCL (u32
+  count at 12, then u32 offsets from the section's start; UTF-16 strings ending in 00 00).
+- **logos.big** (assets/data/frontend): l000..l125.xsh, a team each in the team table's order (l007 Kansas City),
+  SHPX with 7 pictures (l, j wordmarks; i 64x64 and a 128x128 logos; g cap; e, d stripes), kind 0x61 = DXT3.
+- **Roster blocks:** 30 big-league clubs first, in the franchises' order; their 25 player keys after the 4 lineup
+  units.
+- **Standings table 0:** [W][L] before the All-Star break, [W][L] after (0-0 until then); the record is the sum.
+- **The news list** (32 x 20 B after the moves): the game's own League News events, kind in bits 2..7 of the word
+  (2..13 seen: 13 weekly, a batter and a pitcher: player of the week). Not read yet.
+
 ## 4. Converter files (`lib/`)
 `gc2xb_v0.py` (driver: replacement list applied back to front), `tablesconv.py` (tagged tables, header,
 org/team-season records), `postconv.py` (schedules, user section, after-schedules section, history merge),

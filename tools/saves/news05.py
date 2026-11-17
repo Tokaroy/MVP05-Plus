@@ -49,6 +49,57 @@ class NewsError(Exception):
     pass
 
 
+LOC = ("assets", "data", "feeng.loc")
+LOGOS = ("assets", "data", "frontend", "logos.big")  # l000.xsh ... : a team's 7 pictures, in the franchises' order
+
+
+def _dxt3(data, w, h):
+    """RGBA bytes from DXT3 blocks (SHPX picture kind 0x61): 8 bytes of 4-bit alpha, then a DXT1 colour block."""
+    out = bytearray(w * h * 4)
+    p = 0
+    for by in range(0, h, 4):
+        for bx in range(0, w, 4):
+            blk = data[p:p + 16]
+            p += 16
+            c0, c1, idx = struct.unpack_from("<HHI", blk, 8)
+            cs = []
+            for c in (c0, c1):
+                cs.append(((c >> 11 & 31) * 255 // 31, (c >> 5 & 63) * 255 // 63, (c & 31) * 255 // 31))
+            cs += [tuple((2 * a + b) // 3 for a, b in zip(cs[0], cs[1])), tuple((a + 2 * b) // 3 for a, b in zip(cs[0], cs[1]))]
+            for i in range(16):
+                x, y = bx + i % 4, by + i // 4
+                if x < w and y < h:
+                    a = (blk[i // 2] >> (4 * (i & 1)) & 15) * 17
+                    out[(y * w + x) * 4:(y * w + x) * 4 + 4] = bytes(cs[idx >> (2 * i) & 3] + (a,))
+    return bytes(out)
+# the injury kinds' text ids, in kind order (0 none ... 48, 49 a suspension): the table default.xbe's 0x1E03A0 builds
+# (19700.. in order, but 23 "a bruised ankle" from 23753, and 49 "suspension" 17990)
+INJURY_TEXT = [None] + list(range(19700, 19722)) + [23753] + list(range(19722, 19747)) + [17990]
+
+
+def read_loc(data):
+    """{text id: text} from an EA .loc file: LOCH, LOCI (count, then (id u16, index u16) pairs), LOCL (count, offsets
+    from its start, UTF-16 strings)."""
+    sec, o = {}, 0
+    while o + 8 <= len(data):
+        size = struct.unpack_from("<I", data, o + 4)[0]
+        if size < 8:
+            break
+        sec[data[o:o + 4]] = data[o:o + size]
+        o += size
+    if b"LOCI" not in sec or b"LOCL" not in sec:
+        raise NewsError("the game's text file isn't laid out as expected")
+    li, ll = sec[b"LOCI"], sec[b"LOCL"]
+    ids = [struct.unpack_from("<HH", li, 16 + 4 * i) for i in range(struct.unpack_from("<I", li, 8)[0])]
+    texts = []
+    for i in range(struct.unpack_from("<I", ll, 12)[0]):
+        a = e = struct.unpack_from("<I", ll, 16 + 4 * i)[0]
+        while ll[e:e + 2] not in (b"\0\0", b""):
+            e += 2
+        texts.append(ll[a:e].decode("utf-16-le", "replace"))
+    return {i: texts[x] for i, x in ids if x < len(texts)}
+
+
 def day(n):
     return DAY0 + datetime.timedelta(days=n - 1)
 
@@ -66,6 +117,7 @@ class Database:
         path = os.path.join(root, *potd.DB)
         if not os.path.isfile(path):
             raise NewsError("the game isn't installed here (no database.big): League News reads names from it")
+        self.root = root
         with open(path, "rb") as f:
             d = potd._big_dir(f)
 
@@ -80,7 +132,13 @@ class Database:
                        for r in rows("roster.dat").values() if r.get(0) and r.get(1)}
         self.franchises = sorted((k for k, v in orgs.items() if v.get(5) == "1"),
                                  key=lambda k: int(self.teams.get(k, {}).get(6, 99) or 99))
-        self.injuries = {}  # kind -> name: from the game's text file, once its layout is known
+        self.injuries = {}  # kind -> "a pulled hamstring": from the game's text file, when it's there
+        try:
+            with open(os.path.join(root, *LOC), "rb") as f:
+                text = read_loc(f.read())
+            self.injuries = {k: text[t] for k, t in enumerate(INJURY_TEXT) if t in text}
+        except (OSError, NewsError, struct.error):
+            pass
         self.org_of, self.levels = {}, {}
         for k in self.franchises:
             self.org_of[k] = k
@@ -105,6 +163,36 @@ class Database:
 
     def city(self, key):
         return self.teams.get(key, {}).get(1) or "?"
+
+    def logo(self, key, big=False):
+        """The team's logo from the game's logos.big, as a data: URL of a PNG (64 or 128 pixels), or "" """
+        cache = self.__dict__.setdefault("_logos", {})
+        if (key, big) in cache:
+            return cache[(key, big)]
+        url = ""
+        try:
+            import base64
+            import io
+            import potd
+            from PIL import Image
+            i = self.franchises.index(key)
+            with open(os.path.join(self.root, *LOGOS), "rb") as f:
+                off, size = potd._big_dir(f)[f"l{i:03d}.xsh"]
+                f.seek(off)
+                u = potd._unpack(f.read(size))
+            for n in range(struct.unpack_from("<I", u, 8)[0]):
+                if u[16 + 8 * n:17 + 8 * n] == (b"a" if big else b"i"):
+                    o = struct.unpack_from("<I", u, 20 + 8 * n)[0]
+                    w, h = struct.unpack_from("<HH", u, o + 4)
+                    if u[o] == 0x61:
+                        buf = io.BytesIO()
+                        Image.frombytes("RGBA", (w, h), _dxt3(u[o + 16:], w, h)).save(buf, "PNG", optimize=True)
+                        url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+                    break
+        except Exception:  # (no logos, or a picture this doesn't read: the page goes without)
+            url = ""
+        cache[(key, big)] = url
+        return url
 
     def injury(self, kind):
         """The injury's name (from the game's text, when it's read), or "" """
@@ -472,8 +560,15 @@ def build(save, db):
         where = f" ({db.tag(t)})" if t else ""
         short_out = f"for {span}" if rest_of_year else _out_for(days)
         head = (f"{db.club(t)} lose {last(k)} {short_out}" if big_club and imp > 0.5 else f"{last(k)} out {short_out}")
-        body = (f"{who(k)}{where} is out {out}" + (f" with {kind}" if kind else "") +
+        if h["kind"] == 49:  # a suspension, not an injury
+            body = f"{who(k)}{where} is suspended, {_out_for(days)} left."
+            add(score * 0.6, "Suspension", f"{last(k)} suspended", body, today, [t] if t else [], [k])
+            stories[-1].update(days=days, big_club=big_club)
+            continue
+        body = (f"{who(k)}{where} is out" + (f" with {kind}" if kind else "") + f" {out}" +
                 (f", expected back around {back.strftime('%B')} {back.day}." if back and not rest_of_year else "."))
+        if kind and big_club and imp > 0.5:  # (the headline names it: "Padres lose Park to a torn rotator cuff")
+            head = f"{db.club(t)} lose {last(k)} to {kind}" + (" for the season" if rest_of_year else "")
         add(score, "Injury", head, body, today, [t] if t else [], [k])
         stories[-1].update(days=days, big_club=big_club)
 
@@ -622,12 +717,24 @@ th:first-child,td:first-child{text-align:left}
 .list{list-style:none;padding:0;margin:0;font-size:12px}.list li{padding:4px 0;border-bottom:1px solid var(--line)}
 .match{border:1px solid var(--line);padding:6px 8px;margin-bottom:6px}.match b{font-family:Georgia,serif}
 footer{color:var(--muted);font-size:10px;padding:10px 16px;border-top:1px solid var(--line)}
+.lg{display:inline-block;width:16px;height:16px;margin-right:5px;vertical-align:-3px;background:center/contain no-repeat}
+.lgb{float:right;width:96px;height:96px;margin:0 0 6px 12px;background:center/contain no-repeat}
 """
 
 
 def render(news):
     db = news["db"]
     e = html.escape
+    used = {}  # team -> css class of its logo (each logo is in the page once, in its style)
+
+    def lg(t, big=False):
+        if t not in db.franchises:
+            return ""
+        k = (t, big)
+        if k not in used:
+            url = db.logo(t, big)
+            used[k] = (f"lg{db.franchises.index(t)}{'b' if big else ''}", url) if url else None
+        return f"<i class='{'lgb' if big else 'lg'} {used[k][0]}'></i>" if used[k] else ""
     fmt = lambda d: d.strftime("%A, %B %-d, %Y") if os.name != "nt" else d.strftime("%A, %B %d, %Y").replace(" 0", " ")
     short = lambda d: f"{d.strftime('%b')} {d.day}"
     out = ["<!doctype html><html lang=en><head><meta charset=utf-8>",
@@ -644,15 +751,17 @@ def render(news):
             aw, hw = g["ar"] > g["hr"], g["hr"] > g["ar"]
             fin = "Final" + (f"/{g['innings']}" if g["innings"] > 9 else "")
             out.append(f"<div class=box><div class=st>{fin}</div>"
-                       f"<div class={'w' if aw else ''}><span>{e(db.short(g['away']))}</span><span>{g['ar']}</span></div>"
-                       f"<div class={'w' if hw else ''}><span>{e(db.short(g['home']))}</span><span>{g['hr']}</span></div></div>")
+                       f"<div class={'w' if aw else ''}><span>{lg(g['away'])}{e(db.short(g['away']))}</span><span>{g['ar']}</span></div>"
+                       f"<div class={'w' if hw else ''}><span>{lg(g['home'])}{e(db.short(g['home']))}</span><span>{g['hr']}</span></div></div>")
         out.append("</div>")
     out.append("<main><div>")
     heads = news["headlines"]
     out.append("<h2 id=top>Top stories</h2>")
     if heads:
         h = heads[0]
-        out.append(f"<div class='lead{' mine' if h['mine'] else ''}'><span class=kind>{e(h['kind'])}</span> "
+        big = next((t for t in h["teams"] if t in db.franchises), None)
+        out.append(f"<div class='lead{' mine' if h['mine'] else ''}'>{lg(big, True) if big else ''}"
+                   f"<span class=kind>{e(h['kind'])}</span> "
                    f"<span class=date>{short(day(h['day']))}</span><h3>{e(h['head'])}</h3><p>{e(h['body'])}</p></div>")
         out.append("<ul class=heads>")
         for h in heads[1:]:
@@ -687,15 +796,16 @@ def render(news):
         for r in d["rows"]:
             gb = "&ndash;" if r["gb"] == 0 else f"{r['gb']:g}"
             cls = " class=mine" if r["team"] == news["user"] else ""
-            out.append(f"<tr{cls}><td>{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
+            out.append(f"<tr{cls}><td>{lg(r['team'])}{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
                        f"<td>{r['pct']:.3f}".replace("0.", ".", 1) + f"</td><td>{gb}</td><td>{r['last10']}</td>"
                        f"<td>{r['streak']}</td></tr>")
         out.append("</table>")
-    for lg, rows in ([] if news["postseason"] else sorted(news["wildcard"].items())):
-        out.append(f"<table><tr><th>{'AL' if lg == 0 else 'NL'} Wild Card</th><th>W</th><th>L</th><th>GB</th></tr>")
+    for league, rows in ([] if news["postseason"] else sorted(news["wildcard"].items())):
+        out.append(f"<table><tr><th>{'AL' if league == 0 else 'NL'} Wild Card</th><th>W</th><th>L</th><th>GB</th></tr>")
         for r in rows[:5]:
             gb = "&ndash;" if r["wcgb"] == 0 else f"{r['wcgb']:g}"
-            out.append(f"<tr><td>{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td><td>{gb}</td></tr>")
+            out.append(f"<tr><td>{lg(r['team'])}{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
+                       f"<td>{gb}</td></tr>")
         out.append("</table>")
     if news["upcoming"]:
         out.append(f"<h2 id=matchups>{'Postseason' if news['postseason'] else 'Next up'}: "
@@ -704,12 +814,13 @@ def render(news):
             a, h = g["away"], g["home"]
             ra, rh = news_record(news, a), news_record(news, h)
             rec = "" if news["postseason"] else " (%s)"
-            out.append(f"<div class=match><b>{e(db.club(a))}</b>{rec and rec % ra} at "
-                       f"<b>{e(db.club(h))}</b>{rec and rec % rh}</div>")
+            out.append(f"<div class=match>{lg(a)}<b>{e(db.club(a))}</b>{rec and rec % ra} at "
+                       f"{lg(h)}<b>{e(db.club(h))}</b>{rec and rec % rh}</div>")
     out.append("</aside></main>")
     out.append("<footer>Made by the MVP05-Plus Launcher from your save. Names and teams are read from your own game. "
                "Nothing in your save is changed.</footer></div></body></html>")
-    return "".join(out)
+    logos = "".join(f".{c}{{background-image:url({u})}}" for v in used.values() if v for c, u in [v])
+    return "".join(out).replace("</style>", logos + "</style>", 1)
 
 
 def news_record(news, t):

@@ -12,7 +12,7 @@ missing is skipped:
     gc_roster.gci   gc_dyn.gci   gc_own.gci                       GameCube .gci files from Dolphin
     mvp06_ps2.psu   mvp06_xb.dat                                  MVP 06 saves (must be refused)
     xb_dyn_played.dat   database.big                              a dynasty some way into its season, and the
-                                                                  game's database (League News)
+    feeng.loc   logos.big                                         game's database, text and logos (League News)
 """
 import contextlib
 import io
@@ -242,8 +242,19 @@ def news(k, **want):
     os.makedirs(os.path.join(root, "assets", "data", "database"))
     with open(os.path.join(root, "assets", "data", "database", "database.big"), "wb") as f:
         f.write(F["database"])
-    n = N.build(N.read_save(F[k]), N.Database(root))
+    if "feeng" in F and "logos" in F:
+        os.makedirs(os.path.join(root, "assets", "data", "frontend"))
+        with open(os.path.join(root, "assets", "data", "feeng.loc"), "wb") as f:
+            f.write(F["feeng"])
+        with open(os.path.join(root, "assets", "data", "frontend", "logos.big"), "wb") as f:
+            f.write(F["logos"])
+    db = N.Database(root)
+    n = N.build(N.read_save(F[k]), db)
     page = N.render(n)
+    if "feeng" in F and "logos" in F:
+        assert db.injury(41) == "a torn rotator cuff" and db.injury(49) == "suspension", "injury names"
+        assert db.logo(db.franchises[7]).startswith("data:image/png;base64,"), "no logo"
+        assert "lg7" in page or not n["results"], "the logos aren't in the page"
     shutil.rmtree(root)
     assert len(n["divisions"]) == 6 and sum(len(d["rows"]) for d in n["divisions"]) == 30
     assert "<html" in page and "Baseball Today" in page
