@@ -196,6 +196,19 @@ def set_launcher_option(root, key, value):
         json.dump(data, f, indent=2)
 
 
+def remembered_dir(root, key):
+    """{initialdir: the folder last chosen for key} for a file dialog, when it's still there."""
+    d = launcher_option(root, key)
+    return {"initialdir": d} if isinstance(d, str) and os.path.isdir(d) else {}
+
+
+def remember_dir(root, key, path):
+    try:
+        set_launcher_option(root, key, os.path.dirname(os.path.abspath(path)))
+    except OSError:
+        pass
+
+
 def reshuffle(root):
     """The shuffled 162-game schedule dealt anew before the game starts, if it's the one chosen. A season already
     under way keeps the schedule it started with, so this only changes seasons still to come."""
@@ -1063,8 +1076,10 @@ def import_tool(frm, root, tk, ttk, start=None):
 
     def pick():
         p = filedialog.askopenfilename(parent=frm, title="A save from another MVP 2005", filetypes=[
-            ("MVP 2005 saves", "*.gci *.raw *.psu *.ps2 *.sav *.dat"), ("All files", "*.*")])
+            ("MVP 2005 saves", "*.gci *.raw *.psu *.ps2 *.sav *.dat"), ("All files", "*.*")],
+            **remembered_dir(root, "import_from"))
         if p:
+            remember_dir(root, "import_from", p)
             use(p)
 
     def use(p):
@@ -1322,11 +1337,14 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
                f"\n\nThe {to} keeps each player's last 6 seasons of history, so older seasons are left out.")),
             parent=frm):
         return
+    game = os.path.abspath(os.path.join(folder, *[os.pardir] * 5))  # (hdd/E/UDATA/<title>/<save>)
     p = filedialog.askopenfilename(parent=frm, title=f"One of your {to} {mode} saves", filetypes=[
         ("GameCube saves and memory cards", "*.gci *.raw") if gc else ("PC saves", "*.sav") if to == "PC" else
-        ("PS2 saves and memory cards", "*.psu *.ps2 *.sav"), ("All files", "*.*")])
+        ("PS2 saves and memory cards", "*.psu *.ps2 *.sav"), ("All files", "*.*")],
+        **remembered_dir(game, f"export_from_{to}"))
     if not p:
         return
+    remember_dir(game, f"export_from_{to}", p)
     try:
         with open(p, "rb") as f:
             base = f.read()
@@ -1394,7 +1412,7 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
             if on_card:  # back onto a copy of the card, in that save's place
                 out, ext = PC.Card(card).replace_file(on_card[0], on_card[1], out), ".ps2"
     except Exception as e:
-        log_failure(os.path.abspath(os.path.join(folder, *[os.pardir] * 5)),  # (hdd/E/UDATA/<title>/<save>)
+        log_failure(game,
                     f"export of \"{name}\" to the {to} built on {os.path.basename(p)}", e)
         messagebox.showerror(title, f"Nothing was written: {e}.\n\n(Written to MVP05-Plus-Launcher.log beside "
                                     "MVP05.exe too.)", parent=frm)
