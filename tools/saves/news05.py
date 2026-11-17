@@ -186,8 +186,19 @@ class Database:
                     w, h = struct.unpack_from("<HH", u, o + 4)
                     if u[o] == 0x61:
                         buf = io.BytesIO()
-                        Image.frombytes("RGBA", (w, h), _dxt3(u[o + 16:], w, h)).save(buf, "PNG", optimize=True)
-                        url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+                        im = Image.frombytes("RGBA", (w, h), _dxt3(u[o + 16:], w, h))
+                        if big:  # (the game's 128 pixels, resampled to 192 so the browser shrinks it, not stretches)
+                            im = im.resize((w * 3 // 2, h * 3 // 2), Image.LANCZOS)
+                        kind = "png"
+                        if big:  # (WebP keeps the page small; PNG when this Pillow can't write it)
+                            try:
+                                im.save(buf, "WEBP", quality=90, method=6)
+                                kind = "webp"
+                            except (OSError, KeyError, ValueError):
+                                buf = io.BytesIO()
+                        if kind == "png":
+                            im.save(buf, "PNG", optimize=True)
+                        url = f"data:image/{kind};base64," + base64.b64encode(buf.getvalue()).decode()
                     break
         except Exception:  # (no logos, or a picture this doesn't read: the page goes without)
             url = ""
@@ -1063,7 +1074,7 @@ a.score{display:block;color:#000;text-decoration:none}a.score:hover{border-color
 .career td,.career th{text-align:right}.career td:nth-child(-n+2),.career th:nth-child(-n+2){text-align:left}
 .career .tot td{font-weight:bold;border-top:2px solid #999}
 .teampage .mb{overflow-x:auto}.teampage .back{display:inline-block;margin:2px 0 8px;font-weight:bold}
-.thead{display:flex;gap:14px;align-items:center}.thead .lgb{float:none;margin:0}
+.thead{display:flex;gap:14px;align-items:center}.thead .lgb{float:none;margin:0;flex:none}
 .thead h1{font:bold 24px Arial,Helvetica,sans-serif;color:#006;margin:0 0 4px}.thead p{margin:2px 0}
 .roster td:nth-child(n+3),.roster th:nth-child(n+3){text-align:right}.roster{margin-bottom:8px}
 .roster td:nth-child(2),.roster th:nth-child(2){text-align:left;width:40%}
@@ -1097,7 +1108,7 @@ a.score{display:block;color:#000;text-decoration:none}a.score:hover{border-color
 .mb{padding:6px 7px}
 .pair{display:flex;gap:6px}.pair>.mod{flex:1;min-width:0}
 .lg{display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:-4px;background:center/contain no-repeat}
-.lgb{float:left;width:110px;height:110px;margin:2px 10px 4px 0;background:center/contain no-repeat}
+.lgb{float:left;width:100px;height:100px;margin:2px 10px 4px 0;background:center/contain no-repeat}
 .kind{font:bold 9px Tahoma,Arial,sans-serif;color:#c00;text-transform:uppercase}
 .date{color:#666;font-size:10px}
 .lead h1{font:bold 19px/1.15 Arial,Helvetica,sans-serif;color:#006;margin:3px 0 5px}
