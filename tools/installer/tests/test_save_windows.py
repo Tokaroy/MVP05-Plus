@@ -180,16 +180,16 @@ if "xb_dyn.dat" in folders:
         S5.new_save(root, work, open(src, "rb").read(), n)
     have = lambda: sorted(x["name"] for x in S5.in_game(root, "Dynasty"))
     four = have()
-    install.put_away(MagicMock(), root, [x for x in S5.list_saves(root) if x["name"] == "LIBA"][0]["folder"], "LIBA",
-                     lambda: None)
+    install.set_active(MagicMock(), root, [x for x in S5.list_saves(root) if x["name"] == "LIBA"][0]["folder"], False,
+                       MagicMock(), MagicMock(), lambda: None)  # unticked
     S5.new_save(root, work, open(src, "rb").read(), "LIBE")
     lib = [x for x in S5.list_library(root) if x["name"] == "LIBA"][0]["folder"]
     install.choose_one = lambda frm, tk, ttk, title, text, options: [i for i, o in enumerate(options)
                                                                      if o.startswith("LIBE")][0]
-    install.bring_back(MagicMock(), root, lib, MagicMock(), MagicMock(), lambda: None)
+    install.set_active(MagicMock(), root, lib, True, MagicMock(), MagicMock(), lambda: None)  # ticked: swaps LIBE out
     now, put = have(), [x["name"] for x in S5.list_library(root)]
     good = four == ["LIBA", "LIBB", "LIBC", "LIBD"] and "LIBA" in now and "LIBE" not in now and "LIBE" in put
-    print(f"{'ok ' if good else 'BAD'} library: put away, then back in exchange for another | game {now}, library {put}")
+    print(f"{'ok ' if good else 'BAD'} Active box: untick a dynasty, tick it again with four in | game {now}, library {put}")
     if not good:
         BAD.append("save library")
 
