@@ -196,10 +196,27 @@ def set_launcher_option(root, key, value):
         json.dump(data, f, indent=2)
 
 
-def remembered_dir(root, key):
-    """{initialdir: the folder last chosen for key} for a file dialog, when it's still there."""
+def emulator_dirs(to):
+    """Where Dolphin keeps its GameCube cards (.raw, and .gci folders) or PCSX2 its memory cards, that are there."""
+    home = os.path.expanduser("~")
+    docs = os.path.join(home, "Documents")
+    appdata = os.environ.get("APPDATA", os.path.join(home, "AppData", "Roaming"))
+    out = {"GameCube": [os.path.join(appdata, "Dolphin Emulator", "GC"), os.path.join(docs, "Dolphin Emulator", "GC"),
+                        os.path.join(home, ".local", "share", "dolphin-emu", "GC"),
+                        os.path.join(home, ".var", "app", "org.DolphinEmu.dolphin-emu", "data", "dolphin-emu", "GC")],
+           "PS2": [os.path.join(docs, "PCSX2", "memcards"), os.path.join(home, ".config", "PCSX2", "memcards"),
+                   os.path.join(home, ".var", "app", "net.pcsx2.PCSX2", "config", "PCSX2", "memcards")]}.get(to, [])
+    return [d for d in out if os.path.isdir(d)]
+
+
+def remembered_dir(root, key, to=None):
+    """{initialdir: the folder last chosen for key} for a file dialog, when it's still there; else the emulator's
+    own folder for that console, when there is one."""
     d = launcher_option(root, key)
-    return {"initialdir": d} if isinstance(d, str) and os.path.isdir(d) else {}
+    if isinstance(d, str) and os.path.isdir(d):
+        return {"initialdir": d}
+    found = emulator_dirs(to) if to else []
+    return {"initialdir": found[0]} if found else {}
 
 
 def remember_dir(root, key, path):
@@ -1341,7 +1358,7 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
     p = filedialog.askopenfilename(parent=frm, title=f"One of your {to} {mode} saves", filetypes=[
         ("GameCube saves and memory cards", "*.gci *.raw") if gc else ("PC saves", "*.sav") if to == "PC" else
         ("PS2 saves and memory cards", "*.psu *.ps2 *.sav"), ("All files", "*.*")],
-        **remembered_dir(game, f"export_from_{to}"))
+        **remembered_dir(game, f"export_from_{to}", to))
     if not p:
         return
     remember_dir(game, f"export_from_{to}", p)
