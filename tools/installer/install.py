@@ -967,7 +967,8 @@ def choose_card_save(parent, tk, ttk, found):
 def import_tool(frm, root, tk, ttk, start=None):
     """Import a save: a save from another MVP 2005 written into one of your saves here (backed up first), so it
     plays in MVP05-Plus. Rosters from the PS2, PC or another Xbox (Mad Dog's conversion, from his MVP Roster
-    Toolkit); dynasties from the GameCube (spy_jam's converter), the PS2 and the PC (both of theirs)."""
+    Toolkit); dynasties and owner modes from the GameCube (spy_jam's converter), the PS2 and the PC; any of them
+    from a PCSX2 or Dolphin memory card."""
     import dynasty05 as DY
     import gccard as GCC
     import gcroster05 as GR
@@ -986,7 +987,7 @@ def import_tool(frm, root, tk, ttk, start=None):
         "\u2022  rosters, a dynasty or an owner mode from the GameCube (a Dolphin memory card .raw, or a .gci)\n"
         "\u2022  rosters, a dynasty or an owner mode from the PC (.sav)\n"
         "\u2022  rosters, a dynasty or an owner mode from another Xbox (its data.dat)\n"
-        "The save goes into one of your own saves of the same kind, which is backed up first. To take a dynasty the "
+        "The save goes into one of your own saves of the same kind, which is backed up first. To send a save the "
         "other way, to the GameCube, the PS2 or the PC, pick it in your saves and Export.")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 12))
 
@@ -1266,9 +1267,9 @@ def log_failure(root, what, err):
 
 
 def export_dynasty(frm, folder, name, to, tk, ttk):
-    """A dynasty or owner mode of yours as a GameCube .gci (spy_jam's converter), a PS2 save or a PC .sav (to:
-    "GameCube", "PS2" or "PC"), built on one of your own saves of that kind from there: it gives the new file its name
-    and its place."""
+    """Rosters, a dynasty or an owner mode of yours as a GameCube .gci or Dolphin card (spy_jam's converter), a PS2
+    save or PCSX2 card, or a PC .sav (to: "GameCube", "PS2" or "PC"), built on one of your own saves of that kind from
+    there: it gives the new file its name and its place."""
     import dynasty05 as DY
     import gccard as GCC
     import gcroster05 as GR
