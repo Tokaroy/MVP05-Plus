@@ -582,12 +582,14 @@ void RunToolRequests(X86Context& ctx) {
         // then 0x1ADF50 reads from address 0 on purpose: the crash on opening the Tools menu outside a dynasty.
         uint32_t users = kernel::R32(db + 8), team = 0xFFFFFFFFu;
         if (InHeap(users, 0x24) && kernel::R32(users) >= 1 && kernel::R32(users) <= 64) team = kernel::R32(users + 4 + 0x1C);
-        if (step > 0 && team < 64 && InHeap(kernel::R32(db + 0x44), 0x28)) {  // (and the table the accessors read)
+        // (the team is its key, a 32-bit id the accessors look up in org.dat's table, at [db+0x44]; an earlier
+        // check took it for a small index, so the budget never showed)
+        if (step > 0 && team != 0 && team != 0xFFFFFFFFu && InHeap(kernel::R32(db + 0x44), 0x28)) {
             if (tools::g_budget_request.load() == 1) {
                 int steps = std::clamp(int((tools::g_budget_want.load() - add) / step + 0.5f), 0, 0x7FFF);
                 ctx.ecx = db;
                 kernel::CallGuest(ctx, 0x1ACCE0, {0x15, team, uint32_t(steps)});
-                LOGR("dynasty: team %u's payroll budget set to $%.1f million", team, (steps * step + add) / 1e6f);
+                LOGR("dynasty: team %08X's payroll budget set to $%.1f million", team, (steps * step + add) / 1e6f);
             }
             ctx.ecx = db;
             uint32_t steps = kernel::CallGuest(ctx, 0x1ACCB0, {0x15, team});
