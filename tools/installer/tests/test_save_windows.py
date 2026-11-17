@@ -81,7 +81,7 @@ BAD = []
 
 # imports: (what, file, whether it should import)
 imports = [(n, sample(n), not n.startswith(("mvp06", "README"))) for n in sorted(os.listdir(SAMPLES))
-           if not n.startswith("xb_")] + [("an Xbox save's folder", folders.get("xb_dyn.dat"), True),
+           if not n.startswith(("xb_", "database"))] + [("an Xbox save's folder", folders.get("xb_dyn.dat"), True),
                                           ("Dolphin card", card, True), ("a zip of saves", packed, True),
                                           ("a folder with a save in it", loose, True),
                                           ("not a save", os.path.join(REPO, "README.md"), False),

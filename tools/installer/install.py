@@ -1621,6 +1621,35 @@ def delete_save(frm, root, folder, name, done):
     done()
 
 
+def league_news(frm, root, folder):
+    """The league's news from a dynasty or owner mode, as a page in the browser (news05; nothing written to the
+    save): saved in "league news" beside MVP05.exe, one page a save, made again each time."""
+    import news05 as N
+    import webbrowser
+    from tkinter import messagebox
+    try:
+        with open(os.path.join(folder, "data.dat"), "rb") as f:
+            data = f.read()
+        page = N.make(root, data)
+        name = "".join(c if c.isalnum() or c in " -_" else "_" for c in N.read_save(data)["name"]).strip() or "save"
+        out = os.path.join(root, "league news", f"{name}.html")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(page)
+    except (N.NewsError, OSError) as e:
+        messagebox.showinfo("League News", f"No news from that save: {e}.", parent=frm)
+        return
+    except Exception as e:
+        log_failure(root, "League News", e)
+        messagebox.showerror("League News", f"Something went wrong: {e}. It's written to MVP05-Plus-Launcher.log.",
+                             parent=frm)
+        return
+    if os.name == "nt":
+        os.startfile(out)
+    else:
+        webbrowser.open("file://" + out)
+
+
 def share_save(frm, folder, name):
     """One of your saves as a zip (its folder as the game keeps it), for another MVP05-Plus's Import a save, or an
     Xbox's save tools."""
@@ -1678,6 +1707,7 @@ def current_saves_tab(frm, root, tk, ttk):
     folders = {}
     right_click_menu(tree, lambda iid: [
         ("Open folder", lambda: open_in_explorer(folders[iid])),
+        ("League News", lambda: league_news(frm, root, folders[iid])),
         ("Export to GameCube\u2026",
          lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "GameCube", tk, ttk)),
         ("Export to PS2\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PS2", tk, ttk)),
@@ -1693,6 +1723,15 @@ def current_saves_tab(frm, root, tk, ttk):
         side="left")
     export_btn = ttk.Button(bar, text="Export\u2026", command=lambda: export_menu())
     export_btn.pack(side="left", padx=(6, 0))
+
+    def news_for_pick():
+        sel = tree.selection()
+        if not sel:
+            from tkinter import messagebox
+            messagebox.showinfo("League News", "Pick a dynasty or owner mode in the list first.", parent=frm)
+            return
+        league_news(frm, root, folders[sel[0]])
+    ttk.Button(bar, text="League News", command=news_for_pick).pack(side="left", padx=(6, 0))
 
     def export_menu():
         """The save picked in the list, to another console: a menu under the button, as the right-click one."""

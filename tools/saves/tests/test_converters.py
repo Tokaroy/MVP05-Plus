@@ -11,6 +11,8 @@ missing is skipped:
     ps2_roster.psu  ps2_dyn.psu  ps2_own.psu   ps2_card.ps2       PS2 saves and a PCSX2 card with rosters on it
     gc_roster.gci   gc_dyn.gci   gc_own.gci                       GameCube .gci files from Dolphin
     mvp06_ps2.psu   mvp06_xb.dat                                  MVP 06 saves (must be refused)
+    xb_dyn_played.dat   database.big                              a dynasty some way into its season, and the
+                                                                  game's database (League News)
 """
 import contextlib
 import io
@@ -205,6 +207,52 @@ def standings(k):
     return 1
 t('standings read from a dynasty', lambda: standings('xb_dyn'))
 t('standings read from an owner mode', lambda: standings('xb_own'))
+# League News: the news from a dynasty in its season, a fresh owner mode and one in the postseason
+def news(k, **want):
+    import shutil
+    import tempfile
+    import news05 as N
+    root = tempfile.mkdtemp()
+    os.makedirs(os.path.join(root, "assets", "data", "database"))
+    with open(os.path.join(root, "assets", "data", "database", "database.big"), "wb") as f:
+        f.write(F["database"])
+    n = N.build(N.read_save(F[k]), N.Database(root))
+    page = N.render(n)
+    shutil.rmtree(root)
+    assert len(n["divisions"]) == 6 and sum(len(d["rows"]) for d in n["divisions"]) == 30
+    assert "<html" in page and "Baseball Today" in page
+    for key, v in want.items():
+        got = len(n[key]) if isinstance(n[key], list) else n[key]
+        assert (got >= v) if isinstance(v, int) and not isinstance(v, bool) else got == v, (key, got, v)
+    return 1
+t('league news: a dynasty in its season', lambda: news('xb_dyn_played', headlines=8, results=1, upcoming=1,
+                                                         games_played=17, postseason=False))
+t('league news: a new owner mode', lambda: news('xb_own', postseason=False))
+t('league news: the postseason', lambda: news('xb_dyn', postseason=True))
+def news_standings():
+    """The standings (two halves summed) agree with the schedule's results, team by team."""
+    import collections
+    import shutil
+    import tempfile
+    import news05 as N
+    root = tempfile.mkdtemp()
+    os.makedirs(os.path.join(root, "assets", "data", "database"))
+    with open(os.path.join(root, "assets", "data", "database", "database.big"), "wb") as f:
+        f.write(F["database"])
+    db = N.Database(root)
+    shutil.rmtree(root)
+    s = N.read_save(F['xb_dyn_played'])
+    won = collections.Counter()
+    lost = collections.Counter()
+    for g in s["games"]:
+        if g["played"]:
+            w, l = (g["away"], g["home"]) if g["ar"] > g["hr"] else (g["home"], g["away"])
+            won[w] += 1
+            lost[l] += 1
+    for i, t in enumerate(db.franchises):
+        assert s["records"][i] == (won[t], lost[t]), (db.short(t), s["records"][i], won[t], lost[t])
+    return 1
+t('league news: standings agree with the results', news_standings)
 # wrong kinds: each must be refused with a message, never a crash
 wrong = [
     ('owner into dynasty (gc)', lambda: DY.gc_to_xbox(F['gc_own'], F['xb_dyn'])),

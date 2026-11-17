@@ -230,9 +230,12 @@ def _standings_at(payload):
     if q < 0:
         raise SaveError("couldn't find the standings in this save (no post-roster table)")
     t = q + 4
-    recs = [(payload[t + 4 * i], payload[t + 4 * i + 1]) for i in range(30)]
-    if any(payload[t + 4 * i + 2] or payload[t + 4 * i + 3] for i in range(30)):
-        raise SaveError("the standings table isn't laid out as expected ([W][L][0][0] per team); nothing written")
+    # [W][L] before the All-Star break and [W][L] after it (0-0 until then): the record is the sum, as the in-game
+    # projector (src/common/standings.cpp, format B) reads it
+    recs = [(payload[t + 4 * i] + payload[t + 4 * i + 2], payload[t + 4 * i + 1] + payload[t + 4 * i + 3])
+            for i in range(30)]
+    if any(w > 162 or l > 162 for w, l in recs):
+        raise SaveError("the standings table isn't laid out as expected; nothing written")
     return t, recs
 
 
@@ -289,7 +292,11 @@ def patch_standings(root, folder, games=162, say=print):
         raise SaveError(f"every team already has {games} games: this save's standings are already projected")
     for i, (w, l) in enumerate(recs):
         pw, pl = project(w, l, games)
-        payload[t + 4 * i], payload[t + 4 * i + 1] = pw, pl
+        if payload[t + 4 * i + 2] or payload[t + 4 * i + 3]:  # past the break: half the season in each, as in-game
+            w1, l1 = pw // 2, pl // 2
+            payload[t + 4 * i:t + 4 * i + 4] = bytes((w1, l1, pw - w1, pl - l1))
+        else:
+            payload[t + 4 * i], payload[t + 4 * i + 1] = pw, pl
     out = C.build_xbox(xf, dict(name=m["name"], typ=m["typ"], flags=m["flags"], payload=bytes(payload)))
     if not C.verify_xbox(out):
         raise SaveError("the patched save didn't pass its signature check; nothing written")
