@@ -1177,9 +1177,11 @@ def import_tool(frm, root, tk, ttk, start=None):
                 os.replace(dat + ".new", dat)
                 msg = (f"Done. Load \"{s['name']}\" in the game. The old save is in Saves > Backups.",
                        "#1a7f37")
-            except (OSError, RO.RosterError, DY.DynastyError, GR.GcRosterError, PD.Ps2DynastyError,
-                    PCD.PcDynastyError, OW.OwnerError) as e:
-                msg = (f"Nothing was changed: {e}.", "#a33")
+            except Exception as e:
+                log_failure(root, f"import of {picked.get('what')} ({os.path.basename(picked['path'])}) into "
+                                  f"\"{s['name']}\"", e)
+                msg = (f"Nothing was changed: {e}. (Written to MVP05-Plus-Launcher.log beside MVP05.exe too.)",
+                       "#a33")
             frm.after(0, lambda: (say(*msg), refresh()))
         threading.Thread(target=work, daemon=True).start()
 
@@ -1194,6 +1196,17 @@ def import_tool(frm, root, tk, ttk, start=None):
         use(start)
     refresh.use = use
     return refresh
+
+
+def log_failure(root, what, err):
+    """A failed save conversion, written to MVP05-Plus-Launcher.log beside the exe with its traceback, so it can be
+    sent on later (a message on screen is easily lost)."""
+    try:
+        import datetime
+        with open(os.path.join(root, "MVP05-Plus-Launcher.log"), "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {what}: {err}\n{traceback.format_exc()}\n")
+    except OSError:
+        pass
 
 
 def export_dynasty(frm, folder, name, to, tk, ttk):
@@ -1287,8 +1300,11 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
                 base = PC.to_psu(which[0], PC.Card(base).saves()[which[0]])
                 stem = f"{which[0]} (from MVP05-Plus)"
             ext, out = (OW.xbox_to_ps2 if owner else PD.to_ps2)(data, base)
-    except errors as e:
-        messagebox.showerror(title, f"Nothing was written: {e}.", parent=frm)
+    except Exception as e:
+        log_failure(os.path.abspath(os.path.join(folder, *[os.pardir] * 5)),  # (hdd/E/UDATA/<title>/<save>)
+                    f"export of \"{name}\" to the {to} built on {os.path.basename(p)}", e)
+        messagebox.showerror(title, f"Nothing was written: {e}.\n\n(Written to MVP05-Plus-Launcher.log beside "
+                                    "MVP05.exe too.)", parent=frm)
         return
     dest = filedialog.asksaveasfilename(parent=frm, title=f"Save the {to} {mode} as", initialdir=os.path.dirname(p),
                                         initialfile=stem + ext, defaultextension=ext,

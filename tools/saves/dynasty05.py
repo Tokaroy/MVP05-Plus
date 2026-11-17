@@ -71,7 +71,7 @@ def read_gc(data):
         if not good:
             raise DynastyError("the GameCube save's checksums don't match: it's damaged or edited")
     if meta.get("typ") != "Dynasty":
-        raise DynastyError(f"that's a {meta.get('typ') or 'different'} save: only dynasties convert")
+        raise DynastyError(f"that's {'an owner mode' if meta.get('typ') == 'Owner Mode' else 'a ' + (meta.get('typ') or 'different')} save: only dynasties convert here")
     return meta
 
 
@@ -84,7 +84,7 @@ def read_xbox(data):
             raise DynastyError(f"not an Xbox MVP 2005 save this reads ({e})")
         meta["verified"] = bool(C.verify_xbox(data))
     if meta.get("typ") != "Dynasty":
-        raise DynastyError(f"that's a {meta.get('typ') or 'different'} save: only dynasties convert")
+        raise DynastyError(f"that's {'an owner mode' if meta.get('typ') == 'Owner Mode' else 'a ' + (meta.get('typ') or 'different')} save: only dynasties convert here")
     return meta
 
 
