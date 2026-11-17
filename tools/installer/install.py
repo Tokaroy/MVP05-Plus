@@ -930,6 +930,12 @@ def import_window(parent, root, tk, ttk, on_close=None, start=None):
     win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
 
 
+def gc_kind(file_name):
+    """What an MVP 2005 GameCube save is, by its file name on the card (Rosters_..., Owner Mode_..., Dynasty_...)."""
+    return "rosters" if file_name.startswith("Rosters") else "owner mode" if file_name.startswith("Owner") else \
+        "dynasty" if file_name.startswith("Dynasty") else "save"
+
+
 def choose_card_save(parent, tk, ttk, found):
     """One of a memory card's MVP 2005 saves [(folder, file, what, save)], picked in a small window; None if
     closed."""
@@ -962,6 +968,7 @@ def import_tool(frm, root, tk, ttk, start=None):
     plays in MVP05-Plus. Rosters from the PS2, PC or another Xbox (Mad Dog's conversion, from his MVP Roster
     Toolkit); dynasties from the GameCube (spy_jam's converter), the PS2 and the PC (both of theirs)."""
     import dynasty05 as DY
+    import gccard as GCC
     import gcroster05 as GR
     import owner05 as OW
     import ps2card as PC
@@ -975,7 +982,7 @@ def import_tool(frm, root, tk, ttk, start=None):
     ttk.Label(frm, foreground="#666", wraplength=540, justify="left", text=(
         "Brings a save from another version of MVP 2005 into this one. It works with:\n"
         "\u2022  rosters, a dynasty or an owner mode from the PS2 (a .psu, a PCSX2 memory card .ps2, or the .sav file from a save)\n"
-        "\u2022  rosters, a dynasty or an owner mode from the GameCube (the .gci file Dolphin exports)\n"
+        "\u2022  rosters, a dynasty or an owner mode from the GameCube (a Dolphin memory card .raw, or a .gci)\n"
         "\u2022  rosters, a dynasty or an owner mode from the PC (.sav)\n"
         "\u2022  rosters, a dynasty or an owner mode from another Xbox (its data.dat)\n"
         "The save goes into one of your own saves of the same kind, which is backed up first. To take a dynasty the "
@@ -1054,7 +1061,7 @@ def import_tool(frm, root, tk, ttk, start=None):
 
     def pick():
         p = filedialog.askopenfilename(parent=frm, title="A save from another MVP 2005", filetypes=[
-            ("MVP 2005 saves", "*.gci *.psu *.ps2 *.sav *.dat"), ("All files", "*.*")])
+            ("MVP 2005 saves", "*.gci *.raw *.psu *.ps2 *.sav *.dat"), ("All files", "*.*")])
         if p:
             use(p)
 
@@ -1067,6 +1074,15 @@ def import_tool(frm, root, tk, ttk, start=None):
         try:
             with open(p, "rb") as f:
                 data = f.read()
+            on_card = ""
+            if GCC.is_card(data):  # a Dolphin GameCube memory card: one of its MVP 2005 saves, as a .gci
+                found = [("GameCube card", n, gc_kind(n), g) for n, g in GCC.Card(data).files().items()]
+                if not found:
+                    raise GCC.GcCardError("that GameCube memory card has no MVP 2005 save on it")
+                which = found[0] if len(found) == 1 else choose_card_save(frm, tk, ttk, found)
+                if not which:
+                    return
+                data, on_card = which[3], f" ({which[1]} on the card)"
             if data[:4] == b"GV4E" and b"Rosters" in data[:0x40]:
                 GR.read_gc(data)
                 picked.update(kind="roster", gc_roster=data, what="GameCube rosters")
@@ -1131,9 +1147,10 @@ def import_tool(frm, root, tk, ttk, start=None):
                                          "from the PS2, GameCube, PC or Xbox")
                 picked.update(kind="roster", save=save, what=f"{save.platform} rosters")
         except (OSError, RO.RosterError, DY.DynastyError, PC.CardError, GR.GcRosterError, PD.Ps2DynastyError,
-                PCD.PcDynastyError, OW.OwnerError) as e:
+                PCD.PcDynastyError, OW.OwnerError, GCC.GcCardError) as e:
             src_text.configure(text=f"{os.path.basename(p)}: can't be used ({e})", foreground="#a33")
             return refresh()
+        picked["what"] += on_card
         picked["path"] = p
         src_text.configure(text=f"{os.path.basename(p)}: {picked['what']} \u2713", foreground="#1a7f37")
         refresh()
@@ -1220,6 +1237,7 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
     "GameCube", "PS2" or "PC"), built on one of your own saves of that kind from there: it gives the new file its name
     and its place."""
     import dynasty05 as DY
+    import gccard as GCC
     import gcroster05 as GR
     import owner05 as OW
     import pcdynasty05 as PCD
@@ -1229,7 +1247,7 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
     from tkinter import filedialog, messagebox
     title = f"Export to {to}"
     errors = (OSError, DY.DynastyError, PD.Ps2DynastyError, RO.RosterError, PC.CardError, PCD.PcDynastyError,
-              OW.OwnerError, GR.GcRosterError)
+              OW.OwnerError, GR.GcRosterError, GCC.GcCardError)
     try:
         with open(os.path.join(folder, "data.dat"), "rb") as f:
             data = f.read()
@@ -1252,7 +1270,9 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
     gc = to == "GameCube"
     how = (f"If you don't have one: in the GameCube game, {start}, then in Dolphin open "
            "Tools > Memory Card Manager and export that save as a .gci file.\n\n"
-           "Choose that .gci next. It isn't changed: you get a new file to import with the Memory Card Manager."
+           "Choose that .gci next, or your Dolphin memory card (.raw, in Dolphin's GC folder). It isn't changed: "
+           "from a .gci you get a new .gci to import with the Memory Card Manager, from a card a copy of the card "
+           "with the save in it."
            if gc else
            f"If you don't have one: in the PC game, {start}. Choose that save next (a .sav, where the PC game keeps "
            "its saves).\n\n"
@@ -1269,13 +1289,24 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
             parent=frm):
         return
     p = filedialog.askopenfilename(parent=frm, title=f"One of your {to} {mode} saves", filetypes=[
-        ("GameCube saves", "*.gci") if gc else ("PC saves", "*.sav") if to == "PC" else
+        ("GameCube saves and memory cards", "*.gci *.raw") if gc else ("PC saves", "*.sav") if to == "PC" else
         ("PS2 saves and memory cards", "*.psu *.ps2 *.sav"), ("All files", "*.*")])
     if not p:
         return
     try:
         with open(p, "rb") as f:
             base = f.read()
+        gc_card = None
+        if gc and GCC.is_card(base):  # a Dolphin memory card: its save of this kind, and a copy of the card back
+            want = {"roster": "rosters"}.get(mode, mode)
+            found = [("GameCube card", n, gc_kind(n), g) for n, g in GCC.Card(base).files().items()
+                     if gc_kind(n) == want]
+            if not found:
+                raise GCC.GcCardError(f"that GameCube memory card has no MVP 2005 {mode} on it")
+            which = found[0] if len(found) == 1 else choose_card_save(frm, tk, ttk, found)
+            if not which:
+                return
+            gc_card, base = (base, which[1]), which[3]
         if base[:28] != PC.MAGIC:  # (a PS2 card's saves are looked through below)
             check = {("GameCube", "dynasty"): DY.read_gc, ("GameCube", "owner mode"): OW.read_gc,
                      ("GameCube", "roster"): GR.read_gc, ("PC", "dynasty"): PCD.read, ("PC", "owner mode"): OW.read_pc,
@@ -1290,6 +1321,9 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         if gc:
             fname, out = (OW.xbox_to_gc if owner else GR.xbox_to_gc if roster else DY.xbox_to_gc)(data, base)
             stem, ext = (fname[:-4] if fname.endswith(".gci") else fname) + " (from MVP05-Plus)", ".gci"
+            if gc_card:
+                out, ext = GCC.Card(gc_card[0]).replace(gc_card[1], out), ".raw"
+                stem = os.path.splitext(os.path.basename(p))[0] + " (from MVP05-Plus)"
         elif to == "PC":
             out, ext = (OW.xbox_to_pc if owner else RO.to_pc if roster else PCD.to_pc)(data, base), ".sav"
             stem = os.path.splitext(os.path.basename(p))[0]
@@ -1333,7 +1367,8 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         return
     dest = filedialog.asksaveasfilename(parent=frm, title=f"Save the {to} {mode} as", initialdir=os.path.dirname(p),
                                         initialfile=stem + ext, defaultextension=ext,
-                                        filetypes=[("PS2 memory cards" if ext == ".ps2" else f"{to} saves", "*" + ext)])
+                                        filetypes=[("PS2 memory cards" if ext == ".ps2" else "GameCube memory cards" if ext == ".raw" else
+                   f"{to} saves", "*" + ext)])
     if not dest:
         return
     if os.path.abspath(dest) == os.path.abspath(p) and not messagebox.askyesno(
@@ -1347,6 +1382,10 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         messagebox.showerror(title, f"Nothing was written: {e}.", parent=frm)
         return
     messagebox.showinfo(title, f"Saved {os.path.basename(dest)}.\n\n" + (
+        "It's a copy of your memory card with the save in place of the one it was built on (your card isn't "
+        "changed). In Dolphin: Config > GameCube, choose it as the card in Slot A (or put it in place of your card, "
+        "keeping a copy of that one). The rest of the card is as it was."
+        if ext == ".raw" else
         f"In Dolphin: Tools > Memory Card Manager > Import, and choose it. It takes the place of the GameCube {mode} "
         "it was built on, so delete that one from the card first if Dolphin says the save already exists."
         if gc else

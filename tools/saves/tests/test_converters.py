@@ -21,6 +21,7 @@ import traceback
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 import dynasty05 as DY
+import gccard as GCC
 import gcroster05 as GR
 import owner05 as OW
 import pcdynasty05 as PCD
@@ -41,7 +42,7 @@ if "gc_dyn" in F:
     F["truncated_gc"] = F["gc_dyn"][:500000]
 F["random"] = bytes((i * 2654435761 >> 13) & 255 for i in range(2239752))
 OK, BAD, SKIP = [], [], []
-KNOWN = (RO.RosterError, GR.GcRosterError, DY.DynastyError, PD.Ps2DynastyError, PCD.PcDynastyError, OW.OwnerError,
+KNOWN = (GCC.GcCardError, RO.RosterError, GR.GcRosterError, DY.DynastyError, PD.Ps2DynastyError, PCD.PcDynastyError, OW.OwnerError,
          PC.CardError, PO.PlayoffsError)
 
 
@@ -139,6 +140,40 @@ def card_roster_rt():
     assert PC.Card(card).saves() == {**c.saves(), folder: {**c.saves()[folder], name: sav}}, "the rest of the card changed"
     return same(RO.to_xbox(RO.read(PC.Card(card).saves()[folder][name]), F['xb_roster']), F['xb_roster'])
 t('xb rosters -> onto a ps2 memory card -> xb exact', card_roster_rt)
+def gc_card(gcis):
+    """A made-up 16 MB Dolphin card holding the .gci files, their blocks out of order (a real card's layout)."""
+    import random
+    import struct
+    B = GCC.BLOCK
+    card = bytearray(2048 * B)
+    struct.pack_into(">H", card, 0x22, 128)
+    free = list(range(5, 2048))
+    random.Random(1).shuffle(free)
+    dirb, bat = bytearray(b"\xff" * B), bytearray(B)
+    for i, g in enumerate(gcis):
+        n = struct.unpack_from(">H", g, 0x38)[0]
+        bl = [free.pop() for _ in range(n)]
+        e = bytearray(g[:64])
+        struct.pack_into(">H", e, 0x36, bl[0])
+        dirb[64 * i:64 * i + 64] = e
+        for k, b in enumerate(bl):
+            card[b * B:(b + 1) * B] = g[64 + k * B:64 + (k + 1) * B]
+            struct.pack_into(">H", bat, 0xA + 2 * (b - 5), bl[k + 1] if k + 1 < n else 0xFFFF)
+    struct.pack_into(">H", dirb, 0x1FFA, 7)
+    struct.pack_into(">H", bat, 4, 7)
+    card[2 * B:3 * B], card[3 * B:4 * B] = dirb, bat  # the newer directory in the backup's place, the table first
+    return bytes(card)
+def gc_card_rt():
+    card = gc_card([F['gc_roster'], F['gc_dyn'], F['gc_own']])
+    files = GCC.Card(card).files()
+    assert sorted(b[64:] for b in files.values()) == sorted(g[64:] for g in (F['gc_roster'], F['gc_dyn'], F['gc_own']))
+    ros = [k for k in files if k.startswith('Rosters')][0]
+    n, g = GR.xbox_to_gc(F['xb_roster'], files[ros])
+    out = GCC.Card(card).replace(ros, g)
+    after = GCC.Card(out).files()
+    assert all(after[k] == files[k] for k in files if k != ros), "the card's other saves changed"
+    return same(GR.to_xbox(after[ros], F['xb_roster']), F['xb_roster'])
+t('gamecube memory card: saves read, rosters written back in place', gc_card_rt)
 # wrong kinds: each must be refused with a message, never a crash
 wrong = [
     ('owner into dynasty (gc)', lambda: DY.gc_to_xbox(F['gc_own'], F['xb_dyn'])),
@@ -165,6 +200,7 @@ wrong = [
     ('random bytes as an xbox dynasty', lambda: DY.xbox_to_xbox(F['random'], F['xb_dyn'])),
     ('random bytes as rosters', lambda: RO.read(F['random'][:RO.XBOX_SAVE_SIZE])),
     ('random bytes as a ps2 card', lambda: PC.Card(F['random'][:8650752]).saves()),
+    ('random bytes as a gamecube card', lambda: GCC.Card(F['random'][:0x1000000]).files()),
 ]
 for n, fn in wrong: t(n, fn, expect_ok=False)
 print("PASS")
