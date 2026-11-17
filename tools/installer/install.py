@@ -1489,10 +1489,14 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
                 return
         if gc:
             fname, out = (OW.xbox_to_gc if owner else GR.xbox_to_gc if roster else DY.xbox_to_gc)(data, base)
-            stem, ext = (fname[:-4] if fname.endswith(".gci") else fname) + " (from MVP05-Plus)", ".gci"
             if gc_card:
                 out, ext = GCC.Card(gc_card[0]).replace(gc_card[1], out), ".raw"
                 stem = os.path.splitext(os.path.basename(p))[0] + " (from MVP05-Plus)"
+            else:  # a name of its own (<name>2), so it goes on the card beside the save it was built on
+                was = bytes(out[8:0x28]).split(b"\0")[0].decode("ascii", "replace")
+                was = was[was.rindex("_") + 1:-4] if "_" in was and was.endswith(".dat") else "SAVE"
+                fname, out = DY.gc_renamed(out, was[:9] + "2")
+                stem, ext = fname[:-4], ".gci"
         elif to == "PC":
             out, ext = (OW.xbox_to_pc if owner else RO.to_pc if roster else PCD.to_pc)(data, base), ".sav"
             # a name of its own, beside the save it's built on: the PC game names a save's file by its name
@@ -1556,8 +1560,8 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         "changed). In Dolphin: Config > GameCube, choose it as the card in Slot A (or put it in place of your card, "
         "keeping a copy of that one). The rest of the card is as it was."
         if ext == ".raw" else
-        f"In Dolphin: Tools > Memory Card Manager > Import, and choose it. It takes the place of the GameCube {mode} "
-        "it was built on, so delete that one from the card first if Dolphin says the save already exists."
+        f"In Dolphin: Tools > Memory Card Manager > Import, and choose it. It goes on the card beside the {mode} it "
+        "was built on, under a name of its own."
         if gc else
         f"Put it in the PC game's saves folder and load it there: it's called {PCD.pc_name(out)[0]} in the game. Keep "
         "the file's name: the PC game names a save's file by its name."

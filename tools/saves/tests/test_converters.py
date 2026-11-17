@@ -153,6 +153,26 @@ def gc_card_rt():
     assert all(after[k] == files[k] for k in files if k != ros), "the card's other saves changed"
     return same(GR.to_xbox(after[ros], F['xb_roster']), F['xb_roster'])
 t('gamecube memory card: saves read, rosters written back in place', gc_card_rt)
+# renamed saves: a GameCube .gci and a PC .sav as their games name them
+def gc_rename(k, reader):
+    g = F[k]
+    own = g[8:0x28].split(b"\0")[0].decode()
+    assert DY.gc_renamed(g, own[own.rindex("_") + 1:-4])[1] == g, "renamed to its own name, it isn't the same file"
+    fname, b = DY.gc_renamed(g, "RENAMED2")
+    r = reader(b)
+    assert (r[1] if isinstance(r, tuple) else r)["name"] == "RENAMED2" and "_RENAMED2.dat" in fname
+    return 1
+t('gc dynasty renamed', lambda: gc_rename('gc_dyn', DY.read_gc))
+t('gc owner mode renamed', lambda: gc_rename('gc_own', OW.read_gc))
+t('gc rosters renamed', lambda: gc_rename('gc_roster', GR.read_gc))
+def pc_rename(k, reader):
+    fname, b = PCD.pc_renamed(F[k], "RENAMED2")
+    reader(b)
+    assert PCD.pc_name(b)[0] == "RENAMED2" and fname.startswith("RENAMED2_")
+    return 1
+t('pc dynasty renamed', lambda: pc_rename('pc_dyn', PCD.read))
+t('pc owner mode renamed', lambda: pc_rename('pc_own', OW.read_pc))
+t('pc rosters renamed', lambda: pc_rename('pc_roster', RO.read))
 # the save tools: the payroll budget (and an owner's bank balance), standings
 def budget(k, bank=None):
     import shutil

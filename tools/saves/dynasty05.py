@@ -120,6 +120,33 @@ def read_xbox(data):
     return meta
 
 
+def gc_renamed(gci, name):
+    """A GameCube save (rosters, dynasty or owner mode) under a new name, as the GameCube game names one: its file
+    "<Type>_<name>.dat", its comment "<Kind>-<name>", the name in its header; checksums made again. (file name of the
+    .gci, bytes)."""
+    import struct
+    if not 1 <= len(name) <= 10 or not all(c.isascii() and (c.isalnum() or c == " ") for c in name):
+        raise DynastyError("a GameCube save's name is 1 to 10 letters, digits and spaces")
+    b = bytearray(gci)
+    old = bytes(b[8:0x28]).split(b"\0")[0].decode("ascii")
+    kind = bytes(b[0x64:0x84]).split(b"\0")[0].decode("latin-1")
+    if "_" not in old or "-" not in kind:
+        raise DynastyError("that GameCube save isn't named as the game names its saves")
+    fname = old[:old.rindex("_") + 1] + name + ".dat"
+    b[8:0x28] = fname.encode("ascii").ljust(0x20, b"\0")
+    b[0x64:0x84] = (kind[:kind.index("-") + 1] + name).encode("latin-1").ljust(0x20, b"\0")
+    with _in_lib():
+        C, _, _, GCS = _libs()
+        h = C.GC_HDR
+        b[h + 0x28:h + 0x3E] = name.encode("utf-16-be").ljust(0x16, b"\0")[:0x16]
+        b[h + 0x94:h + 0xAF] = fname.encode("ascii").ljust(0x1B, b"\0")[:0x1B]
+        struct.pack_into(">i", b, 0x2084, sum(x - 256 if x > 127 else x for x in b[0x40:0x2084]))
+        struct.pack_into(">I", b, h, C.ea_crc(bytes(b[h + 0x10:h + C.GC_HDR_LEN])))
+        if not GCS.check(bytearray(b)):
+            raise DynastyError("the renamed .gci failed its checksum check")
+    return f"69-GV4E-{fname}.gci", bytes(b)
+
+
 def gc_to_xbox(gci, xbox_dynasty, name=None):
     """The GameCube dynasty as an Xbox data.dat, built on xbox_dynasty (keeping its name unless name is given)."""
     read_gc(gci)
