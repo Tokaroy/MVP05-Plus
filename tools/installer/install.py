@@ -24,6 +24,7 @@ import sys
 import tempfile
 import threading
 import traceback
+import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 for sub in ("gc_layout", "ps2_layout", "saves", os.path.join("saves", "mvp05", "lib")):  # bundled beside this when frozen
@@ -961,6 +962,66 @@ def import_window(parent, root, tk, ttk, on_close=None, start=None):
     win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
 
 
+def save_kind(data):
+    """What a file looks like, by its size and first bytes: a short description, or None if it's no save."""
+    import dynasty05 as DY
+    import gccard as GCC
+    import owner05 as OW
+    import pcdynasty05 as PCD
+    import ps2card as PC
+    import ps2dynasty05 as PD
+    import rosters05 as RO
+    n = len(data)
+    if data[:4] == b"GV4E":
+        return "GameCube save"
+    if data[:28] == PC.MAGIC:
+        return "PS2 memory card"
+    if GCC.is_card(data):
+        return "GameCube memory card"
+    if n in (RO.XBOX_SAVE_SIZE, DY.XB_DYNASTY_SIZE, DY.XB_OFF + OW.XB_LEN):
+        return "Xbox save"
+    if n in (PCD.HEAD + DY.XB_LEN, PCD.HEAD + OW.XB_LEN):
+        return "PC save"
+    if n in (RO.SIZE + RO.PC_HEAD, PD.HEAD + PD.SIZE, PD.HEAD + OW.PS2_LEN):
+        return "PS2 or PC save"
+    if data[:2] == b"\x27\x84":  # a .psu: its folder entry, mode 0x8427
+        return "PS2 save (.psu)"
+    return None
+
+
+def saves_in(p, most=64 << 20):
+    """[(where, name, what, bytes)] of the saves in a zip or a folder (and the folders in it): an Xbox save's folder
+    by its data.dat, other saves by what they look like."""
+    out = []
+    if os.path.isdir(p):
+        for d, dirs, files in os.walk(p):
+            if os.path.relpath(d, p).count(os.sep) > 2:
+                continue
+            for f in sorted(files):
+                q = os.path.join(d, f)
+                try:
+                    if os.path.getsize(q) > most:
+                        continue
+                    with open(q, "rb") as fh:
+                        b = fh.read()
+                except OSError:
+                    continue
+                what = save_kind(b)
+                if what:
+                    name = os.path.relpath(q, p)
+                    out.append((os.path.basename(p), name, what, b))
+    else:
+        with zipfile.ZipFile(p) as z:
+            for i in z.infolist():
+                if i.is_dir() or i.file_size > most or "__MACOSX" in i.filename:
+                    continue
+                b = z.read(i)
+                what = save_kind(b)
+                if what:
+                    out.append((os.path.basename(p), i.filename, what, b))
+    return out
+
+
 def gc_kind(file_name):
     """What an MVP 2005 GameCube save is, by its file name on the card (Rosters_..., Owner Mode_..., Dynasty_...)."""
     return "rosters" if file_name.startswith("Rosters") else "owner mode" if file_name.startswith("Owner") else \
@@ -968,15 +1029,15 @@ def gc_kind(file_name):
 
 
 def choose_card_save(parent, tk, ttk, found):
-    """One of a memory card's MVP 2005 saves [(folder, file, what, save)], picked in a small window; None if
-    closed."""
+    """One of the MVP 2005 saves on a memory card or in a zip or folder [(where, file, what, save)], picked in a small
+    window; None if closed."""
     win = tk.Toplevel(parent)
     win.title("Which save?")
     win.transient(parent.winfo_toplevel())
     win.grab_set()
     f = ttk.Frame(win, padding=12)
     f.grid()
-    ttk.Label(f, text="The memory card has more than one MVP 2005 save. Which one?").grid(sticky="w")
+    ttk.Label(f, text="There's more than one MVP 2005 save there. Which one?").grid(sticky="w")
     lb = tk.Listbox(f, height=min(8, len(found)), width=56, exportselection=False)
     for folder, name, what, _ in found:
         lb.insert("end", f"{name}: {what}   ({folder})")
@@ -1017,6 +1078,7 @@ def import_tool(frm, root, tk, ttk, start=None):
         "\u2022  rosters, a dynasty or an owner mode from the GameCube (a Dolphin memory card .raw, or a .gci)\n"
         "\u2022  rosters, a dynasty or an owner mode from the PC (.sav)\n"
         "\u2022  rosters, a dynasty or an owner mode from another Xbox (its data.dat)\n"
+        "A zip or a folder with a save in it works too. "
         "The save goes into one of your own saves of the same kind, which is backed up first. To send a save the "
         "other way, to the GameCube, the PS2 or the PC, pick it in your saves and Export.")).grid(
         row=1, column=0, columnspan=2, sticky="w", pady=(0, 12))
@@ -1093,22 +1155,32 @@ def import_tool(frm, root, tk, ttk, start=None):
 
     def pick():
         p = filedialog.askopenfilename(parent=frm, title="A save from another MVP 2005", filetypes=[
-            ("MVP 2005 saves", "*.gci *.raw *.psu *.ps2 *.sav *.dat"), ("All files", "*.*")],
+            ("MVP 2005 saves", "*.gci *.raw *.psu *.ps2 *.sav *.dat *.zip"), ("All files", "*.*")],
             **remembered_dir(root, "import_from"))
         if p:
             remember_dir(root, "import_from", p)
             use(p)
 
     def use(p):
-        """The save at p chosen (from the button, or dragged in); an Xbox save's folder stands for its data.dat."""
+        """The save at p chosen (from the button, or dragged in); an Xbox save's folder stands for its data.dat, and a
+        zip or another folder for the save in it (picked from a list when there are more)."""
         if os.path.isdir(p) and os.path.isfile(os.path.join(p, "data.dat")):
             p = os.path.join(p, "data.dat")
         picked.clear()
         say("")
         try:
-            with open(p, "rb") as f:
-                data = f.read()
             on_card = ""
+            if os.path.isdir(p) or zipfile.is_zipfile(p):
+                found = saves_in(p)
+                if not found:
+                    raise RO.RosterError(f"there's no MVP 2005 save in that {'folder' if os.path.isdir(p) else 'zip'}")
+                which = found[0] if len(found) == 1 else choose_card_save(frm, tk, ttk, found)
+                if not which:
+                    return
+                data, on_card = which[3], f" ({which[1]} in {os.path.basename(p)})"
+            else:
+                with open(p, "rb") as f:
+                    data = f.read()
             if GCC.is_card(data):  # a Dolphin GameCube memory card: one of its MVP 2005 saves, as a .gci
                 found = [("GameCube card", n, gc_kind(n), g) for n, g in GCC.Card(data).files().items()]
                 if not found:

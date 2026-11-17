@@ -49,6 +49,20 @@ if all(gcis):
     with open(card, "wb") as f:
         f.write(gc_card([open(g, "rb").read() for g in gcis]))
 
+packed = None
+if sample("gc_dyn.gci") and sample("xb_dyn.dat"):  # saves as people share them: in a zip, an Xbox save as its folder
+    import zipfile
+    packed = os.path.join(work, "shared saves.zip")
+    with zipfile.ZipFile(packed, "w") as z:
+        z.write(sample("gc_dyn.gci"), "MVP05/69-GV4E-Dynasty_STROS.dat.gci")
+        z.write(sample("xb_dyn.dat"), "MVP05/UDATA/45410056/8D58821E7335/data.dat")
+        z.writestr("readme.txt", "my dynasty")
+loose = None
+if sample("ps2_roster.psu"):
+    loose = os.path.join(work, "a folder")
+    os.makedirs(os.path.join(loose, "inner"))
+    shutil.copy(sample("ps2_roster.psu"), os.path.join(loose, "inner", "rosters.psu"))
+
 
 class Inline:
     def __init__(self, target=None, daemon=None, **_):
@@ -68,8 +82,10 @@ BAD = []
 # imports: (what, file, whether it should import)
 imports = [(n, sample(n), not n.startswith(("mvp06", "README"))) for n in sorted(os.listdir(SAMPLES))
            if not n.startswith("xb_")] + [("an Xbox save's folder", folders.get("xb_dyn.dat"), True),
-                                          ("Dolphin card", card, True), ("not a save", os.path.join(REPO, "README.md"),
-                                                                         False)]
+                                          ("Dolphin card", card, True), ("a zip of saves", packed, True),
+                                          ("a folder with a save in it", loose, True),
+                                          ("not a save", os.path.join(REPO, "README.md"), False),
+                                          ("a folder with no save", os.path.join(REPO, "docs"), False)]
 for what, path, ok in imports:
     if not path:
         continue
