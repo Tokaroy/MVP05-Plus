@@ -303,6 +303,10 @@ def news_leaders():
     assert got["HR"][0] == ("Juan Uribe", "15") and got["SV"][:2] == [("Jeremy Affeldt", "11"), ("Joe Nathan", "9")]
     assert got["W"][0] == ("Jimmy Gobble", "5") and got["ERA"][2] == ("Joe Nathan", "0.77"), (got["W"], got["ERA"])
     assert [name(k) for k, _, _ in L[0]["AVG"]][6:] == ["Michael Young", "Ichiro", "Mike Sweeney", "Marco Scutaro"]
+    # OBP and SLG from the rows' other fields (TB, BB, SF): league totals agree with the pitching side's (checked)
+    st = N.season_stats(save, db)
+    v = next(x for k, x in st["bat"].items() if name(k) == "Jason Varitek")
+    assert (N.rate3(N.obp(v)), N.rate3(N.slg(v))) == (".467", ".625"), (N.obp(v), N.slg(v))
     return 1
 t('league news: league leaders as the game shows them', news_leaders)
 def news_standings():

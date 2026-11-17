@@ -114,7 +114,9 @@ HMAC-SHA1s over 0x50..0x108 and 0x108..). MVP05-Plus `tools/saves/saves05.py` (`
   - pitcher: (8,8,9,7) (9,2,6,6,9) (7,25). The last 25 bits look like filler on both platforms.
   - What they hold (MVP05-Plus League News, checked against the game's League Leaders screen on the KCR dynasty;
     the row of the current year is the season so far; flags & 3: 1 batter, 2 pitcher):
-    batter (AB, -, SB, -) (H, RBI, R, HR) (-, -, -, -); pitcher (ER, BB, SO, G) (IP, thirds, W, L, -) (SV, -).
+    batter (AB, G, SB, CS) (H, RBI, R, HR) (TB, SO, BB with HBP, SF); pitcher (ER, BB, SO, G) (IP, thirds, W, L, -)
+    (SV, -). The batters' word 2 is zero in the real seasons before 2005. This season's big-league totals of H, R,
+    HR, TB, SO, BB+HBP and SF equal the pitching tables' exactly (KCR, 421 games).
   - Tables 18-24 hold pitching too (21: this season, G / IP / thirds / W / L / - / R / ER / SV ...; 22-23 its
     splits, BB / - / SO / ... / 1B / 2B / 3B / HR / ... / BF; 18-20 last season; 24 career): this season's runs
     and hits allowed equal the schedule's exactly.
