@@ -16,11 +16,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r tools/installer/requirements.txt
-      - name: Test the disc readers and the updater
+      - name: Test the disc readers, the updater, schedules, mods and the Launcher window
         run: |
           python tools/installer/tests/test_discs.py tools/installer
           python tools/installer/tests/test_updater.py tools/installer
           python tools/installer/tests/test_schedgen.py tools/installer
+          python tools/installer/tests/test_schedule_share.py tools/installer
+          python tools/installer/tests/test_mods.py
+          python tools/installer/tests/test_gui_builds.py tools/installer
       - name: Build MVP05-Plus-Launcher.exe
         run: >
           pyinstaller --onefile --windowed --name MVP05-Plus-Launcher
