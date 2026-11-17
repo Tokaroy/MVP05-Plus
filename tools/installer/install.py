@@ -1361,61 +1361,90 @@ TWEAKS = {
          {"MVP 05 Default (64 MB, 41 MB for the game)": 64,
           "Doubled (128 MB, 97 MB for the game): room for mods": 128}),
     ],
+    # each list from the least to the most, MVP 05 Default where it falls
     "Dynasty": [
         ("pitcher_recovery", "Pitchers' rest",
          "How fast pitchers get their stamina back between games. By default, a starter is ready again two days after "
          "a full start and relievers are almost never tired.",
-         {"MVP 05 Default (100%): starters ready after about 2 days": 100,
-          "Quicker (75%): starters ready after about 3 days": 75,
+         {"Very slow (25%): starters ready after about 8 days": 25,
+          "Slow (35%): starters ready after about 6 days": 35,
           "Five-man rotation (50%): starters ready after about 4 days": 50,
-          "Slow (35%): starters ready after about 6 days": 35}),
+          "A little slower (75%): starters ready after about 3 days": 75,
+          "MVP 05 Default (100%): starters ready after about 2 days": 100}),
         ("injury_length", "Injury length",
          "How long injured players stay out in a dynasty. By default, most injuries last a few days to a few weeks "
          "and the worst ones months. How often players get hurt is set by the game's own Injury sliders.",
-         {"MVP 05 Default (100%): a 10-day injury lasts 10 days": 100,
-          "Shorter (50%): a 10-day injury lasts 5 days": 50,
-          "Longer (150%): a 10-day injury lasts 15 days": 150,
-          "Much longer (200%): a 10-day injury lasts 20 days": 200}),
+         {"Much shorter (25%): a 20-day injury lasts 5 days": 25,
+          "Shorter (50%): a 20-day injury lasts 10 days": 50,
+          "A little shorter (75%): a 20-day injury lasts 15 days": 75,
+          "MVP 05 Default (100%): a 20-day injury lasts 20 days": 100,
+          "Longer (150%): a 20-day injury lasts 30 days": 150,
+          "Much longer (200%): a 20-day injury lasts 40 days": 200,
+          "Longest (300%): a 20-day injury lasts 60 days": 300}),
         ("dev_speed", "Player development",
          "The chance a player's ratings go up in the off-season, by his age and star level. By default, a "
          "25-year-old 3-star has a 60% chance, and 3-stars and better always go up until 23.",
-         {"MVP 05 Default (100%): a 25-year-old 3-star, 60%": 100,
+         {"Much slower (50%): a 25-year-old 3-star, 30%": 50,
           "Slower (70%): a 25-year-old 3-star, 42%": 70,
-          "Much slower (50%): a 25-year-old 3-star, 30%": 50,
-          "Faster (130%): a 25-year-old 3-star, 78%": 130}),
+          "A little slower (85%): a 25-year-old 3-star, 51%": 85,
+          "MVP 05 Default (100%): a 25-year-old 3-star, 60%": 100,
+          "A little faster (115%): a 25-year-old 3-star, 69%": 115,
+          "Faster (130%): a 25-year-old 3-star, 78%": 130,
+          "Much faster (150%): a 25-year-old 3-star, 90%": 150}),
         ("aging", "Aging",
          "The chance a player's ratings go down in the off-season, by his age and star level. By default, a "
          "34-year-old 3-star has a 50% chance, and a 37-year-old 80%.",
-         {"MVP 05 Default (100%): a 34-year-old 3-star, 50%": 100,
+         {"Much gentler (50%): a 34-year-old 3-star, 25%": 50,
           "Gentler (70%): a 34-year-old 3-star, 35%": 70,
-          "Harsher (130%): a 34-year-old 3-star, 65%": 130}),
+          "A little gentler (85%): a 34-year-old 3-star, 43%": 85,
+          "MVP 05 Default (100%): a 34-year-old 3-star, 50%": 100,
+          "A little harsher (115%): a 34-year-old 3-star, 58%": 115,
+          "Harsher (130%): a 34-year-old 3-star, 65%": 130,
+          "Much harsher (150%): a 34-year-old 3-star, 75%": 150}),
         ("retirement", "Retirement",
          "The chance a player retires in the off-season, by his age and star level. By default, a 37-year-old "
          "2-star has a 30% chance, stars never retire before 40, and everyone has retired by 45.",
-         {"MVP 05 Default (100%): a 37-year-old 2-star, 30%": 100,
+         {"Much later (25%): a 37-year-old 2-star, 8%": 25,
           "Later (50%): a 37-year-old 2-star, 15%": 50,
-          "Earlier (150%): a 37-year-old 2-star, 45%": 150}),
+          "A little later (75%): a 37-year-old 2-star, 23%": 75,
+          "MVP 05 Default (100%): a 37-year-old 2-star, 30%": 100,
+          "A little earlier (125%): a 37-year-old 2-star, 38%": 125,
+          "Earlier (150%): a 37-year-old 2-star, 45%": 150,
+          "Much earlier (200%): a 37-year-old 2-star, 60%": 200}),
         ("contract_prices", "Contract prices",
          "What players ask for in a new contract, free agents and your own players alike. By default, it comes "
          "from the player's ratings and what he's paid now.",
-         {"MVP 05 Default (100%)": 100,
+         {"Half (50%): a $4M asking price becomes $2M": 50,
+          "Lower (75%): a $4M asking price becomes $3M": 75,
+          "A little lower (90%): a $4M asking price becomes $3.6M": 90,
+          "MVP 05 Default (100%): a $4M asking price stays $4M": 100,
+          "A little higher (110%): a $4M asking price becomes $4.4M": 110,
           "Higher (125%): a $4M asking price becomes $5M": 125,
           "Much higher (150%): a $4M asking price becomes $6M": 150,
-          "Lower (75%): a $4M asking price becomes $3M": 75}),
+          "Double (200%): a $4M asking price becomes $8M": 200}),
         ("resign_chance", "Re-signing",
-         "The chance your players agree to re-sign with you, by age and star level. By default, a 1-star over 25 "
-         "has a 50% chance and a 5-star 98%.",
-         {"MVP 05 Default: a 1-star over 25, 50%": 100,
-          "Easier (+15 points): a 1-star over 25, 65%": 115,
-          "Harder (-15 points): a 1-star over 25, 35%": 85}),
+         "How often your own players agree to a new contract with you when theirs runs out. By default, an "
+         "ordinary veteran agrees about half the time and a star almost every time. Each choice makes every "
+         "player that much more or less likely to agree.",
+         {"Much harder: a player who agreed 50% of the time agrees 20%": 70,
+          "Harder: a player who agreed 50% of the time agrees 35%": 85,
+          "MVP 05 Default: an ordinary veteran agrees 50% of the time": 100,
+          "Easier: a player who agreed 50% of the time agrees 65%": 115,
+          "Much easier: a player who agreed 50% of the time agrees 80%": 130}),
         ("rookie_quality", "Rookies",
          "The star levels of the rookies the game makes up each year. By default, 52% are 1-stars and 4% are "
          "5-stars.",
-         {"MVP 05 Default: 52% 1-stars, 4% 5-stars": 0,
+         {"Weaker: 62% 1-stars, 2% 5-stars": 3,
+          "MVP 05 Default: 52% 1-stars, 4% 5-stars": 0,
           "Better: 40% 1-stars, 7% 5-stars": 1,
           "Much better: 30% 1-stars, 10% 5-stars": 2}),
     ],
 }
+
+
+def default_choice(choices):
+    """The value of a setting's MVP 05 Default choice (the first, if none is named that)."""
+    return next((v for k, v in choices.items() if k.startswith("MVP 05 Default")), list(choices.values())[0])
 
 
 def tweak_controls(parent, items, saved, tk, ttk, row=0, width=58, about=None):
@@ -1460,7 +1489,7 @@ def tweak_controls(parent, items, saved, tk, ttk, row=0, width=58, about=None):
                 var.set(saved.get(key, False) is True)
                 continue
             choices, box = c
-            first = list(choices.values())[0]
+            first = default_choice(choices)
             v = saved.get(key, first)
             v = v if isinstance(v, int) and not isinstance(v, bool) else first
             name = next((k for k, x in choices.items() if x == v), None)
@@ -1471,7 +1500,7 @@ def tweak_controls(parent, items, saved, tk, ttk, row=0, width=58, about=None):
             var.set(name)
 
     def values():
-        return {key: (var.get() if c is None else c[0].get(var.get(), list(c[0].values())[0]))
+        return {key: (var.get() if c is None else c[0].get(var.get(), default_choice(c[0])))
                 for key, var, c in controls}
 
     load(saved)

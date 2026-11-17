@@ -99,7 +99,9 @@ std::string Retire(const std::string& t, double x) {
 
 // star.csv: position,distro,1..5 (the share of rookies at each star level)
 std::string Rookies(const std::string& t, int level) {
-    static const double kBetter[2][5] = {{0.40, 0.26, 0.16, 0.11, 0.07}, {0.30, 0.25, 0.20, 0.15, 0.10}};
+    // 1 better, 2 much better, 3 weaker (the game's own: 52% 1-stars, 4% 5-stars)
+    static const double kBetter[3][5] = {{0.40, 0.26, 0.16, 0.11, 0.07}, {0.30, 0.25, 0.20, 0.15, 0.10},
+                                         {0.62, 0.20, 0.10, 0.06, 0.02}};
     std::string out;
     bool header = true;
     std::istringstream in(t);
@@ -168,7 +170,7 @@ void Apply() {
         std::vector<std::pair<std::string, std::function<std::string(const std::string&)>>> edits;
         if (retire != 1) edits.push_back({"retire.csv", [=](const std::string& t) { return Retire(t, retire); }});
         int q = int(tools::g_rookie_quality);
-        if (q == 1 || q == 2) edits.push_back({"star.csv", [=](const std::string& t) { return Rookies(t, q); }});
+        if (q >= 1 && q <= 3) edits.push_back({"star.csv", [=](const std::string& t) { return Rookies(t, q); }});
         if (!edits.empty()) any |= EditBig("rookie.big", edits, done);
     }
     if (resign) {
