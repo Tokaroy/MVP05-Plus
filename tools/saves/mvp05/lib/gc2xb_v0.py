@@ -44,7 +44,8 @@ def convert(gc,xb_tpl,sched=True,hist=True,shift=0):
     while i<P:
         if SIG.match(gc,i): pos.append(i); i+=48
         else: i+=1
-    st=[pos[k] for k in range(0,len(pos),4)]; assert len(st)==126,len(st)
+    from rosterblock import team_starts
+    st=team_starts(pos); assert len(st)==126,len(st)
     st.append(P)
     ros=b''.join(rosterblock.conv(gc[st[k]:st[k+1]]) for k in range(126))
     Q=xb_tpl.find(KEYX,0x12000)

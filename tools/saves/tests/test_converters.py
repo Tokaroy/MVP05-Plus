@@ -17,6 +17,7 @@ missing is skipped:
 import contextlib
 import io
 import os
+import re
 import sys
 import traceback
 
@@ -207,6 +208,17 @@ def standings(k):
     return 1
 t('standings read from a dynasty', lambda: standings('xb_dyn'))
 t('standings read from an owner mode', lambda: standings('xb_own'))
+# a played dynasty (a roster block ends in bytes that look like a lineup unit: 127 teams were found)
+def played_rt():
+    fn, g = DY.xbox_to_gc(F['xb_dyn_played'], F['gc_dyn'])
+    x = DY.gc_to_xbox(g, F['xb_dyn_played'])
+    a, b = DY.read_xbox(x)['payload'], DY.read_xbox(F['xb_dyn_played'])['payload']
+    marks = [m.start() for m in re.finditer(re.escape(b'\x0d\xf0\xef\xbe'), b)]
+    d = [i for i in range(marks[5]) if a[i] != b[i]]
+    # (the 9 values after the schedules are kept at zero, FORMAT_NOTES 3.5: 18 bytes at most)
+    assert len(d) <= 18 and all(marks[3] - 0x100 < i < marks[3] for i in d), [hex(i) for i in d[:5]]
+    return 1
+t('played xb dynasty -> gc -> xb exact before history (but the 9 kept values)', played_rt)
 # League News: the news from a dynasty in its season, a fresh owner mode and one in the postseason
 def news(k, **want):
     import shutil

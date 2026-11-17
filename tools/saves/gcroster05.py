@@ -74,7 +74,8 @@ def convert_body(gc_body, xb_body):
                     i += 48
                 else:
                     i += 1
-            st_ = [pos[k] for k in range(0, len(pos), 4)]
+            from rosterblock import team_starts
+            st_ = team_starts(pos)
             if len(st_) != 126:
                 raise GcRosterError(f"the roster blocks aren't where they should be ({len(st_)} teams found)")
             st_.append(P)

@@ -5,6 +5,7 @@ import struct, re
 import numpy as np
 import tablesconv as T, postconv as P, rosterblock, teamconv, mgrconv, player_conv, structconv as SC, histrow, sched_conv
 import bitconv as B
+from rosterblock import team_starts
 import hist_conv as H
 
 KEYG = b'\x69\x3d\xbc\x6a'; KEYX = b'\x6a\xbc\x3d\x69'
@@ -73,7 +74,7 @@ def _blocks(d, key, sig, start):
     while i < Pp:
         if sig.match(d, i): pos.append(i); i += 48
         else: i += 1
-    st = [pos[k] for k in range(0, len(pos), 4)]; assert len(st) == 126, len(st)
+    st = team_starts(pos); assert len(st) == 126, len(st)
     return st + [Pp]
 
 def _slots(d, p, n, key):

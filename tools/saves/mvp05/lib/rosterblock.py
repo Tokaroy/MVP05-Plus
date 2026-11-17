@@ -40,3 +40,16 @@ def conv(blk,be=True):
     tl=blk[o:]; assert len(tl)==45,len(tl)
     out+=tl[:1]+_s32(tl[1:])          # u8, 3 x u32, 4 x (player key, return date) injury list
     return bytes(out)
+
+
+def team_starts(pos):
+    """The roster blocks' starts from the lineup-unit matches: each block opens with 4 units 48 bytes apart, so a
+    run of matches 48 apart is one team, starting at its last 4. A played save's block can end in bytes that match
+    too, right before the next team's units (KC 2006: a run of 5); counting every 4th match took that for a team."""
+    runs = []
+    for p in pos:
+        if runs and p - runs[-1][-1] == 48:
+            runs[-1].append(p)
+        else:
+            runs.append([p])
+    return [r[-4] for r in runs if len(r) >= 4]
