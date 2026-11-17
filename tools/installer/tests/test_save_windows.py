@@ -189,7 +189,7 @@ if "xb_dyn.dat" in folders:
     install.set_active(MagicMock(), root, lib, True, MagicMock(), MagicMock(), lambda: None)  # ticked: swaps LIBE out
     now, put = have(), [x["name"] for x in S5.list_library(root)]
     good = four == ["LIBA", "LIBB", "LIBC", "LIBD"] and "LIBA" in now and "LIBE" not in now and "LIBE" in put
-    print(f"{'ok ' if good else 'BAD'} Active box: untick a dynasty, tick it again with four in | game {now}, library {put}")
+    print(f"{'ok ' if good else 'BAD'} checkbox: untick a dynasty, tick it again with 4 in | game {now}, library {put}")
     if not good:
         BAD.append("save library")
 

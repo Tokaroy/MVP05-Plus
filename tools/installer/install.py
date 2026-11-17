@@ -1703,19 +1703,6 @@ def share_save(frm, folder, name):
                                         "save, and choose the zip.", parent=frm)
 
 
-def slots_text(root):
-    """ "Dynasty 4 of 4 (full) · Owner Mode 1 of 4": how many of each kind the game holds."""
-    import saves05 as S
-    try:
-        kinds = collections.Counter(s["type"] for s in S.list_saves(root) if s["type"] != "?")
-    except Exception:
-        return ""
-    if not kinds:
-        return ""
-    return "The game shows four of each kind: " + " \u00b7 ".join(
-        f"{k} {n} of {S.SLOTS}" + (" (full)" if n >= S.SLOTS else "") for k, n in sorted(kinds.items()))
-
-
 def put_away(frm, root, folder, name, done):
     import saves05 as S
     from tkinter import messagebox
@@ -1769,8 +1756,8 @@ def bring_back(frm, root, lib_folder, tk, ttk, done, swap_for=None):
             break
         except S.SlotsFull as e:
             opts = [f"{s['name']} (last saved {when_text(s['when'])})" for s in e.saves]
-            i = choose_one(frm, tk, ttk, title, f"The game shows four {e.kind} saves at most, and four are ticked. "
-                                                f"Which one should be put away (unticked) in exchange?", opts)
+            i = choose_one(frm, tk, ttk, title, f"The game holds 4 {e.kind} saves and 4 are ticked. Which one "
+                                                f"should be unticked to make room?", opts)
             if i is None:
                 return
             swap_for = e.saves[i]["folder"]
@@ -1796,9 +1783,6 @@ def set_active(frm, root, folder, active, tk, ttk, done):
         put_away(frm, root, folder, B.save_name(folder), done)
 
 
-ON, OFF = "\u2611", "\u2610"  # the Active column's boxes
-
-
 def current_saves_tab(frm, root, tk, ttk):
     """Your saves: the game's and the ones put away (the save library, past the game's four of a kind), one list.
     Active: ticked saves are in the game; untick one to put it away, tick one to bring it back."""
@@ -1807,17 +1791,18 @@ def current_saves_tab(frm, root, tk, ttk):
     from tkinter import messagebox
 
     ttk.Label(frm, wraplength=520, justify="left", text=(
-        "The game shows four saves of each kind. Ticked saves are in the game; untick one to put it away, tick "
-        "it to bring it back (if four of that kind are ticked already, you choose which one to swap out). Nothing "
-        "in a save changes.")).grid(row=0, column=0, sticky="w", pady=(0, 8))
-    tree = ttk.Treeview(frm, columns=("active", "save", "when", "size"), show="headings", height=12,
-                        selectmode="browse")
-    for c, t, w, anc in (("active", "Active", 56, "center"), ("save", "Save", 290, "w"), ("when", "Last saved", 150, "w"),
-                         ("size", "Size", 70, "e")):
-        tree.heading(c, text=t)
-        tree.column(c, width=w, anchor=anc, stretch=c == "save")
-    tree.tag_configure("off", foreground="#888")
+        "The game holds 4 saves of each type (dynasty, owner mode, rosters ...). Tick the saves you want in the "
+        "game.")).grid(row=0, column=0, sticky="w", pady=(0, 8))
+    tree = ttk.Treeview(frm, columns=("when", "size"), show="tree headings", height=12, selectmode="browse")
+    tree.heading("#0", text="Save")
+    tree.heading("when", text="Last saved")
+    tree.heading("size", text="Size")
+    tree.column("#0", width=330, anchor="w")
+    tree.column("when", width=160, anchor="w")
+    tree.column("size", width=80, anchor="e")
     tree.grid(row=1, column=0, sticky="we")
+    boxes = _checkbox_images(tk)
+    tree._boxes = boxes  # kept, or Tk drops the images
     frm.columnconfigure(0, weight=1)
     note = ttk.Label(frm, text="", foreground="#666")
     note.grid(row=3, column=0, sticky="w", pady=(6, 0))
@@ -1836,25 +1821,30 @@ def current_saves_tab(frm, root, tk, ttk):
             when = max((os.path.getmtime(f) for f in files), default=os.path.getmtime(p))
             saves.append((B.save_name(p), when, sum(os.path.getsize(f) for f in files), p, on))
         folders.clear(), names.clear(), live.clear()
-        for name, when, size, p, on in sorted(saves, key=lambda x: (not x[4], -x[1])):
-            iid = tree.insert("", "end", tags=() if on else ("off",), values=(
-                ON if on else OFF, name, when_text(datetime.datetime.fromtimestamp(when)),
+        for name, when, size, p, on in sorted(saves, key=lambda x: -x[1]):
+            iid = tree.insert("", "end", text="  " + name, image=boxes[on], values=(
+                when_text(datetime.datetime.fromtimestamp(when)),
                 f"{size / 2**20:.1f} MB" if size >= 2**20 else f"{max(1, size // 1024)} KB"))
             folders[iid], names[iid], live[iid] = p, name, on
-        note.configure(text=slots_text(root) if saves else "No saves yet: they appear here once you save in the game.",
+        note.configure(text="" if saves else "No saves yet: they appear here once you save in the game.",
                        foreground="#666")
 
     def toggle(iid):
         if iid:
             set_active(frm, root, folders[iid], not live[iid], tk, ttk, refresh)
 
-    def click(e):
+    def click(e):  # on a row's checkbox, as in Mods
         iid = tree.identify_row(e.y)
-        if iid and tree.identify_column(e.x) == "#1":
+        if iid and tree.identify_column(e.x) == "#0" and (
+                "image" in str(tree.identify_element(e.x, e.y)).lower() or e.x < 40):
             toggle(iid)
             return "break"
     tree.bind("<Button-1>", click)
-    tree.bind("<space>", lambda e: toggle(tree.focus()))
+
+    def space(_):
+        toggle(tree.focus())
+        return "break"
+    tree.bind("<space>", space)
 
     def delete(iid):
         if live[iid]:
@@ -1869,7 +1859,7 @@ def current_saves_tab(frm, root, tk, ttk):
 
     def menu(iid):
         f, n = folders[iid], names[iid]
-        items = [("Put away (untick)" if live[iid] else "Bring back to the game (tick)", lambda: toggle(iid)),
+        items = [("Take out of the game (untick)" if live[iid] else "Put in the game (tick)", lambda: toggle(iid)),
                  ("Open folder", lambda: open_in_explorer(f)),
                  ("League News", lambda: league_news(frm, root, f)),
                  ("Export to GameCube\u2026", lambda: export_dynasty(frm, f, n, "GameCube", tk, ttk)),
