@@ -211,6 +211,13 @@ class Database:
                 pass
         return self._badge
 
+    def team_at(self, i):
+        """The team in roster block i of a save (and a history row's team byte): the database's teams in their art
+        ids' order, the 30 franchises first (checked on the KCR dynasty's rosters)."""
+        if "_by_art" not in self.__dict__:
+            self._by_art = sorted(self.teams, key=lambda k: int(self.teams[k].get(6, 999) or 999))
+        return self._by_art[i] if 0 <= i < len(self._by_art) else None
+
     def injury(self, kind):
         """The injury's name (from the game's text, when it's read), or "" """
         return self.injuries.get(kind, "")
@@ -761,7 +768,8 @@ def build(save, db):
                 user=save["user"], games_played=games_played, db=db,
                 days=recaps(save["games"], db, save["user"], postseason),
                 leaders={} if postseason else season_leaders(save, db, stats=stats), names=save["names"],
-                stats=stats, rosters=save["rosters"], games=save["games"], records=rec, stories=stories)
+                stats=stats, rosters=save["rosters"], games=save["games"], records=rec, stories=stories,
+                history=save["history"])
 
 
 def _out_for(days):
@@ -1053,7 +1061,10 @@ a{color:#00c;text-decoration:none}a:hover{text-decoration:underline}
 a.score{display:block;color:#000;text-decoration:none}a.score:hover{border-color:#00c}
 .dpane{display:none}.dpane.on{display:block}
 .lpane{display:none}.lpane.on{display:block}
-.teampage{display:none;padding:6px 4px 0}.teampage .back{display:inline-block;margin:2px 0 8px;font-weight:bold}
+.teampage{display:none;padding:6px 4px 0}
+.career td,.career th{text-align:right}.career td:nth-child(-n+2),.career th:nth-child(-n+2){text-align:left}
+.career .tot td{font-weight:bold;border-top:2px solid #999}
+.teampage .mb{overflow-x:auto}.teampage .back{display:inline-block;margin:2px 0 8px;font-weight:bold}
 .thead{display:flex;gap:14px;align-items:center}.thead .lgb{float:none;margin:0}
 .thead h1{font:bold 24px Arial,Helvetica,sans-serif;color:#006;margin:0 0 4px}.thead p{margin:2px 0}
 .roster td:nth-child(n+3),.roster th:nth-child(n+3){text-align:right}.roster{margin-bottom:8px}
@@ -1137,6 +1148,30 @@ td a{color:#000}
 AP_MONTHS = ("Jan.", "Feb.", "March", "April", "May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.")
 
 SCRIPT = """
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function tm(i,txt){return i<0?esc(txt):"<a href='#team-"+i+"'><i class='lg lg"+i+"'></i>"+esc(txt)+"</a>";}
+function showPlayer(k){var el=document.getElementById('playerpage'),p=PD[k],h=[];
+ h.push("<a class=back href='#top'>&lsaquo; Back to the front page</a>");
+ if(!p){el.innerHTML=h.join('')+"<p>No page for that player.</p>";return el;}
+ var team=p.t>=0?TT[p.t]:null,now=p.rows.length?p.rows[p.rows.length-1][0]:0;
+ h.push("<div class=mod><div class=mh>"+esc(p.n)+"</div><div class='mb thead'>"+(p.t>=0?"<i class='lgb lg"+p.t+"b'></i>":"")+
+  "<div><h1>"+esc(p.n)+"</h1><p class=big>"+esc(p.pos)+(p.t>=0?(p.pos?" &middot; ":"")+tm(p.t,document.querySelector('#team-'+p.t+' h1').textContent):"")+
+  "</p><p>"+p.bio+"</p></div></div></div>");
+ var head=p.b?['Year','Team','AB','H','HR','RBI','R','SB','AVG']:['Year','Team','G','W','L','SV','IP','ER','SO','BB','ERA'];
+ var t=["<div class=mod><div class=mh>"+(p.b?'Batting':'Pitching')+" by season</div><div class=mb><table class=career><tr>"];
+ head.forEach(function(x){t.push('<th>'+x+'</th>');});t.push('</tr>');var tot=[];
+ p.rows.forEach(function(r){if((r.length==8)!=!!p.b)return;var cls=r[0]==now?" class=mine":"",tt=TT[r[1]]||['?',-1];
+  t.push('<tr'+cls+'><td>'+r[0]+'</td><td>'+tm(tt[1],tt[0])+'</td>');
+  for(var j=2;j<r.length;j++){tot[j]=(tot[j]||0)+r[j];t.push('<td>'+(!p.b&&j==6?Math.floor(r[j]/3)+'.'+r[j]%3:r[j])+'</td>');}
+  t.push('<td>'+rate(r)+'</td></tr>');});
+ if(tot.length){t.push('<tr class=tot><td>Total</td><td></td>');for(var j=2;j<tot.length;j++)t.push('<td>'+(!p.b&&j==6?Math.floor(tot[j]/3)+'.'+tot[j]%3:tot[j])+'</td>');
+  t.push('<td>'+rate(tot)+'</td></tr>');}
+ t.push('</table></div></div>');h.push(t.join(''));
+ function rate(r){if(p.b)return r[2]?(r[3]/r[2]).toFixed(3).replace(/^0/,''):'&ndash;';return r[6]?(27*r[7]/r[6]).toFixed(2):'&ndash;';}
+ if(p.news.length){h.push("<div class=mod><div class=mh>In the news</div><div class=mb><ul class=heads>");
+  p.news.forEach(function(n){h.push("<li><span class=kind>"+esc(n[1])+"</span> <span class=date>"+n[0]+"</span><b>"+esc(n[2])+"</b><p>"+esc(n[3])+"</p></li>");});
+  h.push("</ul></div></div>");}
+ el.innerHTML=h.join('');return el;}
 function tab(g,i){document.querySelectorAll('[data-g="'+g+'"]').forEach(function(b){b.classList.toggle('on',b.dataset.i==i)});}
 function pick(lg,dv){tab('lg',lg);tab('dv',dv);document.querySelectorAll('.pane').forEach(function(p){
  p.classList.toggle('on',p.id=='p'+lg+dv)});window._lg=lg;window._dv=dv;}
@@ -1163,6 +1198,40 @@ def render(news):
 
     def gid(g):
         return f"g{g['day']}_{g['home'] & 0xFFFFFF:x}"
+
+    fr = {t: i for i, t in enumerate(db.franchises)}
+    need = set()  # the players linked to: each gets a page (player_data)
+
+    def pn(k):
+        return news["names"].get(k) or db.name(k) or ""
+
+    def PL(k, text=None):
+        need.add(k)
+        return f"<a class=pl href='#p-{k:x}'>{e(text or pn(k) or '?')}</a>"
+
+    def TM(t, text=None):
+        return f"<a href='#team-{fr[t]}'>{e(text or db.club(t))}</a>" if t in fr else e(text or db.club(t))
+
+    def linkify(text, players=(), teams=()):
+        """text with the clubs' full names and the players' names linked to their pages"""
+        subs = {}
+        for t in teams:
+            t = db.org_of.get(t, t)
+            if t in fr:
+                subs[e(db.full(t))] = f"<a href='#team-{fr[t]}'>{e(db.full(t))}</a>"
+        for k in players:
+            n = pn(k)
+            if n:
+                need.add(k)
+                subs[e(n)] = f"<a class=pl href='#p-{k:x}'>{e(n)}</a>"
+        t = e(text)
+        if not subs:
+            return t
+        rx = re.compile("|".join(re.escape(x) for x in sorted(subs, key=len, reverse=True)))
+        return rx.sub(lambda m: subs[m.group(0)], t)
+
+    def story(h):
+        return linkify(h["body"], h.get("players", ()), list(h.get("raw_teams", ())) + list(h.get("teams", ())))
     post = news["postseason"]
     out = ["<!doctype html><html lang=en><head><meta charset=utf-8>",
            "<meta name=viewport content='width=device-width,initial-scale=1'>",
@@ -1209,11 +1278,11 @@ def render(news):
             place = div["rows"].index(row) + 1
             nxt = next((g for g in news["upcoming"] if user in (g["away"], g["home"])), None)
             out.append(f"<div class=mod><div class=mh>Your club</div><div class=mb>{lg(user)}<span class=big>"
-                       f"{e(db.full(user))}</span><br>{row['w']}-{row['l']}, "
+                       f"{TM(user, db.full(user))}</span><br>{row['w']}-{row['l']}, "
                        f"{['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][place - 1]} in the {e(div['name'])}"
                        + ("" if row["gb"] == 0 else f", {row['gb']:g} back") + f"<br>Last 10: {row['last10']} &middot; "
                        f"Streak: {row['streak'] or '&ndash;'}<br>Home {row['home']} &middot; Road {row['road']}"
-                       + (f"<br>Next: {'at ' + e(db.club(nxt['home'])) if nxt['away'] == user else 'vs. ' + e(db.club(nxt['away']))}"
+                       + (f"<br>Next: {'at ' + TM(nxt['home']) if nxt['away'] == user else 'vs. ' + TM(nxt['away'])}"
                           if nxt else "") + "</div></div>")
     if news["leaders"]:  # this season's leaders, as the game's Around the League shows them: hitting, then pitching
         year = f"{news['leaders']['year']} " if news["leaders"]["last_season"] else ""
@@ -1234,7 +1303,7 @@ def render(news):
                         first, _, rest = full.partition(" ")
                         short_name = f"{first[0]}. {rest}" if rest else full
                         cls = " class=mine" if t == user else ""
-                        out.append(f"<tr{cls}><td>{rank}. {lg(t)}{e(short_name)}</td><td>{e(v)}</td></tr>")
+                        out.append(f"<tr{cls}><td>{rank}. {lg(t)}{PL(k, short_name)}</td><td>{e(v)}</td></tr>")
                     if not rows_:
                         out.append("<tr><td>No one yet</td><td></td></tr>")
                     out.append("</table></div>")
@@ -1247,7 +1316,7 @@ def render(news):
         for label, group in (("Winning streaks", hot), ("Losing streaks", cold)):
             out.append(f"<tr><th colspan=2>{label}</th></tr>")
             for r in group:
-                out.append(f"<tr><td>{lg(r['team'])}{e(db.club(r['team']))}</td><td>{r['streak']}</td></tr>")
+                out.append(f"<tr><td>{lg(r['team'])}{TM(r['team'])}</td><td>{r['streak']}</td></tr>")
         out.append("</table></div></div>")
 
     # ---- middle: the top story, standings and matchups, all the headlines, the wire, injuries
@@ -1257,7 +1326,7 @@ def render(news):
         h = heads[0]
         big = next((t for t in h["teams"] if t in db.franchises), None)
         out.append(f"{lg(big, True) if big else ''}<span class=kind>{e(h['kind'])}</span> "
-                   f"<span class=date>{short(day(h['day']))}</span><h1>{e(h['head'])}</h1><p>{e(h['body'])}</p>")
+                   f"<span class=date>{short(day(h['day']))}</span><h1>{e(h['head'])}</h1><p>{story(h)}</p>")
         if len(heads) > 1:
             out.append("<div class=more>")
             for i, h in enumerate(heads[1:5], 1):
@@ -1297,7 +1366,7 @@ def render(news):
             for r in rows[:6]:
                 gb = "&ndash;" if r["wcgb"] == 0 else f"{r['wcgb']:g}"
                 cls = " class=mine" if r["team"] == user else ""
-                out.append(f"<tr{cls}><td>{lg(r['team'])}{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
+                out.append(f"<tr{cls}><td>{lg(r['team'])}{TM(r['team'])}</td><td>{r['w']}</td><td>{r['l']}</td>"
                            f"<td>{gb}</td></tr>")
             out.append("</table></div>")
         out.append("<a href='#allstandings' style='display:block;margin-top:5px'>View expanded standings &rsaquo;</a>"
@@ -1308,11 +1377,18 @@ def render(news):
         for g in news["upcoming"][:7]:
             a, h = g["away"], g["home"]
             rec = "" if post else " <span class=date>(%s)</span>"
-            out.append(f"<div class=match>{lg(a)}<b>{e(db.club(a))}</b>{rec and rec % news_record(news, a)}<br>"
-                       f"<span class=date>at</span> {lg(h)}<b>{e(db.club(h))}</b>{rec and rec % news_record(news, h)}</div>")
+            out.append(f"<div class=match>{lg(a)}<b>{TM(a)}</b>{rec and rec % news_record(news, a)}<br>"
+                       f"<span class=date>at</span> {lg(h)}<b>{TM(h)}</b>{rec and rec % news_record(news, h)}</div>")
     else:
         out.append("No games on the schedule.")
     out.append("</div></div></div>")
+    out.append("<div class=mod id=news><div class=mh>Headlines</div><div class=mb><ul class=heads>")
+    for i, h in enumerate(heads):
+        out.append(f"<li id=s{i} class='{'mine' if h['mine'] else ''}'><span class=kind>{e(h['kind'])}</span> "
+                   f"<span class=date>{short(day(h['day']))}</span><b>{e(h['head'])}</b><p>{story(h)}</p></li>")
+    if not heads:
+        out.append("<li>Nothing yet.</li>")
+    out.append("</ul></div></div>")
     if news["days"]:  # every game of the last week, written up; the day's best first, as the Game of the Day
         out.append("<div class=mod id=recaps><div class=mh>Scores &amp; recaps</div><div class=subtabs>")
         for i, (d, _) in enumerate(news["days"]):
@@ -1329,7 +1405,7 @@ def render(news):
                 for t, rr, hh, ee, line in ((g["away"], g["ar"], g["ah"], g["ae"], g["aline"]),
                                             (g["home"], g["hr"], g["hh"], g["he"], g["hline"])):
                     cells = "".join(f"<td>{v}</td>" for v in (line[:8] + [rr - sum(line), line[8]] if extra else line))
-                    rows += (f"<tr class={'w' if t == r['win'] else ''}><td>{lg(t)}{e(db.short(t))}</td>{cells}"
+                    rows += (f"<tr class={'w' if t == r['win'] else ''}><td>{lg(t)}{TM(t, db.short(t))}</td>{cells}"
                              f"<td class=rhe>{rr}</td><td>{hh}</td><td>{ee}</td></tr>")
                 heads_ = "".join(f"<th>{k}</th>" for k in range(1, 9)) + (
                     (f"<th>9{'-' + str(g['innings'] - 1) if g['innings'] > 10 else ''}</th><th>{g['innings']}</th>")
@@ -1338,32 +1414,25 @@ def render(news):
                 out.append(f"<div class='recap{' gotd' if r['gotd'] else ''}{' mine' if r['mine'] and not r['gotd'] else ''}'"
                            f" id={gid(g)}><table class=line><tr><th>Final{inn}</th>{heads_}<th class=rhe>R</th><th>H</th><th>E</th></tr>"
                            f"{rows}</table>"
-                           f"<div>{kick}<b>{e(r['head'])}</b><p>{e(r['body'])}</p></div></div>")
+                           f"<div>{kick}<b>{e(r['head'])}</b><p>{linkify(r['body'], (), (r['win'], r['lose']))}</p></div></div>")
             out.append("</div>")
         out.append("</div></div>")
-    out.append("<div class=mod id=news><div class=mh>Headlines</div><div class=mb><ul class=heads>")
-    for i, h in enumerate(heads):
-        out.append(f"<li id=s{i} class='{'mine' if h['mine'] else ''}'><span class=kind>{e(h['kind'])}</span> "
-                   f"<span class=date>{short(day(h['day']))}</span><b>{e(h['head'])}</b><p>{e(h['body'])}</p></li>")
-    if not heads:
-        out.append("<li>Nothing yet.</li>")
-    out.append("</ul></div></div>")
     out.append("<div class=mod id=wire><div class=mh>Transactions</div><div class=mb><ul class=list>")
     for s in (news["trades"] + news["moves"])[:40]:
-        out.append(f"<li><span class=date>{short(day(s['day']))}:</span> {e(s['body'])}</li>")
+        out.append(f"<li><span class=date>{short(day(s['day']))}:</span> {story(s)}</li>")
     if not news["trades"] and not news["moves"]:
         out.append("<li>None yet.</li>")
     out.append("</ul></div></div><div class=mod id=injuries><div class=mh>Injury report</div><div class=mb><ul class=list>")
     majors = [s for s in news["injuries"] if s["big_club"]]
     minors = [s for s in news["injuries"] if not s["big_club"]]
     for s in majors:
-        out.append(f"<li>{e(s['body'])}</li>")
+        out.append(f"<li>{story(s)}</li>")
     if not majors:
         out.append("<li>Every big-league club is healthy.</li>")
     if minors:
         out.append(f"<li><b>In the minors and elsewhere: {len(minors)} more</b></li>")
         for s in minors[:25]:
-            out.append(f"<li>{e(s['body'])}</li>")
+            out.append(f"<li>{story(s)}</li>")
     out.append("</ul></div></div>")
     if not post:  # every division at once, as the old "expanded standings" page had it
         out.append("<div class=mod id=allstandings><div class=mh>Expanded standings</div><div class=mb>")
@@ -1373,7 +1442,7 @@ def render(news):
             for r in d["rows"]:
                 gb = "&ndash;" if r["gb"] == 0 else f"{r['gb']:g}"
                 cls = " class=mine" if r["team"] == user else ""
-                out.append(f"<tr{cls}><td>{lg(r['team'])}{e(db.club(r['team']))}</td><td>{r['w']}</td><td>{r['l']}</td>"
+                out.append(f"<tr{cls}><td>{lg(r['team'])}{TM(r['team'])}</td><td>{r['w']}</td><td>{r['l']}</td>"
                            + f"<td>{r['pct']:.3f}".replace("0.", ".", 1) + f"</td><td>{gb}</td><td>{r['home']}</td>"
                            f"<td>{r['road']}</td><td>{r['rs']}</td><td>{r['ra']}</td><td>{r['streak']}</td></tr>")
             out.append("</table>")
@@ -1399,7 +1468,9 @@ def render(news):
             out.append(f"<li>{e(s['head'])}</li>")
         out.append("</ul><a class=x href='#injuries'>Injury report &rsaquo;</a></div>")
     out.append("</div></div>")
-    out.append(team_pages(news, lg, gid))
+    out.append(team_pages(news, lg, gid, PL, TM, story))
+    out.append("<div id=playerpage class=teampage></div>")
+    out.append(f"<script>var PD={player_data(news, need)},TT={team_table(db)};</script>")
     out.append("<div class=foot><div class=links><a href='#news'>Headlines</a><a href='#scores'>Scores</a>"
                "<a href='#allstandings'>Standings</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></div>"
                "<div class=fine>Made by the MVP05-Plus Launcher from your save. Names, teams and logos are read from your "
@@ -1407,6 +1478,7 @@ def render(news):
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
                f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
                "function route(){var h=location.hash.slice(1),t=h.indexOf('team-')==0?document.getElementById(h):null;"
+               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));"
                "document.querySelectorAll('.teampage').forEach(function(p){p.style.display=p==t?'block':'none'});"
                "document.querySelector('.cols').style.display=t?'none':'flex';if(t){window.scrollTo(0,0);return;}"
                "var el=h&&document.getElementById(h);if(el){var d=el.closest('.dpane');if(d)pickday(+d.id.slice(1));"
@@ -1423,7 +1495,7 @@ def render(news):
     return "".join(out).replace("</style>", logos + "</style>", 1)
 
 
-def team_pages(news, lg, gid):
+def team_pages(news, lg, gid, PL, TM, story):
     """One page a club (shown in place of the front page by #team-<n>): record and place, the season so far by
     game, the roster with each player's line, injuries, transactions and headlines about the club."""
     db, e = news["db"], html.escape
@@ -1487,7 +1559,7 @@ def team_pages(news, lg, gid):
             line = (f"<td>{b['ab']}</td><td>{(b['h'] / b['ab']):.3f}</td>".replace(">0.", ">.") if b and b["ab"] else
                     "<td>0</td><td>&ndash;</td>") + (f"<td>{b['hr']}</td><td>{b['rbi']}</td><td>{b['r']}</td>"
                                                     f"<td>{b['sb']}</td>" if b else "<td></td>" * 4)
-            out.append(f"<tr><td>{db.pos(k)}</td><td>{e(nm(k))}</td>{line}</tr>")
+            out.append(f"<tr><td>{db.pos(k)}</td><td>{PL(k)}</td>{line}</tr>")
         out.append("</table><table class=roster><tr><th></th><th>Pitcher</th><th>G</th><th>W-L</th><th>ERA</th>"
                    "<th>SV</th><th>IP</th><th>SO</th></tr>")
         for k in pitchers:
@@ -1498,7 +1570,7 @@ def team_pages(news, lg, gid):
                         f"<td>{p['outs'] // 3}.{p['outs'] % 3}</td><td>{p['so']}</td>")
             else:
                 line = "<td>0</td>" + "<td></td>" * 5
-            out.append(f"<tr><td>{db.pos(k)}</td><td>{e(nm(k))}</td>{line}</tr>")
+            out.append(f"<tr><td>{db.pos(k)}</td><td>{PL(k)}</td>{line}</tr>")
         out.append("</table></div></div>")
         # news about the club
         about = lambda s_: t in s_["teams"] or t in s_.get("raw_teams", [])
@@ -1508,21 +1580,80 @@ def team_pages(news, lg, gid):
         out.append("<div class=pair><div class=mod><div class=mh>News</div><div class=mb><ul class=heads>")
         for h in heads:
             out.append(f"<li><span class=kind>{e(h['kind'])}</span> <span class=date>{short_day(h['day'])}</span>"
-                       f"<b>{e(h['head'])}</b><p>{e(h['body'])}</p></li>")
+                       f"<b>{e(h['head'])}</b><p>{story(h)}</p></li>")
         if not heads:
             out.append("<li>No news yet.</li>")
         out.append("</ul></div></div><div class=mod><div class=mh>Injuries</div><div class=mb><ul class=list>")
         for h in hurt:
-            out.append(f"<li>{e(h['body'])}</li>")
+            out.append(f"<li>{story(h)}</li>")
         if not hurt:
             out.append("<li>Nobody's hurt.</li>")
         out.append("</ul></div><div class=mh>Transactions</div><div class=mb><ul class=list>")
         for h in wire:
-            out.append(f"<li><span class=date>{short_day(h['day'])}:</span> {e(h['body'])}</li>")
+            out.append(f"<li><span class=date>{short_day(h['day'])}:</span> {story(h)}</li>")
         if not wire:
             out.append("<li>None yet.</li>")
         out.append("</ul></div></div></div></div>")
     return "".join(out)
+
+
+def player_data(news, keys):
+    """The players' pages, as data the page fills in (one template, not a page each): {hex key: {n name, pos, t
+    franchise index or -1, b 1 for a hitter, bio, rows [[year, team index, ...]], news [[date, kind, head, body]]}}.
+    A hitter's row: AB, H, HR, RBI, R, SB; a pitcher's: G, W, L, SV, outs, ER, SO, BB (FORMAT_NOTES 3.6)."""
+    import json
+    db = news["db"]
+    hist = news["history"]
+    stats = news["stats"] or {}
+    on = {k: db.franchises[i] for i, ks in news["rosters"].items() for k in ks if i < len(db.franchises)}
+    about = collections.defaultdict(list)
+    for st in news["stories"]:
+        for k in st["players"]:
+            if len(about[k]) < 6:
+                about[k].append([f"{day(st['day']).month}/{day(st['day']).day}", st["kind"], st["head"], st["body"]])
+    out = {}
+    for k in keys:
+        rows = hist.get(k, [])
+        hitter = sum(r["batter"] for r in rows) * 2 >= len(rows) if rows else db.pos(k) not in ("RHP", "LHP")
+        team = on.get(k) or getattr(stats.get("bat" if hitter else "pit", {}).get(k), "team", None)
+        if team is None and rows:
+            t = db.team_at(rows[-1]["team"])
+            team = db.org_of.get(t, t)
+        cells = []
+        for r in sorted(rows, key=lambda r: r["year"]):
+            x = r["stats"]
+            cells.append([r["year"], r["team"]] + ([x["ab"], x["h"], x["hr"], x["rbi"], x["r"], x["sb"]] if r["batter"]
+                         else [x["g"], x["w"], x["l"], x["sv"], x["outs"], x["er"], x["so"], x["bb"]]))
+        p = db.players.get(k, {})
+        bio = []
+        if p:
+            if p.get(4) in ("0", "1"):
+                bio.append(f"Throws {'left' if p.get(4) == '1' else 'right'}")
+            try:
+                if int(p.get(40) or 0):
+                    bio.append(f"2005 salary ${int(p[40]) / 10:.1f}M".replace(".0M", "M"))
+            except ValueError:
+                pass
+        else:
+            bio.append("Created in this dynasty")
+        out[f"{k:x}"] = dict(n=news["names"].get(k) or db.name(k) or "?", pos=db.pos(k) or ("Pitcher" if not hitter else ""),
+                             t=db.franchises.index(team) if team in db.franchises else -1, b=int(hitter),
+                             bio=" &middot; ".join(bio), rows=cells, news=about.get(k, []))
+    return json.dumps(out, separators=(",", ":")).replace("</", "<\\/")
+
+
+def team_table(db):
+    """[[short name, franchise index or -1]] for the history rows' team bytes"""
+    import json
+    out = []
+    for i in range(126):
+        t = db.team_at(i)
+        if t is None:
+            break
+        org = db.org_of.get(t, t)
+        out.append([db.short(t) if t in db.franchises else db.city(t),
+                    db.franchises.index(org) if org in db.franchises else -1])
+    return json.dumps(out, separators=(",", ":")).replace("</", "<\\/")
 
 
 def news_record(news, t):
