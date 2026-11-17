@@ -362,6 +362,10 @@ X86_FUNC(sub_001B8C30) {
 X86_EXTERN_FUNC(__imp__sub_00462720);
 X86_FUNC(sub_00462720) {
     uint32_t self = ctx.ecx;
+    // (stdcall, 7 arguments: ?, the player, then where to put the asking price for the screen, the years, ...;
+    // the function copies its asking price there as it returns, at 0x462C6B, so the copy is changed too: without
+    // that the screen showed the game's own price while the least he'd take was changed, spy_jam 2026-11-16)
+    uint32_t asking_out = kernel::R32(ctx.esp + 12);
     static uint32_t last_self = 0, last_bits[2] = {};  // what this left there last, so it's never scaled twice
     uint32_t pre[2] = {self ? kernel::R32(self + 4) : 0, self ? kernel::R32(self + 8) : 0};
     __imp__sub_00462720(ctx, base);
@@ -388,6 +392,7 @@ X86_FUNC(sub_00462720) {
         after[k] = float(steps) * step + add;
     }
     for (int k = 0; k < 2; k++) setf(self + 4 + 4 * k, after[k]);
+    if (asking_out >= 0x10000 && kernel::R32(asking_out) == post[0]) setf(asking_out, after[0]);
     last_self = self;
     last_bits[0] = kernel::R32(self + 4);
     last_bits[1] = kernel::R32(self + 8);
