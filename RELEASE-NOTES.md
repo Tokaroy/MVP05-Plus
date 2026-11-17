@@ -20,6 +20,9 @@ Mods, Game Tweaks, your own season schedules, and short seasons that finish on t
 - **Extras** (in-game Tools menu, F10): **Unlock everything** and **Add MVP points**, EA's own from their debug menu, for the profile you're signed in with.
 - **Dynasty** (in-game Tools menu): set your **Owner Mode bank balance** and your team's **payroll budget**, and **hold your manager rating** so you keep your job.
 
+## League News (new, first version)
+- **League News** (*Saves*, pick a dynasty or owner mode, *League News*, or right-click it): your league as a 2005-style sports page in your browser, made from the save. It has the latest scores, standings by division with games back, last 10 and streaks, the wild card races, tomorrow's best matchups, the transactions wire and the injury report. The top stories are ranked by how big the players are (star power, salary, top prospects), how much the teams' races make it matter, what happened (trades, injuries, call-ups, no-hitters, marathons, routs, streaks, a new division leader) and how recent it is. Your team's latest news always makes the front page. Names come from your own game; nothing in the save is changed. Not in it yet: players the dynasty made itself are "a young player", and there are no stats leaders, awards, All-Star votes or team logos (coming).
+
 ## Saves
 - Rosters, dynasties and owner modes go **both ways** between your Xbox saves and the PS2, GameCube and PC versions: *Saves → Import a save…* brings one in, *Export…* (or a right-click on a save) sends one out, built on a save of yours from that console.
 - **Owner mode saves** move between consoles too: *Import a save…* takes an owner mode from the PS2, GameCube, PC or another Xbox, and *Export…* (or a right-click on it in *Your saves*) takes one to the GameCube, PS2 or PC. As with dynasties, each goes into an owner mode save of your own on the console it goes to. Being tested.
@@ -35,6 +38,7 @@ Mods, Game Tweaks, your own season schedules, and short seasons that finish on t
 - **Import and export remember where you were:** the file pickers open in the folder you last chose from, or the first time in Dolphin's or PCSX2's own card folder.
 - **Problems are written down:** a failed import or export, or anything unexpected in the Launcher, goes to `MVP05-Plus-Launcher.log` beside MVP05.exe, and the message says which part of the save it was.
 - **The Launcher's backups show in Saves → Backups:** the copy of a save made before an import, a Payroll Budget or Playoffs change, a rename or a delete is listed by date ("before importing a dynasty" and so on) and restores from there. Restoring one of those puts back only that save; your other saves stay. (The ones the earlier Beta 2.5 builds made are in the *save backups* folder beside MVP05.exe, but not in the list.)
+- **Standings Projector on a saved dynasty past the All-Star break:** the save keeps each team's record in two halves, split at the break. The Launcher's projector refused a save once the second half had started, which is when a short season ends. It now projects into both halves, as the in-game one does.
 
 ## Changed
 - **Standings Projector** (was the Short Season Advancer): no longer needed for short seasons. It's kept for a dynasty stuck at the end of a short season from an older version: in the game it's now a checkbox in F10's *Extras* tab.
