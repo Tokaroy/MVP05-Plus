@@ -46,8 +46,9 @@ def _load(folder):
         xf = f.read()
     m = C.parse_xbox(xf)
     if m.get("typ") not in ("Dynasty", OW.TYP):
-        raise BudgetError(f"that's a{'n' if str(m.get('typ'))[:1] in 'AEIOU' else ''} {m.get('typ')} save: the "
-                          "payroll budget is in dynasty and owner mode saves")
+        import dynasty05 as DY
+        raise BudgetError(f"that's {DY.a_kind(m.get('typ'))} save: the payroll budget is in dynasty and owner mode "
+                          "saves")
     return C, xf, m
 
 

@@ -174,6 +174,38 @@ def gc_card_rt():
     assert all(after[k] == files[k] for k in files if k != ros), "the card's other saves changed"
     return same(GR.to_xbox(after[ros], F['xb_roster']), F['xb_roster'])
 t('gamecube memory card: saves read, rosters written back in place', gc_card_rt)
+# the save tools: the payroll budget (and an owner's bank balance), standings
+def budget(k, bank=None):
+    import shutil
+    import tempfile
+    import budget05 as BU
+    import saves05 as S5
+    S5.game_running = lambda: False
+    root = tempfile.mkdtemp()
+    folder = os.path.join(root, "hdd", "E", "UDATA", "45410056", "ABCDEF012345")
+    os.makedirs(folder)
+    with open(os.path.join(folder, "data.dat"), "wb") as f:
+        f.write(F[k])
+    before = BU.read(folder)
+    BU.write(root, folder, 87_600_000, say=lambda *_: None, bank=bank)
+    after = BU.read(folder)
+    shutil.rmtree(root)
+    assert after["budget"] == 87_600_000 and after["team"] == before["team"], (before, after)
+    assert bank is None or abs(after["bank"] - bank) < 1, after
+    return 1
+t('payroll budget set in a dynasty', lambda: budget('xb_dyn'))
+t('payroll budget and bank balance set in an owner mode', lambda: budget('xb_own', 12_345_678))
+def standings(k):
+    import tempfile
+    import saves05 as S5
+    folder = tempfile.mkdtemp()
+    with open(os.path.join(folder, "data.dat"), "wb") as f:
+        f.write(F[k])
+    r = S5.read_standings(folder)
+    assert len(r["records"]) == 30
+    return 1
+t('standings read from a dynasty', lambda: standings('xb_dyn'))
+t('standings read from an owner mode', lambda: standings('xb_own'))
 # wrong kinds: each must be refused with a message, never a crash
 wrong = [
     ('owner into dynasty (gc)', lambda: DY.gc_to_xbox(F['gc_own'], F['xb_dyn'])),
