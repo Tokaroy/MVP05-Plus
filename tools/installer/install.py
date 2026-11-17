@@ -1176,7 +1176,10 @@ def import_tool(frm, root, tk, ttk, start=None):
         try:
             on_card = ""
             if os.path.isdir(p) or zipfile.is_zipfile(p):
-                found = saves_in(p)
+                try:
+                    found = saves_in(p)
+                except (zipfile.BadZipFile, RuntimeError, NotImplementedError, OSError) as e:
+                    raise RO.RosterError(f"that zip can't be read ({e})")
                 if not found:
                     raise RO.RosterError(f"there's no MVP 2005 save in that {'folder' if os.path.isdir(p) else 'zip'}")
                 which = found[0] if len(found) == 1 else choose_card_save(frm, tk, ttk, found)

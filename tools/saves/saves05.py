@@ -146,6 +146,7 @@ def new_save(root, base_folder, data, name):
     folder = os.path.join(udata(root), folder_id(name, typ))
     if os.path.exists(folder):
         raise SaveError(f"there's a save called \"{name}\" already: pick another name")
+    shutil.rmtree(folder + ".part", ignore_errors=True)  # (left by a copy that was cut short)
     os.makedirs(folder + ".part")
     try:
         img = os.path.join(base_folder, "saveimage.xbx")
