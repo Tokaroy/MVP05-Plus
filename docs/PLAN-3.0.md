@@ -93,3 +93,13 @@ met?, 0x1DC960 progress, 0x1DCB10 text, 0x1F63E0 screen line, 0x1F6650 progress 
 3 x 162 at 0x5B8C30). The per-player goals (XHRsYplayers, XWinsbyYP) are counted in the goal
 tracker (0x499730, cases 27 and 28) against the goal's X read straight from the object, so there the player's own
 home runs and wins are scaled instead (hooks.cpp).
+
+## Player detail: why the pools can't grow (found from spy_jam's crash, 2026-11-16)
+*More detail* crashed in the first load screen. The body pools' table (0x59B358: 6, 10, 20, 25) was made 40 and 55,
+but the game builds every body at boot from its level's model file, taking the file's next body each time (0x12D640
+and 0x12DA10, 0x3001A0 with a running index), and the files hold exactly 6, 10, 20 and 25: a body past the last gets
+nothing and the game crashes on it. The option now leaves the pools alone and only asks for level 1 where the game
+asks for 2 or 3 (the game's own call for the next level down, returning to 0x12D9A9, left as it is: turning that
+one back to 1 would never end). More bodies would mean loading a model file again for each extra set (a second model
+object from 0x300D20, its bodies taken with 0x3001A0, finished with 0x300380), and at level 0 the face slots too
+(the 40-body code is in git before this note, at 0d91a65: src/game/hooks.cpp).

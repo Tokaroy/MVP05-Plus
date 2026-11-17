@@ -39,8 +39,8 @@ daylight_parks = false
 # Rain: 0 as the game (showers in some games at SBC Park, and at Safeco Field at night), 1 the same at every
 # outdoor park, 2 rain in every game.
 rain = 0
-# Nobody on the field drawn with the game's two simplest player models: umpires and fielders away from the play
-# get the second-best one. With memory_mb = 128 as well, up to 40 are at full detail (the game has room for 6).
+# Umpires and fielders away from the play are given the game's second-best player model (it has ten of them)
+# before its two simplest. The six at full detail stay six: the game's model files hold no more.
 player_full_detail = false
 # EA's depth of field (background blur), which the Xbox version has turned off (being tested).
 depth_of_field = false

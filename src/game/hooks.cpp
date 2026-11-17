@@ -421,150 +421,46 @@ X86_FUNC(sub_002D31E0) {
 }
 
 // Player detail. Every character on the field (players, umpires, coaches) is drawn with a "body" from one of four
-// pools, one a level of detail: 0 the most detailed (the only one with the player's own face: its six face slots are
-// an array of 6 in the pool's owner, at +0xAC), then 1, 2 and 3. The pools' sizes are the table at 0x59B358: 6, 10,
-// 20 and 25 bodies. A character asks for a level (0x81AC0, a virtual of his) and gets a body from that pool through
-// 0x12D820 (thiscall on the pools at [0x653EA0]+0x11D54: character, level, keys); when the pool has none free that
-// call goes on to the next level down, and at level 0 takes the least recently used body from whoever has it. So
-// only six characters are ever at full detail, ten more at level 1, and the umpires and the fielders away from the
-// play are at 2 or 3 while the pitcher pitches.
+// pools, one a level of detail: 0 the most detailed (the only one with the player's own face), then 1, 2 and 3. The
+// pools' sizes are the table at 0x59B358: 6, 10, 20 and 25 bodies. A character asks for a level (0x81AC0, a virtual
+// of his) and gets a body from that pool through 0x12D820 (thiscall on the pools at [0x653EA0]+0x11D54: character,
+// level, keys): his own from last time, else a free one, else the one least recently used if nobody has used it this
+// frame or the last; when every body in the pool is in use it calls itself for the next level down (returning to
+// 0x12D9A9). So only six characters are ever at full detail, and the umpires and the fielders away from the play
+// are at 2 or 3 while the pitcher pitches.
+//
+// The pools can't be made bigger by their table. When the game boots it builds each body from the level's model
+// file (models/hibody, bgbody, mebody, lobody: 0x12D640 for all four levels and 0x12DA10 for 1 to 3, from 0x12D7E0
+// and 0x12F7E0), taking the file's next body each time (0x3001A0 with a running index), and the files hold exactly
+// 6, 10, 20 and 25. A body past the file's last gets nothing, and the game crashes on it in the first load screen:
+// that was the crash with this option when it made pool 1 55 bodies and pool 0 40 (Beta 2.5 test builds). More
+// bodies would need the model file loaded again for each extra set; not done.
+//
+// So player_full_detail only changes what's asked for: a request for level 2 or 3 becomes one for level 1. The ten
+// level 1 bodies go to the first ten who ask in a frame, and the rest fall to level 2 as the game does it itself, so
+// nobody is drawn at level 3 until 36 are on the field. The call the game makes on itself for the next level down is
+// left as it is (changing that one back to 1 would never end).
 //
 // The "importance" thresholds in datafile.big's lod tuning (xboxlod's PLAYER_LOD_*_MIN_IMPORTANCE) and the chooser
-// that reads them (0x274D90, through 0x274DE0) are not what decides: nothing in the game calls that chooser (the two
-// pointers to its object, 0x6603C0 and 0x65DFE4, are only read to load and to free it), which is why the first two
-// tries at this, a hook on it and the thresholds at -1, changed nothing.
-//
-// With player_full_detail the level 1 pool is made 55 bodies (as many as levels 1 to 3 have between them; the table is
-// set before the pools are made, in the heap hook above) and a request for level 2 or 3 becomes one for level 1.
-//
-// With 128 MB of memory as well, the level 0 pool is made 40 bodies, and a request for any level becomes one for
-// level 0 while it has a body to spare. What kept level 0 at six is its face slots: 12 bytes each ({buffer, loaded
-// face, ?}) in an array of 6 inside the pools' owner at +0xAC, with the owner's next member straight after. A body
-// finds its slot by its number in the pool (body+0x468): owner + 0xAC + number * 12, worked out in 32 bits (0x11FE20
-// and 0x1266FE, the only two places). So the 34 extra bodies are given numbers that land that sum in a block of our
-// own (number = (distance / 4) * 0x2AAAAAAB, the inverse of 3, kept to 30 bits: times 12 it wraps to the distance),
-// and the three loops over "6 slots" are followed by ours over the extra ones: 0x1263D0 gives each slot its 0xCF08
-// byte buffer when a game is set up, 0x1262B0 lets go of the loaded faces and 0x126620 frees the buffers after it.
-namespace {
-constexpr uint32_t kFullBodies = 40, kOwnBodies = 6, kExtraBodies = kFullBodies - kOwnBodies;
-uint32_t g_extra_slots = 0;  // guest address of the extra face slots, once the pools are made with them
-
-bool WantFullPool() { return tools::g_player_full_detail && mem::kPhysicalSize >= (128u << 20); }
-
-void ReleaseExtraFaces(X86Context& ctx) {
-    if (!g_extra_slots) return;
-    uint32_t ecx = ctx.ecx, eax = ctx.eax;
-    for (uint32_t j = 0; j < kExtraBodies; j++) {
-        uint32_t slot = g_extra_slots + 12 * j, face = kernel::R32(slot + 4);
-        if (!face) continue;
-        ctx.ecx = face;
-        kernel::CallGuest(ctx, 0x300D80, {});                        // as 0x1263A6 does for the game's six
-        kernel::CallGuest(ctx, kernel::R32(0x644F0C), {face, 0x30});
-        kernel::W32(slot + 4, 0);
-    }
-    ctx.ecx = ecx;
-    ctx.eax = eax;
-}
-}  // namespace
-
-static void PlayerDetailPools() {
-    if (!tools::g_player_full_detail || kernel::R32(0x59B358) != kOwnBodies || kernel::R32(0x59B35C) != 10) return;
-    kernel::W32(0x59B35C, 55);
-    if (WantFullPool()) kernel::W32(0x59B358, kFullBodies);
-    LOGR("player detail: pools %u, 55, 20, 25 bodies (the game's: 6, 10, 20, 25)", kernel::R32(0x59B358));
-}
-
-// the pools' owner made (thiscall, at boot): the extra level 0 bodies given their face slots
-X86_EXTERN_FUNC(__imp__sub_00129E20);
-X86_FUNC(sub_00129E20) {
-    uint32_t owner = ctx.ecx;
-    __imp__sub_00129E20(ctx, base);
-    if (kernel::R32(0x59B358) != kFullBodies || g_extra_slots) return;
-    uint32_t pool = kernel::R32(owner + 0x3C8);
-    uint32_t block = pool ? kernel::CallGuest(ctx, 0x2C6CB0, {12 * kExtraBodies + 16, 0}) : 0;
-    if (!block) {
-        LOGE("player detail: no memory for the extra face slots");
-        return;
-    }
-    block = (block + 3) & ~3u;
-    for (uint32_t i = 0; i < 12 * kExtraBodies; i += 4) kernel::W32(block + i, 0);
-    for (uint32_t k = kOwnBodies; k < kFullBodies; k++) {
-        uint32_t distance = block + 12 * (k - kOwnBodies) - (owner + 0xAC);  // a multiple of 4
-        kernel::W32(pool + k * 0x4B4 + 0x468, ((distance >> 2) * 0x2AAAAAABu) & 0x3FFFFFFFu);
-    }
-    g_extra_slots = block;
-    LOGR("player detail: %u full-detail bodies, the extra %u with face slots at %08X", kFullBodies, kExtraBodies, block);
-}
-
-// a game set up (thiscall, one byte argument): each face slot's buffer
-X86_EXTERN_FUNC(__imp__sub_001263D0);
-X86_FUNC(sub_001263D0) {
-    __imp__sub_001263D0(ctx, base);
-    if (!g_extra_slots) return;
-    uint32_t eax = ctx.eax, flags = kernel::R32(0x6747BC) | 0x400, got = 0;
-    for (uint32_t j = 0; j < kExtraBodies; j++) {
-        uint32_t slot = g_extra_slots + 12 * j;
-        if (kernel::R32(slot)) continue;
-        uint32_t buf = kernel::CallGuest(ctx, 0x2DA9D9, {0x59C788, 0xCF08, flags});
-        if (!buf) buf = kernel::CallGuest(ctx, 0x2DA9C0, {0x59C788, 0xCF08, flags});
-        kernel::W32(slot, buf);
-        got += buf != 0;
-    }
-    ctx.eax = eax;
-    LOGR("player detail: %u face buffers for the extra bodies", got);
-}
-
-// every body let go of (thiscall): the loaded faces too
-X86_EXTERN_FUNC(__imp__sub_001262B0);
-X86_FUNC(sub_001262B0) {
-    __imp__sub_001262B0(ctx, base);
-    ReleaseExtraFaces(ctx);
-}
-
-// a game torn down (thiscall): the face buffers freed
-X86_EXTERN_FUNC(__imp__sub_00126620);
-X86_FUNC(sub_00126620) {
-    ReleaseExtraFaces(ctx);
-    if (g_extra_slots) {
-        uint32_t eax = ctx.eax;
-        for (uint32_t j = 0; j < kExtraBodies; j++) {
-            uint32_t slot = g_extra_slots + 12 * j, buf = kernel::R32(slot);
-            if (buf) kernel::CallGuest(ctx, 0x2DA38A, {buf});
-            kernel::W32(slot, 0);
-        }
-        ctx.eax = eax;
-    }
-    __imp__sub_00126620(ctx, base);
-}
+// that reads them (0x274D90, through 0x274DE0) are not what decides: nothing in the game calls that chooser.
+static void PlayerDetailPools() {}  // (the pools stay the game's own size: see above)
 
 X86_EXTERN_FUNC(__imp__sub_0012D820);
 X86_FUNC(sub_0012D820) {
-    uint32_t owner = ctx.ecx, who = kernel::R32(ctx.esp + 4), level = kernel::R32(ctx.esp + 8), give = level;
-    if (tools::g_player_full_detail && level >= 1 && level <= 3 && kernel::R32(0x59B35C) >= 55) {
+    uint32_t ret = kernel::R32(ctx.esp), level = kernel::R32(ctx.esp + 8), give = level;
+    if (tools::g_player_full_detail && (level == 2 || level == 3) && ret != 0x12D9A9) {
         give = 1;
-        uint32_t pool = kernel::R32(owner + 0x3C8);
-        if (g_extra_slots && pool) {  // level 0 if he has one of its bodies already, or it has some to spare
-            uint32_t spare = 0;
-            bool has = false;
-            for (uint32_t k = 0; k < kFullBodies; k++) {
-                uint32_t body = pool + k * 0x4B4;
-                if (kernel::R32(body + 0x464) & 0xFF) continue;
-                if (kernel::R32(body + 0x440) == who) has = true;
-                if (!kernel::R32(body + 0x46C)) spare++;
-            }
-            if (has || spare > 2) give = 0;
-        }
-        if (give != level) kernel::W32(ctx.esp + 8, give);
+        kernel::W32(ctx.esp + 8, give);
     }
-    static std::atomic<uint32_t> asked[5], given[5], calls{0};
+    static std::atomic<uint32_t> asked[5], given[5], fell{0}, calls{0};
     if (level < 5 && give < 5 && calls.load() < 5000) {
-        asked[level]++;
-        given[give]++;
+        if (ret == 0x12D9A9) fell++;
+        else asked[level]++, given[give]++;
         if (calls.fetch_add(1) + 1 == 5000)
             LOGR("player detail: over 5000 requests, asked for levels 0 to 3: %u, %u, %u, %u (none %u); given: %u, %u, "
-                 "%u, %u",
+                 "%u, %u; passed down a level by the game: %u",
                  asked[0].load(), asked[1].load(), asked[2].load(), asked[3].load(), asked[4].load(), given[0].load(),
-                 given[1].load(), given[2].load(), given[3].load());
+                 given[1].load(), given[2].load(), given[3].load(), fell.load());
     }
     __imp__sub_0012D820(ctx, base);
 }

@@ -1344,8 +1344,8 @@ def desktop_resolution():
 # checkbox. The first choice is the game's own (what an unset key means).
 TWEAKS = {
     "Graphics": [
-        ("player_full_detail", None, "More detail: nobody on the field drops to the game's two simplest player models; with memory "
-                                     "doubled below, up to 40 at full detail where the game has 6 (test)", None),
+        ("player_full_detail", None, "More detail: umpires and fielders away from the play get the game's "
+                                     "second-best player model, not its two simplest (test)", None),
         ("daylight_parks", None, "Daylight day games: day lighting and sky at Fenway, Turner Field and the other "
                                  "parks EA lit as dusk (test)", None),
         ("rain", "Rain",
@@ -1418,13 +1418,26 @@ TWEAKS = {
 }
 
 
-def tweak_controls(parent, items, saved, tk, ttk, row=0, width=58):
+def tweak_controls(parent, items, saved, tk, ttk, row=0, width=58, about=None):
     """The controls for a list of TWEAKS items, from row on in parent's grid: checkboxes, or a title, an
-    explanation and a dropdown. Returns (values, load, next row): values() gives {key: value} to save, load(saved)
-    sets them again from the settings."""
+    explanation and a dropdown. With about (a function taking a title and a text), a dropdown is one row, its title
+    beside it, and its explanation goes to about when the pointer or the keyboard is on it. Returns (values, load,
+    next row): values() gives {key: value} to save, load(saved) sets them again from the settings."""
     controls = []  # (key, var, choices or None)
     r = row
     for key, title, text, choices in items:
+        if choices is not None and about:
+            name = ttk.Label(parent, text=title)
+            name.grid(row=r, column=0, sticky="w", pady=3)
+            var = tk.StringVar()
+            box = ttk.Combobox(parent, textvariable=var, state="readonly", width=width)
+            box.grid(row=r, column=1, sticky="w", padx=(14, 0), pady=3)
+            for w in (name, box):
+                for event in ("<Enter>", "<FocusIn>", "<<ComboboxSelected>>"):
+                    w.bind(event, lambda _, title=title, text=text: about(title, text), add="+")
+            r += 1
+            controls.append((key, var, (dict(choices), box)))
+            continue
         if choices is None:
             var = tk.BooleanVar()
             ttk.Checkbutton(parent, text=text, variable=var).grid(row=r, column=0, columnspan=3, sticky="w", pady=2)
@@ -1466,17 +1479,41 @@ def tweak_controls(parent, items, saved, tk, ttk, row=0, width=58):
 
 
 def adjustments_tool(group, heading, about):
-    """A Tools page for one TWEAKS group: its settings, Save and Defaults. Used at the game's next start."""
+    """A Tools page for one TWEAKS group, short enough to fit the Launcher: Save and Defaults at the top, one row a
+    setting, and one place under them that explains the setting the pointer is on. Used at the game's next start."""
     def build(frm, root, tk, ttk):
         import settings as ST
         frm.columnconfigure(0, weight=1)
-        ttk.Label(frm, text=heading, font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
-        ttk.Label(frm, foreground="#666", wraplength=560, justify="left", text=about + (
-            " Saved in mvp05-settings.toml; the game uses them the next time it starts.")).grid(
-            row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
-        values, load, r = tweak_controls(frm, TWEAKS[group], ST.read(root), tk, ttk, row=2)
-        note = ttk.Label(frm, text="", wraplength=560, justify="left")
-        note.grid(row=r + 1, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        head = ttk.Frame(frm)
+        head.grid(row=0, column=0, sticky="we")
+        ttk.Label(head, text=heading, font=("Segoe UI", 10, "bold")).pack(side="left")
+        save_b = ttk.Button(head, text="Save")
+        save_b.pack(side="right")
+        default_b = ttk.Button(head, text="MVP 05 Default")
+        default_b.pack(side="right", padx=6)
+        note = ttk.Label(head, text="")
+        note.pack(side="right", padx=6)
+        ttk.Label(frm, foreground="#666", wraplength=600, justify="left", text=about + (
+            " The game uses them the next time it starts.")).grid(row=1, column=0, sticky="w", pady=(2, 8))
+        rows = ttk.Frame(frm)
+        rows.grid(row=2, column=0, sticky="w")
+        ttk.Separator(frm, orient="horizontal").grid(row=3, column=0, sticky="we", pady=(8, 6))
+        what = ttk.Label(frm, text="", font=("Segoe UI", 9, "bold"))
+        what.grid(row=4, column=0, sticky="w")
+        # (tall enough for the longest explanation, so the page doesn't move as the pointer does)
+        why_box = ttk.Frame(frm, height=52)
+        why_box.grid(row=5, column=0, sticky="we")
+        why_box.grid_propagate(False)
+        why_box.columnconfigure(0, weight=1)
+        why = ttk.Label(why_box, text="", foreground="#444", wraplength=600, justify="left")
+        why.grid(row=0, column=0, sticky="nw")
+
+        def explain(title=None, text=None):
+            what.configure(text=title or "")
+            why.configure(text=text or "Point at a setting to see what it does and what the game does by default.")
+
+        values, load, _ = tweak_controls(rows, TWEAKS[group], ST.read(root), tk, ttk, width=56, about=explain)
+        explain()
 
         def save():
             ST.write(root, values())
@@ -1485,13 +1522,11 @@ def adjustments_tool(group, heading, about):
         def defaults():
             load({})
             save()
-            note.configure(text="Back to MVP 05 Default. Restart the game if it's running.", foreground="#1a7f37")
+            note.configure(text="Back to MVP 05 Default.", foreground="#1a7f37")
 
-        bar = ttk.Frame(frm)
-        bar.grid(row=r, column=0, columnspan=3, sticky="we", pady=(12, 0))
-        ttk.Button(bar, text="Save", command=save).pack(side="right")
-        ttk.Button(bar, text="MVP 05 Default", command=defaults).pack(side="right", padx=6)
-        return lambda: (load(ST.read(root)), note.configure(text=""))
+        save_b.configure(command=save)
+        default_b.configure(command=defaults)
+        return lambda: (load(ST.read(root)), note.configure(text=""), explain())
     return build
 
 
