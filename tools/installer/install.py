@@ -3730,8 +3730,9 @@ def backups_tab(frm, root, tk, ttk, refresh_current):
             messagebox.showinfo("Save backups", "Pick saves from one date at a time.")
             return
         b = sel[0][1]
-        whole = any(kind == "backup" for kind, _, _ in sel)
-        picked = b["items"] if whole else [s for kind, _, s in sel if kind == "save"]
+        whole = any(kind == "backup" for kind, _, _ in sel) and not B.only_some(b["path"])
+        picked = b["items"] if any(kind == "backup" for kind, _, _ in sel) else \
+            [s for kind, _, s in sel if kind == "save"]
         when = when_text(b["when"])
         names = "\n".join("   •  " + s["name"] for s in picked) or "   (no saves)"
         if whole:
@@ -3743,7 +3744,7 @@ def backups_tab(frm, root, tk, ttk, refresh_current):
         if not messagebox.askyesno("Restore saves?", what):
             return
         try:
-            B.restore(root, b["path"], say=say, ids=None if whole else [s["id"] for s in picked])
+            B.restore(root, b["path"], say=say, ids=None if whole else [s["id"] for s in picked] or None)
         except B.BackupError as e:
             say(f"Stopped: {e}")
         except Exception as e:
