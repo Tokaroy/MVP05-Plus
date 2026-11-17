@@ -577,9 +577,12 @@ void RunToolRequests(X86Context& ctx) {
         uint32_t db = kernel::R32(0x657288), saved_ecx = ctx.ecx, saved_eax = ctx.eax;
         auto f = [](uint32_t va) { uint32_t u = kernel::R32(va); float x; std::memcpy(&x, &u, 4); return x; };
         float step = f(db + 0x204), add = f(db + 0x1F4);
-        ctx.ecx = db;
-        uint32_t team = kernel::CallGuest(ctx, 0x1ADF50, {0});
-        if (step > 0 && team < 64) {
+        // the dynasty's own team: what 0x1ADF50 (0) returns, read here, not by calling it. Its list of the user's
+        // teams ([db+8]: a count, then 32-byte entries, the team at +0x1C) is empty until a dynasty is loaded, and
+        // then 0x1ADF50 reads from address 0 on purpose: the crash on opening the Tools menu outside a dynasty.
+        uint32_t users = kernel::R32(db + 8), team = 0xFFFFFFFFu;
+        if (InHeap(users, 0x24) && kernel::R32(users) >= 1 && kernel::R32(users) <= 64) team = kernel::R32(users + 4 + 0x1C);
+        if (step > 0 && team < 64 && InHeap(kernel::R32(db + 0x44), 0x28)) {  // (and the table the accessors read)
             if (tools::g_budget_request.load() == 1) {
                 int steps = std::clamp(int((tools::g_budget_want.load() - add) / step + 0.5f), 0, 0x7FFF);
                 ctx.ecx = db;
