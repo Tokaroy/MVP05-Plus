@@ -170,6 +170,29 @@ if "xb_dyn.dat" in folders:
     if not good:
         BAD.append("copy and rename")
 
+# the save library: four dynasties fill the game; a fifth goes back only in exchange for one of them
+if "xb_dyn.dat" in folders:
+    src = os.path.join(work, "dynasty.dat")
+    shutil.copy(sample("xb_dyn.dat"), src)
+    for x in S5.in_game(root, "Dynasty"):  # (the steps above left some): the game starts with none
+        S5.put_away(root, x["folder"])
+    for n in ("LIBA", "LIBB", "LIBC", "LIBD"):
+        S5.new_save(root, work, open(src, "rb").read(), n)
+    have = lambda: sorted(x["name"] for x in S5.in_game(root, "Dynasty"))
+    four = have()
+    install.put_away(MagicMock(), root, [x for x in S5.list_saves(root) if x["name"] == "LIBA"][0]["folder"], "LIBA",
+                     lambda: None)
+    S5.new_save(root, work, open(src, "rb").read(), "LIBE")
+    lib = [x for x in S5.list_library(root) if x["name"] == "LIBA"][0]["folder"]
+    install.choose_one = lambda frm, tk, ttk, title, text, options: [i for i, o in enumerate(options)
+                                                                     if o.startswith("LIBE")][0]
+    install.bring_back(MagicMock(), root, lib, MagicMock(), MagicMock(), lambda: None)
+    now, put = have(), [x["name"] for x in S5.list_library(root)]
+    good = four == ["LIBA", "LIBB", "LIBC", "LIBD"] and "LIBA" in now and "LIBE" not in now and "LIBE" in put
+    print(f"{'ok ' if good else 'BAD'} library: put away, then back in exchange for another | game {now}, library {put}")
+    if not good:
+        BAD.append("save library")
+
 shutil.rmtree(work, ignore_errors=True)
 print("No problems." if not BAD else f"PROBLEMS: {', '.join(BAD)}")
 sys.exit(1 if BAD else 0)

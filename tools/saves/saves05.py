@@ -62,9 +62,12 @@ def savemeta_name(folder):
 
 def list_saves(root):
     """[{folder, id, name, type, when}] newest first; type is the game's ("Dynasty", "Season", ...)."""
+    return _list(udata(root))
+
+
+def _list(base):
     C, _ = _lib()
     out = []
-    base = udata(root)
     if not os.path.isdir(base):
         return out
     for d in os.listdir(base):
@@ -87,7 +90,7 @@ def list_saves(root):
 ONE_SAVE = "one save, backed up by MVP05-Plus Launcher"  # how backup_folder's lists start (backups.py reads it)
 
 
-def backup_folder(root, folder, why):
+def backup_folder(root, folder, why, as_id=None):
     """A copy of one save before the Launcher changes it, as the game's own backups are laid out
     (save backups/<date> before <why>/E/UDATA/<title>/<save>, its list written last), so Saves > Backups lists it
     and brings it back; the game counts it with its own when it prunes them."""
@@ -97,7 +100,7 @@ def backup_folder(root, folder, why):
     while os.path.exists(top):  # a second backup in the same second
         top = os.path.join(root, "save backups", f"{stamp} before {why} ({n})")
         n += 1
-    dest = os.path.join(top, "E", "UDATA", TITLE, os.path.basename(folder))
+    dest = os.path.join(top, "E", "UDATA", TITLE, as_id or os.path.basename(folder))
     shutil.copytree(folder, dest)
     lines = [f"{ONE_SAVE} before {why}"]
     for d, _, files in os.walk(dest):
@@ -201,6 +204,128 @@ def delete_save(root, folder):
     _check_not_running()
     b = backup_folder(root, folder, "deleting")
     shutil.rmtree(folder)
+    return b
+
+
+# ---- the save library -------------------------------------------------------------------------------------------
+# The game lists four saves of a kind at most (FORMAT_NOTES 3.11: four slot objects in its save screen), so the
+# Launcher keeps the rest beside MVP05.exe in "save library", each in the folder the game gave it, and moves them in
+# and out of hdd/E/UDATA/45410056 whole. Nothing in a save is changed by moving it.
+LIBRARY = "save library"
+SLOTS = 4  # saves of one kind the game shows
+
+
+def library(root):
+    return os.path.join(root, LIBRARY)
+
+
+def list_library(root):
+    """The saves put away: as list_saves, newest first."""
+    return _list(library(root))
+
+
+def kind_of(folder):
+    """A save's kind from its header ("Dynasty", "Owner Mode", "Rosters" ...), or "?"."""
+    C, _ = _lib()
+    try:
+        with open(os.path.join(folder, "data.dat"), "rb") as f:
+            return C.parse_xbox(f.read(XB_PAYLOAD_OFF))["typ"] or "?"
+    except Exception:
+        return "?"
+
+
+def name_of(folder):
+    try:
+        with open(os.path.join(folder, "data.dat"), "rb") as f:
+            return f.read(0x88)[0x68:0x88].decode("utf-16-le").split("\0")[0] or savemeta_name(folder)
+    except (OSError, UnicodeDecodeError):
+        return savemeta_name(folder)
+
+
+def in_game(root, kind):
+    """The game's saves of one kind (list_saves' entries)."""
+    return [s for s in list_saves(root) if s["type"] == kind]
+
+
+def _move(src, dest):
+    """A save's folder moved whole: renamed in place when it can be (the same drive), else copied and then removed,
+    so a move cut short leaves the save where it was."""
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    try:
+        os.replace(src, dest)
+        return
+    except OSError:
+        pass
+    shutil.rmtree(dest + ".part", ignore_errors=True)
+    shutil.copytree(src, dest + ".part")
+    os.replace(dest + ".part", dest)
+    shutil.rmtree(src)
+
+
+def put_away(root, folder):
+    """One of the game's saves moved into the library: its folder there. A save of the same name put away before
+    stays; this one goes beside it ("<id> 2" ...)."""
+    _check_not_running()
+    base = os.path.basename(folder)
+    dest = os.path.join(library(root), base)
+    n = 2
+    while os.path.exists(dest):
+        dest = os.path.join(library(root), f"{base} {n}")
+        n += 1
+    _move(folder, dest)
+    return dest
+
+
+class SlotsFull(SaveError):
+    """The game has SLOTS saves of this kind already: .kind, .saves (theirs, to choose one to put away)."""
+
+    def __init__(self, kind, saves):
+        super().__init__(f"the game shows {SLOTS} {kind} saves at most, and it has {len(saves)}: put one away first")
+        self.kind, self.saves = kind, saves
+
+
+class NameTaken(SaveError):
+    """The game has a save of this name and kind already."""
+
+
+def bring_back(root, lib_folder, name=None):
+    """A save from the library moved back into the game: its folder there. name: under a new name (when the game
+    has one of the same name and kind). SlotsFull or NameTaken when it can't go back as it is."""
+    _check_not_running()
+    kind = kind_of(lib_folder)
+    have = in_game(root, kind)
+    if len(have) >= SLOTS:
+        raise SlotsFull(kind, have)
+    if name is not None:
+        with open(os.path.join(lib_folder, "data.dat"), "rb") as f:
+            data = f.read()
+        new = new_save(root, lib_folder, data, name)
+        shutil.rmtree(lib_folder)
+        return new
+    dest = os.path.join(udata(root), folder_id(name_of(lib_folder), kind))
+    if os.path.exists(dest):
+        raise NameTaken(f"the game has a {kind} save called \"{name_of(lib_folder)}\" already")
+    _move(lib_folder, dest)
+    return dest
+
+
+def swap(root, game_folder, lib_folder, name=None):
+    """A game save put away and a library save brought back in its place: (the first's folder in the library, the
+    second's in the game). If the second can't go back, the first is put back where it was."""
+    _check_not_running()
+    away = put_away(root, game_folder)
+    try:
+        return away, bring_back(root, lib_folder, name)
+    except Exception:
+        _move(away, game_folder)
+        raise
+
+
+def delete_from_library(root, lib_folder):
+    """A save in the library deleted: backed up first, as deleting from the game is."""
+    b = backup_folder(root, lib_folder, "deleting from the library",
+                      folder_id(name_of(lib_folder), kind_of(lib_folder)))
+    shutil.rmtree(lib_folder)
     return b
 
 

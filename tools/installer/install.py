@@ -13,6 +13,7 @@ Save backups: the game's own backups of your saves (save backups/), listed and r
   MVP05-Plus-Launcher.exe --xbox X [--gamecube G] [--ps2 P] [--dir D]   installing without it
 """
 import argparse
+import collections
 import datetime
 import json
 import contextlib
@@ -907,10 +908,11 @@ def saves_tab(tabs, root, tk, ttk):
     view = tk.StringVar(value="saves")
     switch = ttk.Frame(head)
     switch.pack(side="right")
-    pages = {"saves": ttk.Frame(outer), "backups": ttk.Frame(outer)}
+    pages = {"saves": ttk.Frame(outer), "library": ttk.Frame(outer), "backups": ttk.Frame(outer)}
     refresh_current = current_saves_tab(pages["saves"], root, tk, ttk)
+    refresh_library = library_tab(pages["library"], root, tk, ttk)
     refresh_backups = backups_tab(pages["backups"], root, tk, ttk, refresh_current)
-    refresh = {"saves": refresh_current, "backups": refresh_backups}
+    refresh = {"saves": refresh_current, "library": refresh_library, "backups": refresh_backups}
 
     def show(*_):
         for k, f in pages.items():
@@ -919,7 +921,7 @@ def saves_tab(tabs, root, tk, ttk):
             else:
                 f.grid_remove()
         refresh[view.get()]()  # each list as it is now when it's looked at
-    for value, text in (("saves", "Your saves"), ("backups", "Backups")):
+    for value, text in (("saves", "Your saves"), ("library", "Library"), ("backups", "Backups")):
         ttk.Radiobutton(switch, text=text, value=value, variable=view, style="Toolbutton", command=show).pack(
             side="left")
     show()
@@ -1673,6 +1675,177 @@ def share_save(frm, folder, name):
                                         "save, and choose the zip.", parent=frm)
 
 
+def slots_text(root):
+    """ "Dynasty 4 of 4 (full) · Owner Mode 1 of 4": how many of each kind the game holds."""
+    import saves05 as S
+    try:
+        kinds = collections.Counter(s["type"] for s in S.list_saves(root) if s["type"] != "?")
+    except Exception:
+        return ""
+    if not kinds:
+        return ""
+    return "The game shows four of each kind: " + " \u00b7 ".join(
+        f"{k} {n} of {S.SLOTS}" + (" (full: Library holds the rest)" if n >= S.SLOTS else "") for k, n in sorted(kinds.items()))
+
+
+def put_away(frm, root, folder, name, done):
+    import saves05 as S
+    from tkinter import messagebox
+    try:
+        S.put_away(root, folder)
+    except (S.SaveError, OSError) as e:
+        messagebox.showerror("Save library", f"\"{name}\" wasn't moved: {e}.", parent=frm)
+        return
+    done()
+
+
+def choose_one(frm, tk, ttk, title, text, options):
+    """A small window with a list to pick one from: its index, or None."""
+    w = tk.Toplevel(frm.winfo_toplevel())
+    w.title(title)
+    w.transient(frm.winfo_toplevel())
+    w.resizable(False, False)
+    f = ttk.Frame(w, padding=14)
+    f.grid()
+    ttk.Label(f, text=text, wraplength=380, justify="left").grid(row=0, column=0, sticky="w", pady=(0, 8))
+    box = ttk.Combobox(f, values=options, state="readonly", width=48)
+    box.current(0)
+    box.grid(row=1, column=0, sticky="we")
+    got = [None]
+
+    def ok():
+        got[0] = box.current()
+        w.destroy()
+    bar = ttk.Frame(f)
+    bar.grid(row=2, column=0, sticky="e", pady=(12, 0))
+    ttk.Button(bar, text="Cancel", command=w.destroy).pack(side="right")
+    ttk.Button(bar, text="OK", command=ok).pack(side="right", padx=6)
+    w.grab_set()
+    w.wait_window()
+    return got[0]
+
+
+def bring_back(frm, root, lib_folder, tk, ttk, done, swap_for=None):
+    """A library save back into the game: when the game is full of that kind, one of its saves is put away in
+    exchange (chosen here); when the name is taken, it can come back under another."""
+    import saves05 as S
+    from tkinter import messagebox, simpledialog
+    title = "Save library"
+    name = None
+    while True:
+        try:
+            if swap_for:
+                S.swap(root, swap_for, lib_folder, name)
+            else:
+                S.bring_back(root, lib_folder, name)
+            break
+        except S.SlotsFull as e:
+            opts = [f"{s['name']} (last saved {when_text(s['when'])})" for s in e.saves]
+            i = choose_one(frm, tk, ttk, title, f"The game shows four {e.kind} saves at most and has four now. Which "
+                                                f"one goes into the library in exchange?", opts)
+            if i is None:
+                return
+            swap_for = e.saves[i]["folder"]
+        except S.NameTaken as e:
+            name = simpledialog.askstring(title, f"{str(e)[0].upper()}{str(e)[1:]}. Bring this one back under a new "
+                                                 f"name (up to {S.NAME_MOST} letters and digits)?",
+                                          initialvalue=(S.name_of(lib_folder)[:S.NAME_MOST - 1] + "2"), parent=frm)
+            if name is None:
+                return
+        except (S.SaveError, OSError) as e:
+            messagebox.showerror(title, f"Nothing was moved: {e}.", parent=frm)
+            return
+    done()
+
+
+def library_tab(frm, root, tk, ttk):
+    """Saves put away beside MVP05.exe ("save library"), past the game's four of a kind: brought back, swapped in for
+    one of the game's, read as League News, or deleted (backed up first)."""
+    import saves05 as S
+    from tkinter import messagebox
+    ttk.Label(frm, wraplength=520, justify="left", text=(
+        "The game shows four saves of each kind (dynasties, owner modes ...). Put the others away here and bring "
+        "them back when you want to play them: a save moves whole, nothing in it changes.")).grid(
+        row=0, column=0, sticky="w", pady=(0, 8))
+    tree = ttk.Treeview(frm, columns=("kind", "when"), show="tree headings", height=12, selectmode="browse")
+    tree.heading("#0", text="Save")
+    tree.heading("kind", text="Kind")
+    tree.heading("when", text="Last saved")
+    tree.column("#0", width=250, anchor="w")
+    tree.column("kind", width=120, anchor="w")
+    tree.column("when", width=160, anchor="w")
+    tree.grid(row=1, column=0, sticky="we")
+    frm.columnconfigure(0, weight=1)
+    note = ttk.Label(frm, text="", foreground="#666")
+    note.grid(row=3, column=0, sticky="w", pady=(6, 0))
+    folders = {}
+
+    def refresh():
+        tree.delete(*tree.get_children())
+        folders.clear()
+        try:
+            saves = S.list_library(root)
+        except Exception as e:
+            saves = []
+            note.configure(text=f"The library can't be read: {e}.")
+        for s in saves:
+            folders[tree.insert("", "end", text=s["name"], values=(s["type"], when_text(s["when"])))] = s["folder"]
+        note.configure(text=slots_text(root) if saves else
+                       "Nothing put away yet: in Your saves, right-click a save and Put away in the library.")
+
+    def picked():
+        sel = tree.selection()
+        if not sel:
+            note.configure(text="Pick a save in the list first.", foreground="#a33")
+            return None
+        return sel[0]
+
+    def back(iid=None):
+        iid = iid or picked()
+        if iid:
+            bring_back(frm, root, folders[iid], tk, ttk, refresh)
+
+    def swap_with(iid):
+        kind = tree.set(iid, "kind")
+        have = S.in_game(root, kind)
+        if not have:
+            back(iid)
+            return
+        i = choose_one(frm, tk, ttk, "Save library", f"Swap \"{tree.item(iid, 'text')}\" in for which {kind} save? "
+                                                     "That one goes into the library.",
+                       [f"{s['name']} (last saved {when_text(s['when'])})" for s in have])
+        if i is not None:
+            bring_back(frm, root, folders[iid], tk, ttk, refresh, swap_for=have[i]["folder"])
+
+    def delete(iid):
+        name = tree.item(iid, "text")
+        if not messagebox.askyesno("Save library", f"Delete \"{name}\" from the library?\n\nIt's backed up first: "
+                                                   "Saves > Backups brings it back into the game.", parent=frm):
+            return
+        try:
+            S.delete_from_library(root, folders[iid])
+        except OSError as e:
+            messagebox.showerror("Save library", f"Not deleted: {e}.", parent=frm)
+        refresh()
+
+    right_click_menu(tree, lambda iid: [
+        ("Bring back to the game", lambda: back(iid)),
+        ("Swap in for one of the game's\u2026", lambda: swap_with(iid)),
+        ("League News", lambda: league_news(frm, root, folders[iid])),
+        ("Open folder", lambda: open_in_explorer(folders[iid])),
+        ("Delete\u2026", lambda: delete(iid))])
+    tree.bind("<Double-1>", lambda e: back(tree.identify_row(e.y) or None))
+    bar = ttk.Frame(frm)
+    bar.grid(row=2, column=0, sticky="we", pady=(8, 0))
+    ttk.Button(bar, text="Bring back to the game", command=back).pack(side="left")
+    ttk.Button(bar, text="Swap in\u2026", command=lambda: picked() and swap_with(picked())).pack(side="left",
+                                                                                               padx=(6, 0))
+    ttk.Button(bar, text="Open library folder", command=lambda: open_in_explorer(S.library(root))).pack(side="right")
+    ttk.Button(bar, text="Refresh", command=refresh).pack(side="right", padx=6)
+    refresh()
+    return refresh
+
+
 def current_saves_tab(frm, root, tk, ttk):
     import backups as B
 
@@ -1702,7 +1875,8 @@ def current_saves_tab(frm, root, tk, ttk):
             folders[tree.insert("", "end", text=name, values=(
                 when_text(datetime.datetime.fromtimestamp(when)),
                 f"{size / 2**20:.1f} MB" if size >= 2**20 else f"{max(1, size // 1024)} KB"))] = p
-        note.configure(text="" if saves else "No saves yet: they appear here once you save in the game.")
+        note.configure(text=slots_text(root) if saves else "No saves yet: they appear here once you save in the game.",
+                       foreground="#666")
 
     folders = {}
     right_click_menu(tree, lambda iid: [
@@ -1713,6 +1887,7 @@ def current_saves_tab(frm, root, tk, ttk):
         ("Export to PS2\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PS2", tk, ttk)),
         ("Export to PC\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PC", tk, ttk)),
         ("Share as a zip\u2026", lambda: share_save(frm, folders[iid], tree.item(iid, "text"))),
+        ("Put away in the library", lambda: put_away(frm, root, folders[iid], tree.item(iid, "text"), refresh)),
         ("Copy\u2026", lambda: copy_or_rename(frm, root, folders[iid], False, refresh)),
         ("Rename\u2026", lambda: copy_or_rename(frm, root, folders[iid], True, refresh)),
         ("Delete\u2026", lambda: delete_save(frm, root, folders[iid], tree.item(iid, "text"), refresh))])
