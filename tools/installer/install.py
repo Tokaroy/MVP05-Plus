@@ -1540,6 +1540,29 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         "from the card first if the tool says the save already exists."), parent=frm)
 
 
+def share_save(frm, folder, name):
+    """One of your saves as a zip (its folder as the game keeps it), for another MVP05-Plus's Import a save, or an
+    Xbox's save tools."""
+    from tkinter import filedialog, messagebox
+    safe = "".join(c if c.isalnum() or c in " -_()" else "_" for c in name).strip() or "save"
+    dest = filedialog.asksaveasfilename(parent=frm, title=f"Share \"{name}\"", defaultextension=".zip",
+                                        initialfile=f"{safe} (MVP05-Plus save).zip", filetypes=[("Zip files", "*.zip")])
+    if not dest:
+        return
+    try:
+        with zipfile.ZipFile(dest + ".part", "w", zipfile.ZIP_DEFLATED) as z:
+            for f in sorted(os.listdir(folder)):
+                p = os.path.join(folder, f)
+                if os.path.isfile(p):
+                    z.write(p, os.path.basename(folder) + "/" + f)
+        os.replace(dest + ".part", dest)
+    except OSError as e:
+        messagebox.showerror("Share a save", f"Nothing was written: {e}.", parent=frm)
+        return
+    messagebox.showinfo("Share a save", f"Saved {os.path.basename(dest)}.\n\nIn another MVP05-Plus: Saves, Import a "
+                                        "save, and choose the zip.", parent=frm)
+
+
 def current_saves_tab(frm, root, tk, ttk):
     import backups as B
 
@@ -1577,7 +1600,8 @@ def current_saves_tab(frm, root, tk, ttk):
         ("Export to GameCube\u2026",
          lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "GameCube", tk, ttk)),
         ("Export to PS2\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PS2", tk, ttk)),
-        ("Export to PC\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PC", tk, ttk))])
+        ("Export to PC\u2026", lambda: export_dynasty(frm, folders[iid], tree.item(iid, "text"), "PC", tk, ttk)),
+        ("Share as a zip\u2026", lambda: share_save(frm, folders[iid], tree.item(iid, "text")))])
 
     bar = ttk.Frame(frm)
     bar.grid(row=2, column=0, sticky="we", pady=(8, 0))
@@ -1597,6 +1621,9 @@ def current_saves_tab(frm, root, tk, ttk):
         for to in ("GameCube", "PS2", "PC"):
             m.add_command(label=f"To {to}\u2026", command=lambda to=to: export_dynasty(
                 frm, folders[iid], tree.item(iid, "text"), to, tk, ttk))
+        m.add_separator()
+        m.add_command(label="As a zip, to share\u2026", command=lambda: share_save(frm, folders[iid],
+                                                                                   tree.item(iid, "text")))
         m.tk_popup(export_btn.winfo_rootx(), export_btn.winfo_rooty() + export_btn.winfo_height())
     ttk.Button(bar, text="Open saves folder",
                command=lambda: open_in_explorer(os.path.join(root, "hdd", B.TITLE_UDATA))).pack(side="right")
