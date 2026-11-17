@@ -56,6 +56,9 @@ class NotStarted:
         pass
 
 
+import dragdrop  # noqa: E402
+
+dragdrop.accept = lambda widget, on_drop: False  # (on Windows it hooks the real window, which isn't there)
 install.threading = MagicMock()
 install.threading.Thread = NotStarted
 install.gui(tempfile.mkdtemp())
