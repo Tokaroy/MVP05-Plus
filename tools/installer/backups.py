@@ -49,7 +49,8 @@ def save_folders(drive_parent):
     base = os.path.join(drive_parent, TITLE_UDATA)
     if not os.path.isdir(base):
         return {}
-    return {d: os.path.join(base, d) for d in os.listdir(base) if os.path.isdir(os.path.join(base, d))}
+    return {d: os.path.join(base, d) for d in os.listdir(base)
+            if os.path.isdir(os.path.join(base, d)) and not d.endswith(".part")}  # (.part: a copy cut short)
 
 
 def saves_in(drive_parent):

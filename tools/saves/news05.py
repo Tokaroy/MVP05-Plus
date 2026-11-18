@@ -192,7 +192,7 @@ class Database:
                         kind = "png"
                         if big:  # (WebP keeps the page small; PNG when this Pillow can't write it)
                             try:
-                                im.save(buf, "WEBP", quality=90, method=6)
+                                im.save(buf, "WEBP", quality=90, method=4)
                                 kind = "webp"
                             except (OSError, KeyError, ValueError):
                                 buf = io.BytesIO()
@@ -464,6 +464,8 @@ def season_stats(save, db):
     year = max(r["year"] for r in rows)
     season = min((g["day"] for g in save["games"]), default=None)
     last = season is not None and day(season).year != year
+    # the season's over when the standings are back at 0-0 with this year's lines kept (the postseason)
+    final = not last and not any(sum(v) for v in save["records"].values())
     games = {db.franchises[i]: (162 if last else sum(v)) for i, v in save["records"].items()}
     bat, pit = {}, {}
     for k, rs in save["history"].items():
@@ -474,7 +476,11 @@ def season_stats(save, db):
             st = d.setdefault(k, collections.Counter())
             st.update(r["stats"])
             st.team = db.franchises[r["team"]]
-    return dict(year=year, last_season=last, games=games, bat=bat, pit=pit)
+    if final:  # a club's games then: the most any of its hitters played (equal to the record in every save checked;
+        # a dynasty's season can be shorter than 162)
+        for x in bat.values():
+            games[x.team] = max(games.get(x.team, 0), x["g"])
+    return dict(year=year, last_season=last, final=final, games=games, bat=bat, pit=pit)
 
 
 def season_leaders(save, db, most=10, stats=None):
@@ -507,6 +513,7 @@ def season_leaders(save, db, most=10, stats=None):
         out[lg] = cat
     out["year"] = year
     out["last_season"] = st["last_season"]
+    out["final"] = st["final"]
     return out
 
 
@@ -828,7 +835,7 @@ def build(save, db):
                 moves=sorted((s for s in stories if s["kind"] == "Roster move"), key=lambda s: -s["day"]),
                 user=save["user"], games_played=games_played, db=db,
                 days=recaps(save["games"], db, save["user"], postseason),
-                leaders={} if postseason else season_leaders(save, db, stats=stats), names=save["names"],
+                leaders=season_leaders(save, db, stats=stats), names=save["names"],
                 stats=stats, rosters=save["rosters"], games=save["games"], records=rec, stories=stories,
                 norms=league_norms(save["history"], db),
                 history=save["history"], team_of=team_of)
@@ -1325,8 +1332,10 @@ def render(news):
            + (f"<b>{fmt(news['today'])}</b>" if news["today"] else "") + "</div>",
            "<div class=bar><div class=mark>" + (f"<img src='{db.badge()}' alt=''>" if db.badge() else "")
            + "<div><b>MVP Baseball</b><span>League News</span></div></div>"
-           "<div class=top><a href='#news'>Headlines</a><a href='#recaps'>Scores</a><a href='#standings'>Standings</a>"
-           "<a href='#matchups'>Matchups</a><a href='#stats'>Stats</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></div></div>"]
+           f"<div class=top><a href='#news'>Headlines</a><a href='#{'recaps' if news['days'] else 'scores'}'>Scores</a>"
+           "<a href='#standings'>Standings</a><a href='#matchups'>Matchups</a>"
+           + ("<a href='#stats'>Stats</a>" if news["stats"] else "")
+           + "<a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></div></div>"]
     # Team Sites: every club, American League then National, each to its row in the standings
     leagues = [[], []]
     for d_i, d in enumerate(news["divisions"]):
@@ -1338,7 +1347,8 @@ def render(news):
         for t in sorted(leagues[i], key=db.city):
             out.append(f"<a href='#team-{db.franchises.index(t)}'>{lg(t)}{e(db.city(t))}</a>")
         out.append("</div>")
-    out.append("</div></div><a href='#scores'>Scoreboard</a><a href='#standings'>Standings</a><a href='#stats'>Stats</a>"
+    out.append("</div></div><a href='#scores'>Scoreboard</a><a href='#standings'>Standings</a>"
+               + ("<a href='#stats'>Stats</a>" if news["stats"] else "") +
                "<a href='#matchups'>Schedule</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a>"
                "<a href='#news'>News</a></div>")
     out.append("<div class=cols><div class=left>")
@@ -1370,7 +1380,7 @@ def render(news):
                        + (f"<br>Next: {'at ' + TM(nxt['home']) if nxt['away'] == user else 'vs. ' + TM(nxt['away'])}"
                           if nxt else "") + "</div></div>")
     if news["leaders"]:  # this season's leaders, as the game's Around the League shows them: hitting, then pitching
-        year = f"{news['leaders']['year']} " if news["leaders"]["last_season"] else ""
+        year = f"{news['leaders']['year']} " if news["leaders"]["last_season"] or news["leaders"]["final"] else ""
         names_ = news["names"]
         for box, (title, cats) in enumerate(((f"{year}Hitting leaders", ("AVG", "HR", "RBI", "OPS")),
                                             (f"{year}Pitching leaders", ("W", "ERA", "SV", "SO")))):
@@ -1559,7 +1569,8 @@ def render(news):
     season = (news["today"] or day(min((g["day"] for g in news["games"]), default=21000))).year
     out.append(f"<script>var PD={player_data(news, need)},TT={team_table(db)},NOW={season};</script>")
     out.append("<div class=foot><div class=links><a href='#news'>Headlines</a><a href='#scores'>Scores</a>"
-               "<a href='#allstandings'>Standings</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></div>"
+               f"<a href='#{'standings' if post else 'allstandings'}'>Standings</a><a href='#wire'>Transactions</a>"
+               "<a href='#injuries'>Injuries</a></div>"
                "<div class=fine>Made by the MVP05-Plus Launcher from your save. Names, teams and logos are read from your "
                "own copy of the game. Nothing in your save is changed.</div></div></div>")
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
@@ -1645,7 +1656,7 @@ def team_pages(news, lg, gid, PL, TM, story):
         order = {"C": 0, "1B": 1, "2B": 2, "3B": 3, "SS": 4, "OF": 5, "DH": 6}
         hitters.sort(key=lambda k: (order.get(db.pos(k), 7), -bat.get(k, {}).get("ab", 0)))
         pitchers.sort(key=lambda k: (-pit.get(k, {}).get("outs", 0)))
-        label = f"{stats.get('year', '')} " if stats.get("last_season") else ""
+        label = f"{stats.get('year', '')} " if stats.get("last_season") or stats.get("final") else ""
         out.append(f"<div class=mod><div class=mh>{label}Roster</div><div class=mb><table class=roster><tr><th>Pos</th>"
                    "<th>Hitter</th><th>AB</th><th>AVG</th><th>HR</th><th>RBI</th><th>R</th><th>SB</th><th>OPS</th><th>OPS+</th></tr>")
         for k in hitters:
@@ -1792,7 +1803,7 @@ def stats_page(news, lg, PL, TM):
     if not st:
         return ""
     games = st["games"]
-    year = f"{st['year']} " if st["last_season"] else ""
+    year = f"{st['year']} " if st["last_season"] or st["final"] else ""
 
     def td(v, text=None):
         return f"<td data-v='{v}'>{text if text is not None else v}</td>"

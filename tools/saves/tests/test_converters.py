@@ -262,6 +262,13 @@ def news(k, **want):
     assert "<html" in page and "MVP Baseball" in page
     assert all(f"id=team-{i}>" in page for i in range(30)) and "href='#team-7'" in page, "team pages"
     assert "var PD={" in page and "class=pl href='#p-" in page, "player pages"
+    # every link to a part of the page goes to one that's there
+    ids = set(re.findall(r" id=['\"]?([\w-]+)", page))
+    dead = {h for h in re.findall(r"href='#([\w-]+)'", page) if h != "top" and not h.startswith("p-")} - ids
+    assert not dead, f"links to nothing: {sorted(dead)[:5]}"
+    if n["postseason"] and n["stats"]:  # the season's over: its final leaders, qualified over the games it had
+        assert n["leaders"]["final"] and n["leaders"][0]["AVG"] and n["leaders"][0]["ERA"], "final leaders"
+        assert float(n["leaders"][0]["AVG"][0][2]) < 0.45, n["leaders"][0]["AVG"][0]
     if n["results"]:  # every game of the last day written up, the best one the Game of the Day
         last = n["days"][0][1]
         assert len(last) == len(n["results"]) and last[0]["gotd"] and " beat the " in last[0]["body"], "recaps"

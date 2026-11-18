@@ -73,7 +73,7 @@ def _list(base):
     for d in os.listdir(base):
         folder = os.path.join(base, d)
         dat = os.path.join(folder, "data.dat")
-        if not os.path.isfile(dat):
+        if d.endswith(".part") or not os.path.isfile(dat):  # (.part: a copy or move cut short)
             continue
         name, typ = savemeta_name(folder), ""
         try:
