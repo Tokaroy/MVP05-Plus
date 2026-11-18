@@ -98,6 +98,11 @@ HMAC-SHA1s over 0x50..0x108 and 0x108..). MVP05-Plus `tools/saves/saves05.py` (`
 - **The game has no stored "current date".** It uses the first unplayed game across the four tables. Converting
   only the MLB table left the minors at 2005, so the game showed April 7, 2005 and crashed on game start.
 
+- In the postseason the schedule holds only the playoff games (41 at most: four Division Series of 5, two LCS of 7,
+  the World Series once the LCS are done), the earlier rounds' results kept. A game a series didn't need has both
+  teams 0 and is marked played (KCR, after the Division Series). The standings (3.2 table 0) are then the playoffs'
+  records.
+
 ### 3.5 After the schedules (2870 B GC / 2798 B Xbox)
 - 0: u32 trade count, u32 roster-move count, u32 0.
 - 12: 30 x 42 B trades: 2 x (3 player keys, u8 count + 3 pad bytes, team key) + u16 date.
