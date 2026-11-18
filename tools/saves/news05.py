@@ -14,6 +14,7 @@ Nothing is written to the save. The headlines are ranked by a score: how big the
 places in the standings make it matter x what kind of news it is x how recent (WEIGHTS, to tune).
 """
 import collections
+import json
 import datetime
 import html
 import math
@@ -1737,6 +1738,7 @@ table.stats td:nth-child(2),table.stats th:nth-child(2),table.stats td:nth-child
 #stats tr.nq{display:none}#stats.all tr.nq{display:table-row}#stats tr.nq td{color:#777}
 a.more2{display:block;text-align:right;padding:0 7px 6px;font-weight:bold}
 .teampage{display:none;padding:6px 4px 0}
+img.face{width:96px;height:96px;object-fit:cover;border:1px solid #c9d3e3;background:#e8edf5;margin-right:10px;flex:none}
 table.res tr.me td{background:#fff6c8;font-weight:bold}
 table.st td+td,table.st th+th{text-align:center}table.st td:first-child{width:55%}
 .bracket{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:center}
@@ -1867,7 +1869,7 @@ function showPlayer(k){var el=document.getElementById('playerpage'),p=PD[k],h=[]
  h.push("<a class=back href='#top'>&lsaquo; Back to the front page</a>");
  if(!p){el.innerHTML=h.join('')+"<p>No page for that player.</p>";return el;}
  var now=NOW;
- h.push("<div class=mod><div class=mh>"+esc(p.n)+"</div><div class='mb thead'>"+(p.t>=0?"<i class='lgb lg"+p.t+"b'></i>":"")+
+ h.push("<div class=mod><div class=mh>"+esc(p.n)+"</div><div class='mb thead'>"+(p.ph!=null&&FACES!=null?"<img class=face alt='' src='"+FACES+p.ph+".webp' onerror='this.remove()'>":"")+(p.t>=0?"<i class='lgb lg"+p.t+"b'></i>":"")+
   "<div><h1>"+esc(p.n)+"</h1><p class=big>"+esc(p.pos)+(p.t>=0?(p.pos?" &middot; ":"")+tm(p.t,document.querySelector('#team-'+p.t+' h1').textContent)+(p.f?" ("+esc(p.f)+")":""):"")+
   "</p><p>"+p.bio+"</p>"+(p.ms&&p.ms.length?"<p><b>Milestone watch:</b> "+p.ms.map(esc).join(" &middot; ")+"</p>":"")+"</div></div></div>");
  if(p.status&&p.status.length){h.push("<div class=mod><div class=mh>Status</div><div class=mb><ul class=list>");
@@ -2269,7 +2271,8 @@ def render(news):
     out.append(schedule_pages(news, lg, gid))
     out.append("<div id=playerpage class=teampage></div>")
     season = (news["today"] or day(min((g["day"] for g in news["games"]), default=21000))).year
-    out.append(f"<script>var PD={player_data(news, need)},TT={team_table(db)},NOW={season};</script>")
+    out.append(f"<script>var PD={player_data(news, need)},TT={team_table(db)},NOW={season},"
+               f"FACES={json.dumps(news.get('faces_url'))};</script>")
     out.append("<div class=foot><div class=links><a href='#news'>Headlines</a><a href='#scores'>Scores</a>"
                f"<a href='#{'standings' if post else 'allstandings'}'>Standings</a><a href='#transactions'>Transactions</a>"
                "<a href='#injuries'>Injuries</a></div>"
@@ -2523,6 +2526,10 @@ def player_data(news, keys):
                              t=db.franchises.index(team) if team in db.franchises else -1, b=int(hitter),
                              bio=" &middot; ".join(bio), rows=cells, news=about.get(k, []), status=status,
                              f=f"{db.full(farm)}, {db.level(farm)}" if farm else "", **_career_bits(news, k, hitter))
+        ph = photo_of(db, k)
+        if ph is not None and news.get("faces_url") is not None:
+            out[f"{k:x}"]["ph"] = ph
+            news.setdefault("photos", set()).add(ph)
     return json.dumps(out, separators=(",", ":")).replace("</", "<\\/")
 
 
@@ -2960,6 +2967,80 @@ def news_record(news, t):
     return ""
 
 
+def photo_of(db, k):
+    """The number of his portrait in the game's portrait.big (attrib.dat's column 17: "0123.xsh"), or None"""
+    p = db.players.get(k)
+    try:
+        n = int(p.get(17)) if p else -1
+    except (TypeError, ValueError):
+        return None
+    return n if n >= 0 else None
+
+
+def write_faces(root, photos, folder):
+    """The players' portraits from your game's portrait.big, as small WebP files in folder (kept: only the ones not
+    there yet are made). The number of portraits written."""
+    import sys
+    inst = os.path.join(os.path.dirname(HERE), "installer")
+    if inst not in sys.path:
+        sys.path.insert(0, inst)
+    import potd
+    from PIL import Image
+    want = [n for n in sorted(photos) if not os.path.isfile(os.path.join(folder, f"{n}.webp"))]
+    if not want:
+        return 0
+    try:
+        f = open(os.path.join(root, *potd.PORTRAITS), "rb")
+    except OSError:
+        return 0
+    try:
+        import numpy as np
+    except ImportError:
+        np = None
+    os.makedirs(folder, exist_ok=True)
+    orders = {}
+    made = 0
+    with f:
+        try:
+            ents = potd._big_dir(f)
+        except Exception:
+            return 0
+        for n in want:
+            name = "%04d.xsh" % n
+            if name not in ents:
+                continue
+            try:
+                off, size = ents[name]
+                f.seek(off)
+                u = potd._unpack(f.read(size))
+                if u[:4] != b"SHPX":
+                    continue
+                o = struct.unpack_from("<I", u, 20)[0]
+                w, h = struct.unpack_from("<HH", u, o + 4)
+                if u[o] != 0x7D or w * h * 4 > len(u) - o - 16:
+                    continue
+                data = u[o + 16:o + 16 + w * h * 4]
+                if (w, h) not in orders:
+                    orders[(w, h)] = potd._morton(w, h)
+                idx = orders[(w, h)]
+                if np is not None:  # (swizzled BGRA to RGBA, all at once)
+                    a = np.frombuffer(data, np.uint8).reshape(-1, 4)[np.asarray(idx)]
+                    img = Image.fromarray(a[:, [2, 1, 0, 3]].reshape(h, w, 4).copy(), "RGBA")
+                else:
+                    px = bytearray(w * h * 4)
+                    for i, j in enumerate(idx):
+                        b, g, r, al = data[j * 4:j * 4 + 4]
+                        px[i * 4:i * 4 + 4] = bytes((r, g, b, al))
+                    img = Image.frombytes("RGBA", (w, h), bytes(px))
+                out = os.path.join(folder, f"{n}.webp")
+                img.save(out + ".part", "WEBP", quality=80, method=4)
+                os.replace(out + ".part", out)
+                made += 1
+            except Exception:
+                continue
+    return made
+
+
 KEEP_EDITIONS = 120  # (each edition is a couple of megabytes)
 
 
@@ -2971,7 +3052,9 @@ def publish(root, data, base):
     save = with_backups(root, read_save(data))
     news = build(save, Database(root))
     news["from_backups"] = save["from_backups"]
+    news["faces_url"] = "../faces/"  # (league news/faces: the portraits, shared by every save's editions)
     page = render(news)
+    write_faces(root, news.get("photos", ()), os.path.join(base, "faces"))
     name = "".join(c if c.isalnum() or c in " -_" else "_" for c in save["name"]).strip() or "save"
     when = news["today"] or news["next_day"]
     stem = when.isoformat() if when else "preseason"
