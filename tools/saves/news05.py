@@ -283,6 +283,81 @@ class Database:
 
 
 # ---- the save ---------------------------------------------------------------------------------------------------
+def _wire(x, end):
+    """The last 30 trades (each side: a team and the players it gave up) and 60 roster moves, after the schedules"""
+    tc, mc = struct.unpack_from("<II", x, end)
+    if tc > 30 or mc > 60:
+        raise NewsError("this save's trades aren't where they should be")
+    trades = []
+    for i in range(tc):
+        r = x[end + 12 + 42 * i:end + 54 + 42 * i]
+        sides = []
+        for s in (0, 20):
+            keys = struct.unpack_from("<3I", r, s)
+            sides.append(dict(team=struct.unpack_from("<I", r, s + 16)[0], players=list(keys[:min(r[s + 12], 3)])))
+        trades.append(dict(day=struct.unpack_from("<H", r, 40)[0], sides=sides))
+    moves = [dict(zip(("player", "team", "day"), struct.unpack_from("<IIH", x, end + 1272 + 10 * i)))
+             for i in range(mc)]
+    return trades, moves
+
+
+def read_wire(data):
+    """Only what the transactions need from a save (quick, for the game's backups): dict(name, kind, user, last
+    (the newest played game's day), trades, moves)."""
+    name, kind, x = _payload(data)
+    marks = [m.start() for m in re.finditer(re.escape(MARKER), x)]
+    if len(marks) < 6:
+        raise NewsError("this save's sections aren't where they should be")
+    p = marks[2] + 4
+    last = 0
+    for i in range(min(struct.unpack_from("<I", x, p)[0], SCHED_CAPS[0])):
+        dn, bf = struct.unpack_from("<HH", x, p + 4 + 28 * i)
+        if bf >> 11:
+            last = max(last, dn)
+    trades, moves = _wire(x, p + 16 + 28 * sum(SCHED_CAPS))
+    user = struct.unpack_from("<I", x, marks[len(marks) - 3] + 8)[0] if len(marks) in (7, 9) else None
+    return dict(name=name, kind=kind, user=user, last=last, trades=trades, moves=moves)
+
+
+def with_backups(root, save):
+    """save, its trades and roster moves joined by the ones in the game's own backups of it (save backups/<time>/E/
+    UDATA/45410056/<its folder>: the game copies the saves each time it starts, keeping the newest 30), so the
+    transactions go back further than the save's own 30 and 60. A backup counts when it's the same dynasty: the
+    same folder (name and kind), the same club and no further on. save["from_backups"]: how many were read."""
+    import saves05 as S5
+    base = os.path.join(root, "save backups")
+    sid = S5.folder_id(save["name"], save["kind"])
+    newest = max((g["day"] for g in save["games"] if g["played"]), default=None)
+    seen_t = {(t["day"], tuple(sorted(k for sd in t["sides"] for k in sd["players"]))) for t in save["trades"]}
+    seen_m = {(m["player"], m["team"], m["day"]) for m in save["moves"]}
+    trades, moves, used = list(save["trades"]), list(save["moves"]), 0
+    try:
+        stamps = sorted(os.listdir(base))
+    except OSError:
+        stamps = []
+    for stamp in stamps:
+        f = os.path.join(base, stamp, "E", "UDATA", "45410056", sid, "data.dat")
+        try:
+            with open(f, "rb") as fh:
+                b = read_wire(fh.read())
+        except (OSError, NewsError, struct.error):
+            continue
+        if b["user"] != save["user"] or b["kind"] != save["kind"] or (newest and b["last"] > newest):
+            continue
+        used += 1
+        for t in b["trades"]:
+            key = (t["day"], tuple(sorted(k for sd in t["sides"] for k in sd["players"])))
+            if key not in seen_t:
+                seen_t.add(key)
+                trades.append(t)
+        for m in b["moves"]:
+            key = (m["player"], m["team"], m["day"])
+            if key not in seen_m:
+                seen_m.add(key)
+                moves.append(m)
+    return dict(save, trades=trades, moves=moves, from_backups=used)
+
+
 def _payload(data):
     import sys
     lib = os.path.join(HERE, "mvp05", "lib")
@@ -326,19 +401,7 @@ def read_save(data):
                      hline=_line(e[10:15]), aline=_line(e[22:27]))
         games.append(g)
     end = p + 16 + 28 * sum(SCHED_CAPS)
-    tc, mc = struct.unpack_from("<II", x, end)
-    if tc > 30 or mc > 60:
-        raise NewsError("this save's trades aren't where they should be")
-    trades = []
-    for i in range(tc):
-        r = x[end + 12 + 42 * i:end + 54 + 42 * i]
-        sides = []
-        for s in (0, 20):
-            keys = struct.unpack_from("<3I", r, s)
-            sides.append(dict(team=struct.unpack_from("<I", r, s + 16)[0], players=list(keys[:min(r[s + 12], 3)])))
-        trades.append(dict(day=struct.unpack_from("<H", r, 40)[0], sides=sides))
-    moves = [dict(zip(("player", "team", "day"), struct.unpack_from("<IIH", x, end + 1272 + 10 * i)))
-             for i in range(mc)]
+    trades, moves = _wire(x, end)
     # the game's own news list (32 events, FORMAT_NOTES 3.5): kept for when its kinds are known
     feed = []
     for i in range(min(struct.unpack_from("<I", x, end + 1872)[0], 32)):
@@ -686,9 +749,9 @@ def build(save, db):
 
     stories = []
 
-    def add(score, kind, head, body, d, teams_, players=()):
+    def add(score, kind, head, body, d, teams_, players=(), sub=None):
         mult = WEIGHTS["your_team"] if mine(*teams_) else 1.0
-        stories.append(dict(score=score * mult * fade(d), kind=kind, head=head, body=body, day=d,
+        stories.append(dict(score=score * mult * fade(d), kind=kind, sub=sub or kind, head=head, body=body, day=d,
                             raw_teams=list(teams_),
                             teams=[db.org_of.get(t, t) for t in teams_], players=list(players), mine=mine(*teams_)))
 
@@ -722,30 +785,66 @@ def build(save, db):
         add(score, "Trade", head.replace("  ", " "), body, tr["day"], [a["team"], b["team"]],
             a["players"] + b["players"])
 
+    NEW = object()
+
+    def hist_team(k, d, to):
+        """where k was before a move to `to` on day d, from his season rows (better than the 2005 rosters years on):
+        this season's club, unless that's `to` already (the move made the row), else last season's"""
+        rows = [r for r in save.get("history", {}).get(k, []) if r["year"] <= day(d).year]
+        now = [db.team_at(r["team"]) for r in rows if r["year"] == day(d).year]
+        if any(t_ != to for t_ in now):
+            return next(t_ for t_ in reversed(now) if t_ != to)
+        older = [r for r in rows if r["year"] < day(d).year]
+        if older:
+            return db.team_at(max(older, key=lambda r: r["year"])["team"])
+        return NEW if now or not db.team_of.get(k) else None  # new to the league: signed (a free agent, a draftee)
+
     seen_on = {}  # where a player was before each move, by date
     for mv in sorted(save["moves"], key=lambda m: m["day"]):
         k, to = mv["player"], mv["team"]
-        before = seen_on.get(k, db.team_of.get(k))
+        before = seen_on.get(k) or hist_team(k, mv["day"], to) or db.team_of.get(k)
         seen_on[k] = to
+        new = before is NEW
+        if new:
+            before = None
         up = to in rec
         imp = db.importance(k)
         score = WEIGHTS["callup" if up else "senddown"] * imp * contention(to)
-        org = db.org_of.get(to)
-        same_org = before is not None and db.org_of.get(before) == org
-        if up:
+        org = db.org_of.get(to, to)
+        same_org = before is not None and db.org_of.get(before, before) == org
+        # into another organization with no trade: a signing (how a dynasty moves free agents)
+        signed = new or before is not None and not same_org and not any(
+            k in sd["players"] for t_ in save["trades"] for sd in t_["sides"] if abs(t_["day"] - mv["day"]) <= 1)
+        if signed:
+            sub = "Signed"
+            head = f"{db.club(org)} sign {last(k)}"
+            body = f"The {db.full(org)} signed {who(k)}" + (f" and assigned him to {db.farm(to)}." if to != org else ".")
+        elif up and before == to:
+            sub = "Assigned"
+            head = f"{last(k)} stays with {db.city(to)}"
+            body = f"{who(k)} was assigned to the {db.full(to)}."
+        elif up:
+            sub = "Call-up"
             head = f"{db.club(to)} call up {last(k)}"
             body = f"The {db.full(to)} called up {who(k)}" + (
                 f" from {db.farm(before)}." if same_org and before != to else ".")
         elif same_org and before in rec:
+            sub = "Sent down"
             head = f"{db.club(org)} send {last(k)} down"
             body = f"The {db.full(org)} optioned {who(k)} to {db.farm(to)}."
+        elif same_org and before == to:
+            sub = "Assigned"
+            head = f"{last(k)} assigned to {db.city(to)}"
+            body = f"{who(k)} was assigned to {db.named(to)}."
         elif same_org:
+            sub = "Farm move"
             head = f"{last(k)} moves to {db.city(to)}"
             body = f"The {db.full(org)} moved {who(k)} from {db.farm(before)} to {db.farm(to)}."
         else:
+            sub = "Assigned"
             head = f"{last(k)} assigned to {db.city(to)}"
             body = f"{who(k)} was assigned to {db.named(to)}."
-        add(score, "Roster move", head, body, mv["day"], [to], [k])
+        add(score, "Roster move", head, body, mv["day"], [to], [k], sub)
 
     for h in save["hurt"]:
         k, days = h["player"], h["days"]
@@ -1132,6 +1231,10 @@ a{color:#00c;text-decoration:none}a:hover{text-decoration:underline}
 a.score{display:block;color:#000;text-decoration:none}a.score:hover{border-color:#00c}
 .dpane{display:none}.dpane.on{display:block}
 .lpane{display:none}.lpane.on{display:block}
+.tfilter{margin:6px 0 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}.tfilter select{font:11px Verdana,sans-serif}
+.tk button{border:1px solid #999;background:#fff;font:bold 11px Tahoma,Arial,sans-serif;color:#00c;padding:2px 6px;cursor:pointer}
+.tk button.on{background:#212c5d;color:#fff;border-color:#212c5d}
+.tday h3{font:bold 12px Arial,Helvetica,sans-serif;color:#333;background:#dcdcdc;margin:8px 0 2px;padding:3px 6px}
 .spane{display:none}.spane.on{display:block;overflow-x:auto}
 table.stats th{cursor:pointer;white-space:nowrap}table.stats th.sorted{background:#dcdcdc}
 table.stats td:nth-child(2),table.stats th:nth-child(2),table.stats td:nth-child(3),table.stats th:nth-child(3){text-align:left}
@@ -1224,6 +1327,12 @@ td a{color:#000}
 AP_MONTHS = ("Jan.", "Feb.", "March", "April", "May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.")
 
 SCRIPT = """
+var TK='all';function pickT(k){TK=k;tab('tk',k);filterT();}
+function filterT(){var t=document.getElementById('tteam').value,any=false;
+ document.querySelectorAll('#tlist .tday').forEach(function(d){var shown=0;
+  d.querySelectorAll('li').forEach(function(li){var ok=(TK=='all'||li.dataset.k==TK)&&(!t||li.dataset.t.indexOf(' '+t+' ')>=0);
+   li.style.display=ok?'':'none';if(ok)shown++;});d.style.display=shown?'':'none';if(shown)any=true;});
+ document.getElementById('tnone').style.display=any?'none':'';}
 var SS=[0,0];function pickstats(l,k){if(l!==null)SS[0]=l;if(k!==null)SS[1]=k;tab('sl',SS[0]);tab('sk',SS[1]);
  document.querySelectorAll('.spane').forEach(function(p){p.classList.toggle('on',p.id=='s'+SS[0]+SS[1]);});}
 function renumber(){document.querySelectorAll('table.stats tbody').forEach(function(tb){var n=0;
@@ -1337,7 +1446,7 @@ def render(news):
            f"<div class=top><a href='#news'>Headlines</a><a href='#{'recaps' if news['days'] else 'scores'}'>Scores</a>"
            "<a href='#standings'>Standings</a><a href='#matchups'>Matchups</a>"
            + ("<a href='#stats'>Stats</a>" if news["stats"] else "")
-           + "<a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a></div></div>"]
+           + "<a href='#transactions'>Transactions</a><a href='#injuries'>Injuries</a></div></div>"]
     # Team Sites: every club, American League then National, each to its row in the standings
     leagues = [[], []]
     for d_i, d in enumerate(news["divisions"]):
@@ -1351,7 +1460,7 @@ def render(news):
         out.append("</div>")
     out.append("</div></div><a href='#scores'>Scoreboard</a><a href='#standings'>Standings</a>"
                + ("<a href='#stats'>Stats</a>" if news["stats"] else "") +
-               "<a href='#matchups'>Schedule</a><a href='#wire'>Transactions</a><a href='#injuries'>Injuries</a>"
+               "<a href='#matchups'>Schedule</a><a href='#transactions'>Transactions</a><a href='#injuries'>Injuries</a>"
                "<a href='#news'>News</a></div>")
     out.append("<div class=cols><div class=left>")
 
@@ -1518,11 +1627,12 @@ def render(news):
             out.append("</div>")
         out.append("</div></div>")
     out.append("<div class=mod id=wire><div class=mh>Transactions</div><div class=mb><ul class=list>")
-    for s in sorted(news["trades"] + news["moves"], key=lambda s: -s["day"])[:40]:  # newest first
+    for s in sorted(news["trades"] + news["moves"], key=lambda s: -s["day"])[:15]:  # newest first (the page: all)
         out.append(f"<li><span class=date>{short(day(s['day']))}:</span> {story(s)}</li>")
     if not news["trades"] and not news["moves"]:
         out.append("<li>None yet.</li>")
-    out.append("</ul></div></div><div class=mod id=injuries><div class=mh>Injury report</div><div class=mb><ul class=list>")
+    out.append("</ul></div><a class=more2 href='#transactions'>All transactions &rsaquo;</a></div>"
+               "<div class=mod id=injuries><div class=mh>Injury report</div><div class=mb><ul class=list>")
     majors = [s for s in news["injuries"] if s["big_club"]]
     minors = [s for s in news["injuries"] if not s["big_club"]]
     for s in majors:
@@ -1570,18 +1680,19 @@ def render(news):
     out.append("</div></div>")
     out.append(team_pages(news, lg, gid, PL, TM, story))
     out.append(stats_page(news, lg, PL, TM))
+    out.append(transactions_page(news, lg, story))
     out.append("<div id=playerpage class=teampage></div>")
     season = (news["today"] or day(min((g["day"] for g in news["games"]), default=21000))).year
     out.append(f"<script>var PD={player_data(news, need)},TT={team_table(db)},NOW={season};</script>")
     out.append("<div class=foot><div class=links><a href='#news'>Headlines</a><a href='#scores'>Scores</a>"
-               f"<a href='#{'standings' if post else 'allstandings'}'>Standings</a><a href='#wire'>Transactions</a>"
+               f"<a href='#{'standings' if post else 'allstandings'}'>Standings</a><a href='#transactions'>Transactions</a>"
                "<a href='#injuries'>Injuries</a></div>"
                "<div class=fine>Made by the MVP05-Plus Launcher from your save. Names, teams and logos are read from your "
                "own copy of the game. Nothing in your save is changed.</div></div></div>")
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
                f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
                "function route(){var h=location.hash.slice(1),t=h.indexOf('team-')==0?document.getElementById(h):null;"
-               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(h=='stats')t=document.getElementById('stats');"
+               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(h=='stats'||h=='transactions')t=document.getElementById(h);"
                "document.querySelectorAll('.teampage').forEach(function(p){p.style.display=p==t?'block':'none'});"
                "document.querySelector('.cols').style.display=t?'none':'flex';if(t){window.scrollTo(0,0);return;}"
                "var el=h&&document.getElementById(h);if(el){var d=el.closest('.dpane');if(d)pickday(+d.id.slice(1));"
@@ -1864,6 +1975,46 @@ def stats_page(news, lg, PL, TM):
     return "".join(out)
 
 
+def transactions_page(news, lg, story):
+    """#transactions: every trade and roster move the save and the game's backups of it hold, newest first by day,
+    filtered by club and by kind."""
+    db, e = news["db"], html.escape
+    items = sorted(news["trades"] + news["moves"], key=lambda s_: -s_["day"])
+    kinds = ("Trade", "Signed", "Call-up", "Sent down", "Farm move", "Assigned")
+    have = collections.Counter(s_["sub"] for s_ in items)
+    n_back = news.get("from_backups", 0)
+    since = f" since {day(items[-1]['day']).strftime('%B')} {day(items[-1]['day']).day}, {day(items[-1]['day']).year}" \
+        if items else ""
+    out = [f"<div class=teampage id=transactions><a class=back href='#top'>&lsaquo; Back to the front page</a>"
+           f"<div class=mod><div class=mh>Transactions</div><div class=mb><p class=date>{len(items)} moves{since}"
+           + (f", from this save and {n_back} of the game's backups of it" if n_back else "") + ".</p>"
+           "<div class=tfilter><select id=tteam onchange='filterT()'><option value=''>All clubs</option>"]
+    for t in sorted(db.franchises, key=db.city):
+        out.append(f"<option value='{db.franchises.index(t)}'>{e(db.city(t))} {e(db.club(t))}</option>")
+    out.append("</select> <span class=tk><button data-g=tk data-i=all class=on onclick=\"pickT('all')\">All</button>")
+    for k in kinds:
+        if have[k]:
+            label = {"Trade": "Trades", "Signed": "Signings", "Call-up": "Call-ups", "Farm move": "Farm moves"}.get(k, k)
+            out.append(f"<button data-g=tk data-i='{k}' onclick=\"pickT('{k}')\">{label} ({have[k]})</button>")
+    out.append("</span></div><div id=tlist>")
+    last_day = None
+    for s_ in items:
+        if s_["day"] != last_day:
+            if last_day is not None:
+                out.append("</ul></div>")
+            d = day(s_["day"])
+            out.append(f"<div class=tday><h3>{d.strftime('%A, %B')} {d.day}, {d.year}</h3><ul class=list>")
+            last_day = s_["day"]
+        orgs = " ".join(str(db.franchises.index(t)) for t in set(s_["teams"]) if t in db.franchises)
+        out.append(f"<li data-t=' {orgs} ' data-k='{e(s_['sub'])}'><span class=kind>{e(s_['sub'])}</span> {story(s_)}</li>")
+    if last_day is not None:
+        out.append("</ul></div>")
+    if not items:
+        out.append("<p>No transactions yet.</p>")
+    out.append("<p id=tnone class=date style='display:none'>None of those.</p></div></div></div></div>")
+    return "".join(out)
+
+
 def news_record(news, t):
     for d in news["divisions"]:
         for r in d["rows"]:
@@ -1873,5 +2024,9 @@ def news_record(news, t):
 
 
 def make(root, data):
-    """The page for a save (data.dat's bytes), with the game installed at root: HTML text."""
-    return render(build(read_save(data), Database(root)))
+    """The page for a save (data.dat's bytes), with the game installed at root: HTML text. Its transactions reach
+    back through the game's backups of it (with_backups)."""
+    save = with_backups(root, read_save(data))
+    news = build(save, Database(root))
+    news["from_backups"] = save["from_backups"]
+    return render(news)

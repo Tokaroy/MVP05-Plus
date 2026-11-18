@@ -316,10 +316,49 @@ def news_leaders():
     st = N.season_stats(save, db)
     v = next(x for k, x in st["bat"].items() if name(k) == "Jason Varitek")
     assert (N.rate3(N.obp(v)), N.rate3(N.slg(v))) == (".467", ".625"), (N.obp(v), N.slg(v))
+    # moves into another organization with no trade are signings (the game's ticker: "TB signs 1B Bob Donnels")
+    n = N.build(save, db)
+    signed = {s_["players"][0] for s_ in n["moves"] if s_["sub"] == "Signed"}
+    assert {name(k) for k in signed} >= {"Bob Donnels", "Geronimo Crede", "Tony Lovingier"}, "signings"
+    assert "id=transactions>" in N.render(n), "transactions page"
     norms = N.league_norms(save["history"], db)
     assert N.ops_plus(v, norms[(2007, 0)]) == 175 and round(norms[(2007, 0)]["era"], 2) == 4.24, norms[(2007, 0)]
     return 1
 t('league news: league leaders as the game shows them', news_leaders)
+
+
+def news_backups():
+    """The transactions reach back through the game's backups of the save: an older copy's moves are added once,
+    a copy from further on and another dynasty's aren't used."""
+    import shutil
+    import struct
+    import tempfile
+    import news05 as N
+    import saves05 as S5
+    data = F["xb_dyn_played"]
+    name, kind, x = N._payload(data)
+    off = data.find(x[:4096])
+    marks = [m.start() for m in re.finditer(re.escape(N.MARKER), x)]
+    end = marks[2] + 4 + 16 + 28 * sum(N.SCHED_CAPS)
+    mc = struct.unpack_from("<I", x, end + 4)[0]
+    older = bytearray(data)
+    for i in range(mc):  # its moves, 20 days earlier
+        o = off + end + 1272 + 10 * i + 8
+        struct.pack_into("<H", older, o, struct.unpack_from("<H", older, o)[0] - 20)
+    root = tempfile.mkdtemp()
+    sid = S5.folder_id(name, kind)
+    for stamp, blob, folder in (("1", bytes(older), sid), ("2", data, sid), ("3", F["xb_dyn"], sid),
+                                ("4", bytes(older), "000000000000")):
+        d = os.path.join(root, "save backups", stamp, "E", "UDATA", "45410056", folder)
+        os.makedirs(d)
+        with open(os.path.join(d, "data.dat"), "wb") as f:
+            f.write(blob)
+    save = N.read_save(data)
+    merged = N.with_backups(root, save)
+    shutil.rmtree(root)
+    assert merged["from_backups"] == 2 and len(merged["moves"]) == 2 * mc, (merged["from_backups"], len(merged["moves"]))
+    return 1
+t('league news: transactions from the game\'s backups', news_backups)
 def news_standings():
     """The standings (two halves summed) agree with the schedule's results, team by team."""
     import collections
