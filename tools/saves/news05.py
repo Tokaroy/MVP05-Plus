@@ -328,9 +328,22 @@ def with_backups(root, save):
     base = os.path.join(root, "save backups")
     sid = S5.folder_id(save["name"], save["kind"])
     newest = max((g["day"] for g in save["games"] if g["played"]), default=None)
-    seen_t = {(t["day"], tuple(sorted(k for sd in t["sides"] for k in sd["players"]))) for t in save["trades"]}
-    seen_m = {(m["player"], m["team"], m["day"]) for m in save["moves"]}
-    trades, moves, used = list(save["trades"]), list(save["moves"]), 0
+    # each trade once (its day and everyone in it, whichever side a copy lists first), each move once (who, where,
+    # when): the save's own first, then what only the backups have
+    seen_t, seen_m, trades, moves, used = set(), set(), [], [], 0
+
+    def take(b):
+        for t in b["trades"]:
+            key = (t["day"], tuple(sorted(k for sd in t["sides"] for k in sd["players"])))
+            if key not in seen_t:
+                seen_t.add(key)
+                trades.append(t)
+        for m in b["moves"]:
+            key = (m["player"], m["team"], m["day"])
+            if key not in seen_m:
+                seen_m.add(key)
+                moves.append(m)
+    take(save)
     try:
         stamps = sorted(os.listdir(base))
     except OSError:
@@ -345,16 +358,7 @@ def with_backups(root, save):
         if b["user"] != save["user"] or b["kind"] != save["kind"] or (newest and b["last"] > newest):
             continue
         used += 1
-        for t in b["trades"]:
-            key = (t["day"], tuple(sorted(k for sd in t["sides"] for k in sd["players"])))
-            if key not in seen_t:
-                seen_t.add(key)
-                trades.append(t)
-        for m in b["moves"]:
-            key = (m["player"], m["team"], m["day"])
-            if key not in seen_m:
-                seen_m.add(key)
-                moves.append(m)
+        take(b)
     return dict(save, trades=trades, moves=moves, from_backups=used)
 
 

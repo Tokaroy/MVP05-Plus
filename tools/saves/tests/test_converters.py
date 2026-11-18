@@ -355,8 +355,11 @@ def news_backups():
             f.write(blob)
     save = N.read_save(data)
     merged = N.with_backups(root, save)
-    shutil.rmtree(root)
     assert merged["from_backups"] == 2 and len(merged["moves"]) == 2 * mc, (merged["from_backups"], len(merged["moves"]))
+    twice = dict(save, moves=save["moves"] * 2, trades=save["trades"] * 2)  # a save repeating its own entries
+    once = N.with_backups(root, twice)
+    assert len(once["moves"]) == len(merged["moves"]) and len(once["trades"]) == len(merged["trades"]), "repeats"
+    shutil.rmtree(root)
     return 1
 t('league news: transactions from the game\'s backups', news_backups)
 def news_standings():
