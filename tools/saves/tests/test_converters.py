@@ -386,6 +386,38 @@ def news_standings():
         assert s["records"][i] == (won[t], lost[t]), (db.short(t), s["records"][i], won[t], lost[t])
     return 1
 t('league news: standings agree with the results', news_standings)
+
+
+def news_extras():
+    """Careers (checked against the real totals), the pennant races' last day against the standings, the farm
+    report's leaders and the awards and milestone pages, on the KCR dynasty."""
+    import shutil
+    import tempfile
+    import news05 as N
+    root = tempfile.mkdtemp()
+    os.makedirs(os.path.join(root, "assets", "data", "database"))
+    with open(os.path.join(root, "assets", "data", "database", "database.big"), "wb") as f:
+        f.write(F["database"])
+    db = N.Database(root)
+    s = N.read_save(F['xb_dyn_kcr'])
+    news = N.build(s, db)
+    page = N.render(news)
+    shutil.rmtree(root)
+    by = {db.name(k): k for k in s["careers"]["pit"]}
+    assert s["careers"]["pit"][by["Greg Maddux"]]["w"] >= 313
+    # the races end where the standings are
+    for d in news["divisions"]:
+        dv = N.DIVISIONS.index(d["name"])
+        for r in d["rows"]:
+            assert news["races"][dv]["gb"][r["team"]][-1] == r["gb"], (d["name"], db.short(r["team"]))
+    f = news["farm"]
+    assert f["prospects"] and all(f["levels"][lv]["HR"] for lv in ("AAA", "AA", "A"))
+    hr = [int(x) for _, _, x in f["levels"]["AAA"]["HR"]]
+    assert hr == sorted(hr, reverse=True)
+    for need in ("id=races", "id=farm", "id=awards", "id=milestones", "class=race"):
+        assert need in page, need
+    return f"{len(f['prospects'])} prospects, {sum(len(r['days']) for r in news['races'].values()) // 6} game days"
+t('league news: races, farm report, awards and milestones', news_extras)
 # wrong kinds: each must be refused with a message, never a crash
 wrong = [
     ('owner into dynasty (gc)', lambda: DY.gc_to_xbox(F['gc_own'], F['xb_dyn'])),

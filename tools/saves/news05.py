@@ -30,6 +30,7 @@ DIVISIONS = ("AL West", "AL Central", "AL East", "NL West", "NL Central", "NL Ea
 
 # how much each kind of news weighs before the players, teams and days are counted in
 WEIGHTS = dict(
+    milestone=1.6,      # a career mark passed since the last edition, x its size
     trade=1.0,          # x the players on both sides
     trade_minors=0.25,  # a trade between two farm teams
     injury=0.8,         # x the player
@@ -277,6 +278,17 @@ class Database:
         pay = min(int(p.get(40) or 0) / 150, 1)
         return 0.1 + 0.55 * star + 0.35 * pay + 0.3 * int(p.get(43) or 0)
 
+    def age(self, key, ref):
+        """His age on the date ref (from the birth date, column 45: days from 1948-01-01), or None"""
+        p = self.players.get(key)
+        try:
+            born = DAY0 + datetime.timedelta(days=int(p.get(45) or 0)) if p else None
+        except (TypeError, ValueError):
+            return None
+        if not p or born == DAY0:
+            return None
+        return ref.year - born.year - ((ref.month, ref.day) < (born.month, born.day))
+
     def salary(self, key):
         p = self.players.get(key)
         return int(p.get(40) or 0) * 100_000 if p else 0
@@ -344,6 +356,7 @@ def with_backups(root, save):
                 seen_m.add(key)
                 moves.append(m)
     take(save)
+    prev = None  # the newest backup from before the newest game: the "previous edition"
     try:
         stamps = sorted(os.listdir(base))
     except OSError:
@@ -359,7 +372,16 @@ def with_backups(root, save):
             continue
         used += 1
         take(b)
-    return dict(save, trades=trades, moves=moves, from_backups=used)
+        if newest and b["last"] < newest and (prev is None or b["last"] >= prev[0]):
+            prev = (b["last"], f)
+    out = dict(save, trades=trades, moves=moves, from_backups=used, prev=None)
+    if prev:
+        try:
+            with open(prev[1], "rb") as fh:
+                out["prev"] = read_save(fh.read())
+        except (OSError, NewsError, struct.error):
+            pass
+    return out
 
 
 def _payload(data):
@@ -414,11 +436,13 @@ def read_save(data):
     names, hurt = _players(x)
     rosters = _rosters(x)
     history = _history(x, marks)
+    careers = _careers(x)
     user = None
     if len(marks) in (7, 9):  # the user section: marker 4 in a dynasty, 6 in an owner mode (budget05 reads it too)
         user = struct.unpack_from("<I", x, marks[len(marks) - 3] + 8)[0]
     return dict(name=name, kind=kind, records=records, games=games, trades=trades, moves=moves, hurt=hurt,
-                names=names, rosters=rosters, feed=feed, user=user, history=history)
+                names=names, rosters=rosters, feed=feed, user=user, history=history,
+                careers=careers)
 
 
 def _line(b):
@@ -522,6 +546,90 @@ def era_plus(s, norm):
     return round(100 * norm["era"] / (27 * s["er"] / s["outs"]))
 
 
+# the awards: a position's worth over a season's 650 plate appearances, in runs (as the usual tables have it)
+POSITION_RUNS = {"C": 10, "SS": 7, "2B": 3, "3B": 2, "OF": -2, "LF": -7, "CF": 3, "RF": -7, "1B": -10, "DH": -15}
+
+
+def awards(save, db, stats, norms, most=10):
+    """The award races by league: {0 AL / 1 NL: {"MVP"|"Cy Young"|"Rookie": [(key, team, why)]}}, best first.
+    MVP: runs above average from OPS+ (x 0.11 a plate appearance), the position, some for HR and RBI and the
+    club's record; Cy Young: runs saved against the league's ERA, wins and saves; Rookie: either, for players with
+    130 big-league at-bats and 50 innings at most before this season (the careers, less this season)."""
+    if not stats:
+        return {}
+    games, year = stats["games"], stats["year"]
+    rec = {db.franchises[i]: v for i, v in save["records"].items()}
+    car = save.get("careers") or {}
+
+    def pct(t):
+        w, l_ = rec.get(t, (0, 0))
+        return w / (w + l_) if w + l_ else 0.5
+
+    def league(t):
+        return int(db.teams.get(t, {}).get(4, -1))
+
+    def hitter(k, x):
+        norm = norms.get((year, league(x.team)))
+        op = ops_plus(x, norm) if x["ab"] else None
+        if op is None:
+            return None
+        pa = x["ab"] + x["bb"] + x["sf"]
+        runs = (op - 100) / 100 * pa * 0.11 + POSITION_RUNS.get(db.pos(k), 0) * pa / 650
+        why = (f"{rate3(x['h'] / x['ab'])}/{rate3(obp(x))}/{rate3(slg(x))}, {x['hr']} HR, {x['rbi']} RBI, "
+               f"{op} OPS+")
+        return runs, why
+
+    def pitcher(k, x):
+        norm = norms.get((year, league(x.team)))
+        if not norm or not norm["era"] or not x["outs"]:
+            return None
+        runs = norm["era"] * x["outs"] / 27 - x["er"]
+        era = 27 * x["er"] / x["outs"]
+        ip = f"{x['outs'] // 3}.{x['outs'] % 3}"
+        if x["sv"] >= 5 and x["outs"] < 2 * games.get(x.team, 0):
+            why = f"{x['sv']} SV, {era:.2f} ERA, {ip} IP, {x['so']} K"
+        else:
+            why = f"{x['w']}-{x['l']}, {era:.2f} ERA, {ip} IP, {x['so']} K"
+        return runs, why
+
+    def rookie(k, side, x):
+        c = car.get(side, {}).get(k)
+        if not c:
+            return True  # (no big-league career before this one)
+        return (c["ab"] - x["ab"] <= 130) if side == "bat" else (c["outs"] - x["outs"] <= 150)
+
+    out = {}
+    for lg_ in (0, 1):
+        mvp, cy, roy = [], [], []
+        for k, x in stats["bat"].items():
+            if league(x.team) != lg_ or not x["ab"]:
+                continue
+            v = hitter(k, x)
+            if not v:
+                continue
+            runs, why = v
+            q = x["ab"] >= 2.7 * games.get(x.team, 0)
+            score = runs + 0.25 * x["hr"] + 0.08 * x["rbi"] + 30 * (pct(x.team) - 0.5)
+            if q:
+                mvp.append((score, k, x.team, why))
+            if rookie(k, "bat", x) and x["ab"] >= 1.5 * games.get(x.team, 0):
+                roy.append((runs + 0.25 * x["hr"] + 0.08 * x["rbi"], k, x.team, why))
+        for k, x in stats["pit"].items():
+            if league(x.team) != lg_ or not x["outs"]:
+                continue
+            v = pitcher(k, x)
+            if not v:
+                continue
+            runs, why = v
+            if x["outs"] >= games.get(x.team, 0) or x["sv"] >= 5:
+                cy.append((runs + 0.6 * x["w"] + 0.35 * x["sv"], k, x.team, why))
+            if rookie(k, "pit", x) and (x["outs"] >= 0.75 * games.get(x.team, 0) or x["sv"] >= 3):
+                roy.append((runs + 0.6 * x["w"] + 0.35 * x["sv"], k, x.team, why))
+        out[lg_] = {name: [(k, t, why) for _, k, t, why in sorted(lst, key=lambda z: -z[0])[:most]]
+                    for name, lst in (("MVP", mvp), ("Cy Young", cy), ("Rookie", roy))}
+    return out
+
+
 def season_stats(save, db):
     """This season's line for every player with one (the player history's rows of the newest year, FORMAT_NOTES 3.6):
     dict(year, last_season (no games yet this year: last season's rows), games {team: games played, or 162},
@@ -550,6 +658,88 @@ def season_stats(save, db):
         for x in bat.values():
             games[x.team] = max(games.get(x.team, 0), x["g"])
     return dict(year=year, last_season=last, final=final, games=games, bat=bat, pit=pit)
+
+
+def farm_report(save, db, stats, ref, most=5):
+    """The farm teams' season (the player history's rows of this year at the AAA, AA and A clubs): dict(levels
+    {"AAA"|"AA"|"A": {category: [(key, team, text)]}}, teams {farm team: dict(bat, pit, games)}, prospects [(key,
+    team, age, text)]). Qualifying as in the big leagues, by the farm club's games (the most any hitter played)."""
+    if not stats:
+        return {}
+    year = stats["year"]
+    teams = collections.defaultdict(lambda: dict(bat={}, pit={}, games=0))
+    for k, rs in save["history"].items():
+        for r in rs:
+            if r["year"] != year or r["team"] < len(db.franchises):
+                continue
+            t = db.team_at(r["team"])
+            if t not in db.levels:
+                continue
+            d = teams[t]["bat" if r["batter"] else "pit"]
+            st = d.setdefault(k, collections.Counter())
+            st.update(r["stats"])
+            st.team = t
+    for t, v in teams.items():
+        v["games"] = max((x["g"] for x in v["bat"].values()), default=0)
+    if not teams:
+        return {}
+    levels = {}
+    for lv in ("AAA", "AA", "A"):
+        mine = [t for t in teams if db.levels[t] == lv]
+        b = [(k, x) for t in mine for k, x in teams[t]["bat"].items()]
+        p = [(k, x) for t in mine for k, x in teams[t]["pit"].items()]
+        g = lambda x: teams[x.team]["games"]
+        qb = [(k, x) for k, x in b if x["ab"] and x["ab"] >= 2.7 * g(x)]
+        qp = [(k, x) for k, x in p if x["outs"] and x["outs"] >= g(x)]
+        cat = {}
+        cat["AVG"] = [(k, x.team, rate3(x["h"] / x["ab"])) for k, x in
+                      sorted(qb, key=lambda z: (-z[1]["h"] / z[1]["ab"], -z[1]["ab"]))][:most]
+        cat["HR"] = [(k, x.team, str(x["hr"])) for k, x in sorted(b, key=lambda z: -z[1]["hr"]) if x["hr"]][:most]
+        cat["RBI"] = [(k, x.team, str(x["rbi"])) for k, x in sorted(b, key=lambda z: -z[1]["rbi"]) if x["rbi"]][:most]
+        cat["SB"] = [(k, x.team, str(x["sb"])) for k, x in sorted(b, key=lambda z: -z[1]["sb"]) if x["sb"]][:most]
+        cat["OPS"] = [(k, x.team, rate3(obp(x) + slg(x))) for k, x in
+                      sorted(qb, key=lambda z: -(obp(z[1]) + slg(z[1])))][:most]
+        cat["W"] = [(k, x.team, str(x["w"])) for k, x in sorted(p, key=lambda z: (-z[1]["w"], z[1]["l"])) if x["w"]][:most]
+        cat["ERA"] = [(k, x.team, f"{27 * x['er'] / x['outs']:.2f}") for k, x in
+                      sorted(qp, key=lambda z: (z[1]["er"] / z[1]["outs"], -z[1]["outs"]))][:most]
+        cat["SO"] = [(k, x.team, str(x["so"])) for k, x in sorted(p, key=lambda z: -z[1]["so"]) if x["so"]][:most]
+        cat["SV"] = [(k, x.team, str(x["sv"])) for k, x in sorted(p, key=lambda z: -z[1]["sv"]) if x["sv"]][:most]
+        levels[lv] = cat
+    # the prospects: the database's top-prospect flag (column 43), or a player the dynasty made (not in it), or 23
+    # and under; ranked by his line against his level's (OPS for a hitter, ERA for a pitcher), the levels weighted
+    lvw = {"AAA": 1.0, "AA": 0.9, "A": 0.78}
+    pool = []
+    for t, v in teams.items():
+        for side in ("bat", "pit"):
+            for k, x in v[side].items():
+                p = db.players.get(k)
+                age = db.age(k, ref)
+                if not ((p and p.get(43) == "1") or p is None or (age is not None and age <= 23)):
+                    continue
+                if side == "bat":
+                    if x["ab"] < max(25, 1.2 * v["games"]):
+                        continue
+                    o = obp(x) + slg(x)
+                    score = (o - 0.70) * 100 + x["hr"] * 0.3 + x["sb"] * 0.1
+                    text = (f"{rate3(x['h'] / x['ab'])}, {x['hr']} HR, {x['rbi']} RBI"
+                            + (f", {x['sb']} SB" if x["sb"] >= 5 else "") + f", {rate3(o)} OPS")
+                else:
+                    if x["outs"] < max(30, 1.5 * v["games"]):
+                        continue
+                    era = 27 * x["er"] / x["outs"]
+                    score = (4.5 - era) * 5 + x["so"] * 27 / x["outs"] * 1.2 + x["w"] * 0.4 + x["sv"] * 0.1
+                    score *= min(1, x["outs"] / (3.6 * max(v["games"], 1))) ** 0.5  # (a starter's workload counts)
+                    text = (f"{x['w']}-{x['l']}" + (f", {x['sv']} SV" if x["sv"] else "")
+                            + f", {era:.2f} ERA, {x['so']} K in {x['outs'] // 3}" + (f".{x['outs'] % 3}" if x["outs"] % 3 else "") + " IP")
+                bonus = 4 if (p and p.get(43) == "1") else 0
+                young = (24 - age) * 1.5 if age is not None else 1.5
+                pool.append(((score + bonus + young) * lvw[db.levels[t]], k, t, age, text))
+    seen, prospects = set(), []
+    for _, k, t, age, text in sorted(pool, key=lambda z: -z[0]):
+        if k not in seen:
+            seen.add(k)
+            prospects.append((k, t, age, text))
+    return dict(levels=levels, teams=dict(teams), prospects=prospects[:30])
 
 
 def season_leaders(save, db, most=10, stats=None):
@@ -626,6 +816,90 @@ def _players(x):
         if f.get("f1F"):
             hurt.append(dict(player=key, kind=f.get("f1E", 0), days=f["f1F"]))
     return names, hurt
+
+
+def _careers(x):
+    """Every player's big-league career (the player history keeps only his last 16 seasons; these are whole, the
+    real seasons and the dynasty's): {"bat": {key: Counter(g, ab, h, hr, rbi, r, sb)}, "pit": {key: Counter(g, er,
+    l, w, sv, bb, so, outs)}}. Hitters: region 16's 16-byte table, a row a player (FORMAT_NOTES 3.6); pitchers:
+    table 24, by the stats key list. Checked: Sheffield 488 HR, Sosa 588; Maddux 313 W, Clemens 4,465 SO."""
+    import dynasty05 as DY
+    with DY._in_lib():
+        import tablesconv as T
+    out = {"bat": {}, "pit": {}}
+    try:
+        tg = T.tags(x, T.TX)
+        start = next(a for a in range(tg[6], tg[6] + 1024, 4) if struct.unpack_from("<II", x, a) == (3250, 3250))
+        rows = {}
+        for i in range(3250):
+            k, r = struct.unpack_from("<II", x, start + 8 + 12 * i)
+            rows[k] = r
+        v = tg[16] + 39004 + 5 * 13004 + 4  # region 16: the 12-byte table, five 4-byte ones, then this
+        for k, r in rows.items():
+            if r >= 3250:
+                continue
+            w = struct.unpack_from("<4I", x, v + 16 * r)
+            a, b, c, d = _bits(w[0], (12, 14)), _bits(w[1], (13, 10)), _bits(w[2], (12, 12)), _bits(w[3], (11,))
+            if a[1]:
+                out["bat"][k] = collections.Counter(g=a[0], ab=a[1], h=b[0], hr=b[1], rbi=c[0], r=c[1], sb=d[0])
+        q = tg[16] + 156028  # the stats key list, after it
+        n = struct.unpack_from("<I", x, q)[0]
+        if n <= 1800:
+            for i in range(n):
+                k, r = struct.unpack_from("<II", x, q + 8 + 12 * i)
+                if r >= 1800:
+                    continue
+                w = struct.unpack_from("<3I", x, tg[24] + 4 + 12 * r)
+                a, b, c = _bits(w[0], (11, 12, 9)), _bits(w[1], (10, 10, 12)), _bits(w[2], (13, 13, 2))
+                if c[1] or c[2]:
+                    out["pit"][k] = collections.Counter(g=a[0], er=a[1], l=a[2], w=b[0], sv=b[1], bb=b[2], so=c[0],
+                                                        outs=3 * c[1] + c[2])
+    except (StopIteration, struct.error, IndexError, ValueError):
+        pass
+    return out
+
+
+# milestones: the marks, and how close counts as "within reach" (FORMAT: stat, label, marks, reach)
+MILESTONES = (("bat", "hr", "home runs", (100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800), 10),
+              ("bat", "h", "hits", (1000, 1500, 2000, 2500, 3000, 3500, 4000), 60),
+              ("bat", "rbi", "RBIs", (1000, 1500, 2000), 40),
+              ("bat", "sb", "stolen bases", (200, 300, 400, 500, 600), 15),
+              ("pit", "w", "wins", (100, 150, 200, 250, 300, 350), 8),
+              ("pit", "sv", "saves", (100, 200, 300, 400, 500, 600), 15),
+              ("pit", "so", "strikeouts", (1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000), 80))
+
+
+def milestones(save, db, stats):
+    """(near, reached): near [(key, team, stat label, mark, to go)] the active players within reach of a career mark,
+    closest first; reached [(key, team, label, mark)] the marks passed this season (the career less this season's
+    line was short of it)."""
+    car = save.get("careers") or {}
+    if not car or not stats:
+        return [], []
+    on = {k: db.franchises[i] for i, ks in save["rosters"].items() if i < len(db.franchises) for k in ks}
+    near, reached = [], []
+    for side, stat, label, marks, reach in MILESTONES:
+        season = stats["bat" if side == "bat" else "pit"]
+        for k, c in car[side].items():
+            team = on.get(k) or getattr(season.get(k), "team", None)
+            if team not in db.franchises:
+                continue
+            have = c[stat]
+            nxt = next((m for m in marks if m > have), None)
+            if nxt is not None and nxt - have <= reach:
+                near.append((k, team, label, nxt, nxt - have))
+            if not stats["last_season"]:
+                before = have - (season[k][stat] if k in season else 0)
+                for m in marks:
+                    if before < m <= have:
+                        reached.append((k, team, label, m))
+    # how famous a mark is: 500 HR, 3,000 hits, 2,000 RBIs, 500 SB, 300 wins, 400 saves and 3,000 strikeouts are 1
+    fame = {"home runs": 500, "hits": 3000, "RBIs": 2000, "stolen bases": 500, "wins": 300, "saves": 400,
+            "strikeouts": 3000}
+    reach = {x_[2]: x_[4] for x_ in MILESTONES}
+    near.sort(key=lambda z: z[4] / reach[z[2]] - z[3] / fame[z[2]])
+    reached.sort(key=lambda z: -z[3] / fame[z[2]])
+    return near, reached
 
 
 def _rosters(x):
@@ -919,6 +1193,15 @@ def build(save, db):
 
     stories.sort(key=lambda s: -s["score"])
     stats = season_stats(save, db)
+    near, reached = milestones(save, db, stats)
+    prev_car = (save.get("prev") or {}).get("careers")
+    if prev_car and last_day:  # marks passed since the previous edition (the newest earlier backup): news today
+        for k, t, label, m in reached:
+            side, stat, _, marks, _ = next(x_ for x_ in MILESTONES if x_[2] == label)
+            if prev_car[side].get(k, {}).get(stat, 0) < m:
+                add((0.6 + m / marks[-1]) * WEIGHTS["milestone"], "Milestone", f"{last(k)} reaches {m:,} {label}",
+                    f"{who(k)} of the {db.full(t)} reached {m:,} career {label}.", last_day, [t], [k])
+        stories.sort(key=lambda s_: -s_["score"])
     headlines = _spread(stories, recent=today - 10)
     results = [g for g in played if g["day"] == last_day] if last_day else []
     tomorrow = [g for g in upcoming if g["day"] == next_day] if next_day else []
@@ -934,6 +1217,7 @@ def build(save, db):
                 next_day=day(next_day) if next_day else None, divisions=divisions, wildcard=wildcard,
                 results=results, upcoming=tomorrow, headlines=headlines, postseason=postseason,
                 # big-league clubs' deals first, then the farm teams'
+                milestones=(near, reached),
                 trades=sorted((s for s in stories if s["kind"] == "Trade"), key=lambda s: -s["day"]),
                 injuries=sorted((s for s in stories if s["kind"] == "Injury"),
                                 key=lambda s: (not s["big_club"], -s["days"])),
@@ -941,9 +1225,13 @@ def build(save, db):
                 user=save["user"], games_played=games_played, db=db,
                 days=recaps(save["games"], db, save["user"], postseason),
                 leaders=season_leaders(save, db, stats=stats), names=save["names"],
+                races={} if postseason else races(save, db),
+                farm=farm_report(save, db, stats, day(today) if today else
+                                 datetime.date(stats["year"] if stats else 2005, 7, 1)),
+                awards=awards(save, db, stats, league_norms(save["history"], db)) if stats else {},
                 stats=stats, rosters=save["rosters"], games=save["games"], records=rec, stories=stories,
                 norms=league_norms(save["history"], db),
-                history=save["history"], team_of=team_of)
+                history=save["history"], team_of=team_of, careers=save.get("careers") or {})
 
 
 def _out_for(days):
@@ -1235,6 +1523,7 @@ a{color:#00c;text-decoration:none}a:hover{text-decoration:underline}
 a.score{display:block;color:#000;text-decoration:none}a.score:hover{border-color:#00c}
 .dpane{display:none}.dpane.on{display:block}
 .lpane{display:none}.lpane.on{display:block}
+.awpane{display:none}.awpane.on{display:block}ol.race{margin:0;padding-left:22px}ol.race li{padding:4px 0;border-bottom:1px solid #ddd}
 .tfilter{margin:6px 0 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}.tfilter select{font:11px Verdana,sans-serif}
 .tk button{border:1px solid #999;background:#fff;font:bold 11px Tahoma,Arial,sans-serif;color:#00c;padding:2px 6px;cursor:pointer}
 .tk button.on{background:#212c5d;color:#fff;border-color:#212c5d}
@@ -1245,6 +1534,11 @@ table.stats td:nth-child(2),table.stats th:nth-child(2),table.stats td:nth-child
 #stats tr.nq{display:none}#stats.all tr.nq{display:table-row}#stats tr.nq td{color:#777}
 a.more2{display:block;text-align:right;padding:0 7px 6px;font-weight:bold}
 .teampage{display:none;padding:6px 4px 0}
+svg.race{width:100%;max-width:520px;height:auto;display:block}svg.race .grid{stroke:#ddd;stroke-width:1}
+svg.race .tick{font-size:9px;fill:#777;text-anchor:end}.rkey{font-size:11px;margin:3px 0 4px}
+.rkey span{display:inline-block;margin-right:9px;white-space:nowrap}.rkey span.hl{font-weight:bold}
+.rkey i{display:inline-block;width:10px;height:3px;vertical-align:middle;margin-right:3px}
+.races{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}.races h3{margin:4px 0;font-size:13px}
 .career td,.career th{text-align:right}.career td:nth-child(-n+2),.career th:nth-child(-n+2){text-align:left}
 .career .tot td{font-weight:bold;border-top:2px solid #999}
 .teampage .mb{overflow-x:auto}.teampage .back{display:inline-block;margin:2px 0 8px;font-weight:bold}
@@ -1331,6 +1625,9 @@ td a{color:#000}
 AP_MONTHS = ("Jan.", "Feb.", "March", "April", "May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.")
 
 SCRIPT = """
+var AW={awf:[0,0],awp:[0,0]};function pickaw(g,l,c){if(l!==null)AW[g][0]=l;if(c!==null)AW[g][1]=c;
+ tab(g+'l',AW[g][0]);tab(g+'c',AW[g][1]);document.querySelectorAll('.awpane.'+g).forEach(function(p){
+ p.classList.toggle('on',p.id==g+AW[g][0]+AW[g][1]);});}
 var TK='all';function pickT(k){TK=k;tab('tk',k);filterT();}
 function filterT(){var t=document.getElementById('tteam').value,any=false;
  document.querySelectorAll('#tlist .tday').forEach(function(d){var shown=0;
@@ -1355,7 +1652,7 @@ function showPlayer(k){var el=document.getElementById('playerpage'),p=PD[k],h=[]
  var now=NOW;
  h.push("<div class=mod><div class=mh>"+esc(p.n)+"</div><div class='mb thead'>"+(p.t>=0?"<i class='lgb lg"+p.t+"b'></i>":"")+
   "<div><h1>"+esc(p.n)+"</h1><p class=big>"+esc(p.pos)+(p.t>=0?(p.pos?" &middot; ":"")+tm(p.t,document.querySelector('#team-'+p.t+' h1').textContent)+(p.f?" ("+esc(p.f)+")":""):"")+
-  "</p><p>"+p.bio+"</p></div></div></div>");
+  "</p><p>"+p.bio+"</p>"+(p.ms&&p.ms.length?"<p><b>Milestone watch:</b> "+p.ms.map(esc).join(" &middot; ")+"</p>":"")+"</div></div></div>");
  if(p.status&&p.status.length){h.push("<div class=mod><div class=mh>Status</div><div class=mb><ul class=list>");
   p.status.forEach(function(x){h.push("<li><b>"+esc(x[0])+":</b> "+esc(x[1])+"</li>");});h.push("</ul></div></div>");}
  var head=p.b?['Year','Team','AB','H','HR','RBI','R','SB','BB','SO','AVG','OBP','SLG','OPS','OPS+']:['Year','Team','G','W','L','SV','IP','ER','SO','BB','ERA','ERA+'];
@@ -1372,7 +1669,12 @@ function showPlayer(k){var el=document.getElementById('playerpage'),p=PD[k],h=[]
   t.push('<tr'+cls+'><td>'+r[0]+'</td><td>'+tm(tt[1],tt[0])+'</td>');
   for(var j=2;j<r.length-1;j++){tot[j]=(tot[j]||0)+r[j];if(j<last)t.push('<td>'+(p.b&&j>=8&&!known?'&ndash;':cell(r,j))+'</td>');}
   t.push(rates(r,known)+'<td>'+(plus===null?(!p.b&&!r[7]&&r[6]?'&infin;':'&ndash;'):plus)+'</td></tr>');});
- if(n){t.push('<tr class=tot><td>Total</td><td></td>');for(var j=2;j<tot.length&&j<last;j++)t.push('<td>'+(p.b&&j>=8&&!full?'&ndash;':cell(tot,j))+'</td>');
+ if(p.car){var c=p.car,r;  // the whole career (the rows above are his last 16 seasons at most)
+  if(p.b){r=[0,0,c[1],c[2],c[3],c[4],c[5],c[6]];t.push('<tr class=tot><td>Career</td><td>'+c[0]+' G</td>');
+   for(var j=2;j<8;j++)t.push('<td>'+r[j]+'</td>');t.push('<td>&ndash;</td><td>&ndash;</td>'+rates(r,false)+'<td></td></tr>');}
+  else{r=[0,0,c[0],c[1],c[2],c[3],c[4],c[5],c[6],c[7]];t.push('<tr class=tot><td>Career</td><td></td>');
+   for(var j=2;j<10;j++)t.push('<td>'+cell(r,j)+'</td>');t.push(rates(r,true)+'<td></td></tr>');}}
+ else if(n){t.push('<tr class=tot><td>Total</td><td></td>');for(var j=2;j<tot.length&&j<last;j++)t.push('<td>'+(p.b&&j>=8&&!full?'&ndash;':cell(tot,j))+'</td>');
   t.push(rates(tot,full)+'<td></td></tr>');}
  t.push('</table>'+(p.b&&!full?"<p class=date>BB, SO, OBP, SLG, OPS and OPS+ are kept for the seasons played in this dynasty only.</p>":"")+'</div></div>');h.push(t.join(''));
  if(p.news.length){h.push("<div class=mod><div class=mh>In the news</div><div class=mb><ul class=heads>");
@@ -1411,6 +1713,10 @@ def render(news):
 
     def pn(k):
         return news["names"].get(k) or db.name(k) or ""
+
+    def abbrev(full):
+        first, _, rest = full.partition(" ")
+        return f"{first[0]}. {rest}" if rest and first else full
 
     def PL(k, text=None):
         need.add(k)
@@ -1465,7 +1771,7 @@ def render(news):
     out.append("</div></div><a href='#scores'>Scoreboard</a><a href='#standings'>Standings</a>"
                + ("<a href='#stats'>Stats</a>" if news["stats"] else "") +
                "<a href='#matchups'>Schedule</a><a href='#transactions'>Transactions</a><a href='#injuries'>Injuries</a>"
-               "<a href='#news'>News</a></div>")
+               + ("<a href='#farm'>Farm</a>" if news.get("farm") else "") + "<a href='#news'>News</a></div>")
     out.append("<div class=cols><div class=left>")
 
     # ---- left: scoreboard, your club, hot and cold
@@ -1497,8 +1803,8 @@ def render(news):
     if news["leaders"]:  # this season's leaders, as the game's Around the League shows them: hitting, then pitching
         year = f"{news['leaders']['year']} " if news["leaders"]["last_season"] or news["leaders"]["final"] else ""
         names_ = news["names"]
-        for box, (title, cats) in enumerate(((f"{year}Hitting leaders", ("AVG", "HR", "RBI", "OPS")),
-                                            (f"{year}Pitching leaders", ("W", "ERA", "SV", "SO")))):
+        for box, (title, cats) in enumerate(((f"{year}Hitting" if year else "Hitting leaders", ("AVG", "HR", "RBI", "OPS")),
+                                            (f"{year}Pitching" if year else "Pitching leaders", ("W", "ERA", "SV", "SO")))):
             out.append(f"<div class=mod id=leaders{box}><div class=mh>{title}</div><div class='tabs lt'>" + "".join(
                 f"<button data-g=llg{box} data-i={i} onclick='pickl({box},{i},null)'>{n}</button>"
                 for i, n in enumerate(("AL", "NL"))) + "</div><div class='subtabs lt'>" + "".join(
@@ -1509,15 +1815,30 @@ def render(news):
                     rows_ = news["leaders"].get(lgi, {}).get(c, [])
                     out.append(f"<div class='lpane lp{box}' id=l{box}{lgi}{ci}><table>")
                     for rank, (k, t, v) in enumerate(rows_, 1):
-                        full = names_.get(k) or db.name(k) or "?"
-                        first, _, rest = full.partition(" ")
-                        short_name = f"{first[0]}. {rest}" if rest else full
+                        short_name = abbrev(names_.get(k) or db.name(k) or "?")
                         cls = " class=mine" if t == user else ""
                         out.append(f"<tr{cls}><td>{rank}. {lg(t)}{PL(k, short_name)}</td><td>{e(v)}</td></tr>")
                     if not rows_:
                         out.append("<tr><td>No one yet</td><td></td></tr>")
                     out.append("</table></div>")
             out.append("<a class=more2 href='#stats'>Full list &rsaquo;</a></div></div>")
+    near, reached = news.get("milestones", ([], []))
+    if near or reached:  # careers close to a round number, and the ones passed this season
+        ab = {"home runs": "HR", "hits": "H", "RBIs": "RBI", "stolen bases": "SB", "wins": "W", "saves": "SV", "strikeouts": "K"}
+        out.append("<div class=mod id=msbox><div class=mh>Milestone watch</div><div class=mb><table>")
+        for k, t, label, m, gap in near[:8]:
+            out.append(f"<tr><td>{lg(t)}{PL(k, abbrev(pn(k)))}</td><td>{gap} {ab[label]} from {m:,}</td></tr>")
+        if reached:
+            out.append("<tr><th colspan=2>Reached this season</th></tr>")
+            for k, t, label, m in reached[:5]:
+                out.append(f"<tr><td>{lg(t)}{PL(k, abbrev(pn(k)))}</td><td>{m:,} {ab[label]}</td></tr>")
+        out.append("</table></div><a class=more2 href='#milestones'>All milestones &rsaquo;</a></div>")
+    if news.get("farm", {}).get("prospects"):  # the farm's best young players
+        out.append("<div class=mod id=farmbox><div class=mh>Down on the farm</div><div class=mb><table>")
+        for k, t, age, text in news["farm"]["prospects"][:6]:
+            out.append(f"<tr><td>{lg(db.org_of.get(t, t))}{PL(k, abbrev(pn(k)))}<br><span class=date>"
+                       f"{e(db.tag(t))}: {e(text.split(', ')[0] if ',' in text else text)}</span></td></tr>")
+        out.append("</table></div><a class=more2 href='#farm'>Farm report &rsaquo;</a></div>")
     if not post and news["games_played"]:
         rows = [r for d in news["divisions"] for r in d["rows"] if r["streak"]]
         hot = sorted((r for r in rows if r["streak"][0] == "W"), key=lambda r: -int(r["streak"][1:]))[:4]
@@ -1580,7 +1901,9 @@ def render(news):
                            f"<td>{gb}</td></tr>")
             out.append("</table></div>")
         out.append("<a href='#allstandings' style='display:block;margin-top:5px'>View expanded standings &rsaquo;</a>"
-                   "</div></div>")
+                   + ("<a href='#races' style='display:block;margin-top:3px'>Pennant races &rsaquo;</a>"
+                      if any(len(r["days"]) > 1 for r in news.get("races", {}).values()) else "")
+                   + "</div></div>")
     out.append("<div class=mod id=matchups><div class=mh>" + ("Postseason" if post else "Matchups") + "</div><div class=mb>")
     if news["upcoming"]:
         out.append(f"<div class=date style='margin-bottom:3px'>{fmt(news['next_day'])}</div>")
@@ -1630,6 +1953,7 @@ def render(news):
                            f"<div>{kick}<b>{e(r['head'])}</b><p>{linkify(r['body'], (), (r['win'], r['lose']))}</p></div></div>")
             out.append("</div>")
         out.append("</div></div>")
+    out.append(awards_box(news, lg, PL, TM, most=5))
     out.append("<div class=mod id=wire><div class=mh>Transactions</div><div class=mb><ul class=list>")
     for s in sorted(news["trades"] + news["moves"], key=lambda s: -s["day"])[:15]:  # newest first (the page: all)
         out.append(f"<li><span class=date>{short(day(s['day']))}:</span> {story(s)}</li>")
@@ -1685,6 +2009,10 @@ def render(news):
     out.append(team_pages(news, lg, gid, PL, TM, story))
     out.append(stats_page(news, lg, PL, TM))
     out.append(transactions_page(news, lg, story))
+    out.append(milestones_page(news, lg, PL, TM))
+    out.append(awards_page(news, lg, PL, TM))
+    out.append(races_page(news, lg))
+    out.append(farm_page(news, lg, PL))
     out.append("<div id=playerpage class=teampage></div>")
     season = (news["today"] or day(min((g["day"] for g in news["games"]), default=21000))).year
     out.append(f"<script>var PD={player_data(news, need)},TT={team_table(db)},NOW={season};</script>")
@@ -1696,7 +2024,7 @@ def render(news):
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
                f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
                "function route(){var h=location.hash.slice(1),t=h.indexOf('team-')==0?document.getElementById(h):null;"
-               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(h=='stats'||h=='transactions')t=document.getElementById(h);"
+               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(['stats','transactions','milestones','awards','races','farm'].indexOf(h)>=0)t=document.getElementById(h);"
                "document.querySelectorAll('.teampage').forEach(function(p){p.style.display=p==t?'block':'none'});"
                "document.querySelector('.cols').style.display=t?'none':'flex';if(t){window.scrollTo(0,0);return;}"
                "var el=h&&document.getElementById(h);if(el){var d=el.closest('.dpane');if(d)pickday(+d.id.slice(1));"
@@ -1707,7 +2035,8 @@ def render(news):
                "var LS=[[0,0],[0,0]];function pickl(b,l,c){if(l!==null)LS[b][0]=l;if(c!==null)LS[b][1]=c;"
                "l=LS[b][0];c=LS[b][1];tab('llg'+b,l);tab('lcat'+b,c);document.querySelectorAll('.lp'+b)"
                ".forEach(function(p){p.classList.toggle('on',p.id=='l'+b+l+c)});}"
-               f"pickl(0,{first[0]},0);pickl(1,{first[0]},0);pickstats({first[0]},0);"
+               f"pickl(0,{first[0]},0);pickl(1,{first[0]},0);pickstats({first[0]},0);pickaw('awf',{first[0]},0);"
+               f"pickaw('awp',{first[0]},0);"
                "document.querySelectorAll('table.stats th[data-def]').forEach(function(th){sortT(th);});route();</script>")
     out.append("</body></html>")
     logos = "".join(f".{c}{{background-image:url({u})}}" for v in used.values() if v for c, u in [v])
@@ -1741,7 +2070,14 @@ def team_pages(news, lg, gid, PL, TM, story):
                        f"<p>Last 10: {row['last10']} &middot; Streak: {row['streak'] or '&ndash;'} &middot; "
                        f"Home {row['home']} &middot; Road {row['road']}</p><p>Runs: {row['rs']} scored, {row['ra']} allowed "
                        f"({row['rs'] - row['ra']:+d})</p>".replace("(-", "(&minus;"))
-        out.append("</div></div></div><div class=pair>")
+        out.append("</div></div></div>")
+        race = news.get("races", {}).get(int(db.teams.get(t, {}).get(5, -1)))
+        chart = race_svg(race, db, lg, highlight=t) if race else ""
+        if chart:
+            out.append(f"<div class=mod><div class=mh>The {e(DIVISIONS[int(db.teams[t][5])])} race</div>"
+                       f"<div class=mb>{chart}<p class=date>Games back of first place, game day by game day. "
+                       "<a href='#races'>All the races &rsaquo;</a></p></div></div>")
+        out.append("<div class=pair>")
         mine = [g for g in news["games"] if t in (g["away"], g["home"])]
         played = sorted((g for g in mine if g["played"]), key=lambda g: g["day"])[-10:][::-1]
         coming = sorted((g for g in mine if not g["played"]), key=lambda g: g["day"])[:8]
@@ -1799,6 +2135,7 @@ def team_pages(news, lg, gid, PL, TM, story):
                 line = "<td>0</td>" + "<td></td>" * 6
             out.append(f"<tr><td>{db.pos(k)}</td><td>{PL(k)}</td>{line}</tr>")
         out.append("</table></div></div>")
+        out.append(farm_box(news, t, PL))
         # news about the club
         about = lambda s_: t in s_["teams"] or t in s_.get("raw_teams", [])
         heads = [s_ for s_ in news["stories"] if about(s_) and s_["kind"] not in ("Injury", "Suspension")][:8]
@@ -1897,8 +2234,25 @@ def player_data(news, keys):
         out[f"{k:x}"] = dict(n=news["names"].get(k) or db.name(k) or "?", pos=db.pos(k) or ("Pitcher" if not hitter else ""),
                              t=db.franchises.index(team) if team in db.franchises else -1, b=int(hitter),
                              bio=" &middot; ".join(bio), rows=cells, news=about.get(k, []), status=status,
-                             f=f"{db.full(farm)}, {db.level(farm)}" if farm else "")
+                             f=f"{db.full(farm)}, {db.level(farm)}" if farm else "", **_career_bits(news, k, hitter))
     return json.dumps(out, separators=(",", ":")).replace("</", "<\\/")
+
+
+def _career_bits(news, k, hitter):
+    """car: his whole big-league career (the history keeps 16 seasons) as the career table's columns; ms: the next
+    marks within sight"""
+    car = (news.get("careers") or {}).get("bat" if hitter else "pit", {}).get(k)
+    if not car:
+        return dict(car=None, ms=[])
+    cols = ["g", "ab", "h", "hr", "rbi", "r", "sb"] if hitter else ["g", "w", "l", "sv", "outs", "er", "so", "bb"]
+    ms = []
+    for side, stat, label, marks, reach in MILESTONES:
+        if (side == "bat") != hitter:
+            continue
+        nxt = next((m for m in marks if m > car[stat]), None)
+        if nxt is not None and nxt - car[stat] <= 3 * reach:
+            ms.append(f"{nxt - car[stat]} {label} from {nxt:,}")
+    return dict(car=[car[c] for c in cols], ms=ms)
 
 
 def team_table(db):
@@ -2017,6 +2371,234 @@ def transactions_page(news, lg, story):
         out.append("<p>No transactions yet.</p>")
     out.append("<p id=tnone class=date style='display:none'>None of those.</p></div></div></div></div>")
     return "".join(out)
+
+
+def races_page(news, lg):
+    """#races: every division's games-back chart through the season"""
+    rs = news.get("races") or {}
+    charts = [(dv, race_svg(r, news["db"], lg)) for dv, r in sorted(rs.items())]
+    charts = [(dv, c) for dv, c in charts if c]
+    if not charts:
+        return ""
+    out = ["<div class=teampage id=races><a class=back href='#top'>&lsaquo; Back to the front page</a>"
+           "<div class=mod><div class=mh>Pennant races</div><div class=mb><p class=date>Games back of first place, "
+           "game day by game day. The key reads today's order.</p><div class=races>"]
+    for dv, c in charts:
+        out.append(f"<div><h3>{html.escape(DIVISIONS[dv])}</h3>{c}</div>")
+    out.append("</div></div></div></div>")
+    return "".join(out)
+
+
+FARM_CATS = (("AVG", "Average"), ("HR", "Home runs"), ("RBI", "RBIs"), ("OPS", "OPS"), ("SB", "Stolen bases"),
+             ("W", "Wins"), ("ERA", "ERA"), ("SO", "Strikeouts"), ("SV", "Saves"))
+
+
+def farm_page(news, lg, PL):
+    """#farm: the top prospects' lines, then each level's leaders"""
+    f = news.get("farm") or {}
+    if not f:
+        return ""
+    db, e = news["db"], html.escape
+    org = lambda t: db.org_of.get(t, t)
+    out = ["<div class=teampage id=farm><a class=back href='#top'>&lsaquo; Back to the front page</a>"
+           "<div class=mod><div class=mh>Farm report: top prospects</div><div class=mb><p class=date>The farm "
+           "clubs' best young players this season: the game's top prospects, the dynasty's own draftees and anyone "
+           "23 or under, ranked by how they're hitting or pitching at their level.</p><table class=stats><thead><tr>"
+           "<th>#</th><th>Player</th><th>Pos</th><th>Age</th><th>Club</th><th>Organization</th><th>This season</th>"
+           "</tr></thead><tbody>"]
+    for n, (k, t, age, text) in enumerate(f["prospects"], 1):
+        out.append(f"<tr><td>{n}</td><td>{PL(k)}</td><td>{e(db.pos(k) or ('P' if 'ERA' in text else ''))}</td><td>{age if age is not None else ''}</td>"
+                   f"<td>{e(db.tag(t))}</td><td>{lg(org(t))}<a href='#team-{db.franchises.index(org(t))}'>"
+                   f"{e(db.club(org(t)))}</a></td><td>{e(text)}</td></tr>")
+    if not f["prospects"]:
+        out.append("<tr><td colspan=7>No one has played enough yet.</td></tr>")
+    out.append("</tbody></table></div></div>")
+    for lv in ("AAA", "AA", "A"):
+        cats = f["levels"].get(lv) or {}
+        if not any(cats.values()):
+            continue
+        out.append(f"<div class=mod><div class=mh>{'Class A' if lv == 'A' else lv} leaders</div><div class=mb>"
+                   "<div class=races>")
+        for c, title in FARM_CATS:
+            if not cats.get(c):
+                continue
+            out.append(f"<div><h3>{title}</h3><table class=res>")
+            for k, t, text in cats[c]:
+                out.append(f"<tr><td>{lg(org(t))}{PL(k)}</td><td>{e(db.city(t))}</td><td>{text}</td></tr>")
+            out.append("</table></div>")
+        out.append("</div></div></div>")
+    out.append("</div>")
+    return "".join(out)
+
+
+def farm_box(news, t, PL):
+    """A club's farm teams this season: each one's best hitters and pitchers (a team page's box)"""
+    f = news.get("farm") or {}
+    db, e = news["db"], html.escape
+    mine = sorted((x for x in f.get("teams", {}) if db.org_of.get(x) == t), key=lambda x: ("AAA", "AA", "A").index(db.levels[x]))
+    if not mine:
+        return ""
+    out = ["<div class=mod><div class=mh>Down on the farm</div><div class=mb><table class=res>"]
+    for x in mine:
+        v = f["teams"][x]
+        g = v["games"]
+        bats = sorted((kv for kv in v["bat"].items() if kv[1]["ab"] >= 1.5 * g),
+                      key=lambda kv: -(obp(kv[1]) + slg(kv[1])))[:3]
+        arms = sorted((kv for kv in v["pit"].items() if kv[1]["outs"] >= 1.2 * g),
+                      key=lambda kv: kv[1]["er"] / kv[1]["outs"])[:2]
+        out.append(f"<tr><th colspan=3>{e(db.full(x))} ({db.levels[x]})</th></tr>")
+        for k, s in bats:
+            out.append(f"<tr><td>{PL(k)}</td><td>{e(db.pos(k))}</td><td>{rate3(s['h'] / s['ab'])}, {s['hr']} HR, "
+                       f"{s['rbi']} RBI, {rate3(obp(s) + slg(s))} OPS</td></tr>")
+        for k, s in arms:
+            out.append(f"<tr><td>{PL(k)}</td><td>{e(db.pos(k) or 'P')}</td><td>{s['w']}-{s['l']}"
+                       + (f", {s['sv']} SV" if s["sv"] else "") + f", {27 * s['er'] / s['outs']:.2f} ERA, "
+                       f"{s['so']} K</td></tr>")
+        if not bats and not arms:
+            out.append("<tr><td colspan=3>No regulars yet.</td></tr>")
+    out.append("</table><a href='#farm'>Farm report &rsaquo;</a></div></div>")
+    return "".join(out)
+
+
+def milestones_page(news, lg, PL, TM):
+    """#milestones: every active player within reach of a career mark, and the marks passed this season"""
+    near, reached = news.get("milestones", ([], []))
+    if not near and not reached:
+        return ""
+    db = news["db"]
+    car = news.get("careers") or {}
+    out = ["<div class=teampage id=milestones><a class=back href='#top'>&lsaquo; Back to the front page</a>"
+           "<div class=mod><div class=mh>Milestone watch</div><div class=mb><p class=date>Career totals count every "
+           "big-league season, the real ones and this dynasty's.</p><table class=stats><thead><tr><th>Player</th>"
+           "<th>Club</th><th>Career</th><th>Next mark</th><th>To go</th></tr></thead><tbody>"]
+    for k, t, label, m, gap in near:
+        side, stat = next((x_[0], x_[1]) for x_ in MILESTONES if x_[2] == label)
+        now = car.get(side, {}).get(k, {}).get(stat, m - gap)
+        out.append(f"<tr><td>{PL(k)}</td><td>{lg(t)}{TM(t, db.short(t))}</td><td>{now:,} {label}</td><td>{m:,}</td>"
+                   f"<td>{gap}</td></tr>")
+    out.append("</tbody></table></div>")
+    if reached:
+        out.append("<div class=mh>Reached this season</div><div class=mb><table class=stats><thead><tr><th>Player</th>"
+                   "<th>Club</th><th>Mark</th></tr></thead><tbody>")
+        for k, t, label, m in reached:
+            out.append(f"<tr><td>{PL(k)}</td><td>{lg(t)}{TM(t, db.short(t))}</td><td>{m:,} {label}</td></tr>")
+        out.append("</tbody></table></div>")
+    out.append("</div></div>")
+    return "".join(out)
+
+
+AWARD_NAMES = (("MVP", "MVP"), ("Cy Young", "Cy Young"), ("Rookie", "Rookie of the Year"))
+
+
+def awards_box(news, lg, PL, TM, most=5, page=False):
+    """The award races: a front-page box (the top 5), or #awards (the top 10); AL/NL and the award as tabs"""
+    A = news.get("awards") or {}
+    if not any(A.get(l_, {}).get(a) for l_ in (0, 1) for a, _ in AWARD_NAMES):
+        return ""
+    db = news["db"]
+    st = news["stats"] or {}
+    over = st.get("final") or news["postseason"]
+    title = f"{st.get('year', '')} awards: the season's best" if over else "Awards races"
+    g = "awp" if page else "awf"
+    out = [f"<div class=mod{' id=awardsbox' if not page else ''}><div class=mh>{title}</div><div class=tabs>"
+           + "".join(f"<button data-g={g}l data-i={i} onclick=\"pickaw('{g}',{i},null)\">{n}</button>"
+                     for i, n in enumerate(("American League", "National League")))
+           + "</div><div class=subtabs>" + "".join(
+               f"<button data-g={g}c data-i={i} onclick=\"pickaw('{g}',null,{i})\">{label}</button>"
+               for i, (_, label) in enumerate(AWARD_NAMES)) + "</div><div class=mb>"]
+    for l_ in (0, 1):
+        for ci, (a, label) in enumerate(AWARD_NAMES):
+            out.append(f"<div class='awpane {g}' id={g}{l_}{ci}><ol class=race>")
+            for rank, (k, t, why) in enumerate(A.get(l_, {}).get(a, [])[:most], 1):
+                out.append(f"<li{' class=mine' if t == news['user'] else ''}>{lg(t)}<b>{PL(k)}</b>, "
+                           f"{TM(t, db.short(t))}<br><span class=date>{html.escape(why)}</span></li>")
+            if not A.get(l_, {}).get(a):
+                out.append("<li>No one qualifies yet.</li>")
+            out.append("</ol></div>")
+    out.append("<p class=date>Picked from the stats: runs above average (OPS+ and the position) for hitters, runs "
+               "saved against the league's ERA for pitchers, with some weight for HR, RBI, wins, saves and the "
+               "club's record. Rookies: 130 at-bats or 50 innings at most before this season.</p>" if page else
+               "<a class=more2 href='#awards'>The full races &rsaquo;</a>")
+    out.append("</div></div>")
+    return "".join(out)
+
+
+def awards_page(news, lg, PL, TM):
+    box = awards_box(news, lg, PL, TM, most=10, page=True)
+    return (f"<div class=teampage id=awards><a class=back href='#top'>&lsaquo; Back to the front page</a>{box}</div>"
+            if box else "")
+
+
+def races(save, db):
+    """Each division's season, game day by game day: {division: dict(days [day numbers], gb {team: [games back]})}
+    from the results (the regular season's: the playoffs' schedule replaces it, so none then)."""
+    played = sorted((g for g in save["games"] if g["played"]), key=lambda g: g["day"])
+    div = {t: int(db.teams[t].get(5, -1)) for t in db.franchises if t in db.teams}
+    if not played or not all(g["home"] in div and g["away"] in div for g in played[:5]):
+        return {}
+    wl = {t: [0, 0] for t in div}
+    out = {dv: dict(days=[], gb={t: [] for t in div if div[t] == dv}) for dv in range(6)}
+    i = 0
+    while i < len(played):
+        d = played[i]["day"]
+        while i < len(played) and played[i]["day"] == d:
+            g = played[i]
+            if g["home"] in wl and g["away"] in wl:
+                win, lose = (g["home"], g["away"]) if g["hr"] > g["ar"] else (g["away"], g["home"])
+                wl[win][0] += 1
+                wl[lose][1] += 1
+            i += 1
+        for dv, r in out.items():
+            teams = list(r["gb"])
+            best = max(teams, key=lambda t: (wl[t][0] - wl[t][1], wl[t][0]))
+            r["days"].append(d)
+            for t in teams:
+                r["gb"][t].append(((wl[best][0] - wl[t][0]) + (wl[t][1] - wl[best][1])) / 2)
+    return out
+
+
+RACE_COLORS = ("#1f4e9c", "#c8102e", "#2e8b57", "#e69f00", "#7b3fa0", "#5a5a5a")
+
+
+def race_svg(race, db, lg, highlight=None, w=440, h=150):
+    """A division's games back through the season: an inline SVG line chart (0 at the top), and a key"""
+    days, teams = race["days"], list(race["gb"])
+    if len(days) < 2:
+        return ""
+    step = max(1, len(days) // 80)  # (80 points a line at most)
+    idx = list(range(0, len(days), step))
+    if idx[-1] != len(days) - 1:
+        idx.append(len(days) - 1)
+    top = max(3, max(max(v) for v in race["gb"].values()))
+    left, right, pad = 28, 6, 10
+    x = lambda i: left + (w - left - right) * (days[i] - days[0]) / max(1, days[-1] - days[0])
+    y = lambda v: pad + (h - pad - 18) * v / top
+    order = sorted(teams, key=lambda t: race["gb"][t][-1])
+    parts = [f"<svg viewBox='0 0 {w} {h}' class=race role=img aria-label='Games back through the season'>"]
+    for v in range(0, int(top) + 1, max(1, int(top) // 4)):  # grid: games back
+        parts.append(f"<line x1={left} x2={w - right} y1={y(v):.1f} y2={y(v):.1f} class=grid />"
+                     f"<text x={left - 4} y={y(v) + 3:.1f} class=tick>{v}</text>")
+    months = {}
+    for i, d in enumerate(days):
+        months.setdefault((day(d).year, day(d).month), i)
+    for (_, m), i in months.items():
+        parts.append(f"<text x={x(i):.1f} y={h - 1} class=tick text-anchor=start>"
+                     f"{datetime.date(2000, m, 1).strftime('%b')}</text>")
+    for n, t in enumerate(reversed(order)):  # the leader drawn last, on top
+        c = RACE_COLORS[order.index(t) % len(RACE_COLORS)]
+        pts = " ".join(f"{x(i):.1f},{y(race['gb'][t][i]):.1f}" for i in idx)
+        width = 3.2 if t == highlight else (1.8 if highlight is None else 1.2)
+        op = 1 if highlight is None or t == highlight else 0.55
+        parts.append(f"<polyline points='{pts}' fill=none stroke='{c}' stroke-width={width} opacity={op} "
+                     "stroke-linejoin=round />")
+    parts.append("</svg><div class=rkey>")
+    for t in order:
+        c = RACE_COLORS[order.index(t) % len(RACE_COLORS)]
+        gb = race["gb"][t][-1]
+        parts.append(f"<span{' class=hl' if t == highlight else ''}><i style='background:{c}'></i>"
+                     f"{html.escape(db.short(t))} {'&ndash;' if gb == 0 else f'{gb:g}'}</span>")
+    parts.append("</div>")
+    return "".join(parts)
 
 
 def news_record(news, t):
