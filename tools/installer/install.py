@@ -2149,7 +2149,7 @@ TWEAKS = {
         ("player_full_detail", None, "More detail: umpires and fielders away from the play get the game's "
                                      "second-best player model, not its two simplest", None),
         ("daylight_parks", None, "Daylight day games: day lighting and sky at Fenway, Turner Field and the other "
-                                 "parks EA lit as dusk (test)", None),
+                                 "parks EA lit as dusk", None),
         ("rain", "Rain",
          "The game has rain, but only at SBC Park (day and night) and at Safeco Field at night, as a shower in about "
          "2 games in 9. (test)",

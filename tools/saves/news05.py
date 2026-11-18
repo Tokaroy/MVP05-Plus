@@ -1737,6 +1737,8 @@ table.stats td:nth-child(2),table.stats th:nth-child(2),table.stats td:nth-child
 #stats tr.nq{display:none}#stats.all tr.nq{display:table-row}#stats tr.nq td{color:#777}
 a.more2{display:block;text-align:right;padding:0 7px 6px;font-weight:bold}
 .teampage{display:none;padding:6px 4px 0}
+table.res tr.me td{background:#fff6c8;font-weight:bold}
+table.st td+td,table.st th+th{text-align:center}table.st td:first-child{width:55%}
 .bracket{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:center}
 .bcol{display:flex;flex-direction:column;gap:10px;justify-content:space-around;height:100%}
 .pbox{display:block;border:1px solid #c9d3e3;background:#f6f8fc;padding:4px 6px;color:#000;text-decoration:none}
@@ -2334,6 +2336,32 @@ def team_pages(news, lg, gid, PL, TM, story):
             if pw:
                 out.append(f"<p>Power ranking: <a href='#power'>No. {pw['rank']}</a> {_move(pw)}</p>")
         out.append("</div></div></div>")
+        # its division's standings, and its league's wild card race (the regular season)
+        div = next((d for d in news["divisions"] if any(r["team"] == t for r in d["rows"])), None)
+        if div and not news["postseason"] and news["games_played"]:
+            lgi = DIVISIONS.index(div["name"]) // 3
+            out.append(f"<div class=pair><div class=mod><div class=mh>{e(div['name'])}</div><div class=mb><table class='res st'>"
+                       "<tr><th></th><th>W</th><th>L</th><th>Pct</th><th>GB</th><th>L10</th><th>Strk</th></tr>")
+            for r in div["rows"]:
+                out.append(f"<tr{' class=me' if r['team'] == t else ''}><td>{lg(r['team'])}{TM(r['team'])}</td>"
+                           f"<td>{r['w']}</td><td>{r['l']}</td><td>{r['pct']:.3f}".replace("0.", ".", 1)
+                           + f"</td><td>{'&ndash;' if r['gb'] == 0 else f'{r[chr(103) + chr(98)]:g}'}</td>"
+                           f"<td>{r['last10']}</td><td>{r['streak'] or '&ndash;'}</td></tr>")
+            out.append("</table></div></div>")
+            wc = news.get("wildcard", {}).get(lgi, [])
+            leaders = [d["rows"][0] for d in news["divisions"][3 * lgi:3 * lgi + 3]]
+            out.append(f"<div class=mod><div class=mh>{'AL' if lgi == 0 else 'NL'} Wild Card</div><div class=mb>"
+                       "<table class='res st'><tr><th></th><th>W</th><th>L</th><th>GB</th></tr>")
+            show = wc[:5] if not any(r["team"] == t for r in wc[5:]) else wc[:4] + [r for r in wc if r["team"] == t]
+            for r in show:
+                gb = r.get("wcgb", 0)
+                out.append(f"<tr{' class=me' if r['team'] == t else ''}><td>{lg(r['team'])}{TM(r['team'])}</td>"
+                           f"<td>{r['w']}</td><td>{r['l']}</td><td>{'&ndash;' if gb == 0 else f'{gb:g}'}</td></tr>")
+            out.append("<tr><th colspan=4>Division leaders</th></tr>")
+            for r in leaders:
+                out.append(f"<tr{' class=me' if r['team'] == t else ''}><td>{lg(r['team'])}{TM(r['team'])}</td>"
+                           f"<td>{r['w']}</td><td>{r['l']}</td><td></td></tr>")
+            out.append("</table><a href='#allstandings'>All the standings &rsaquo;</a></div></div></div>")
         out.append("<div class=pair>")
         mine = [g for g in news["games"] if t in (g["away"], g["home"])]
         played = sorted((g for g in mine if g["played"]), key=lambda g: g["day"])[-10:][::-1]
