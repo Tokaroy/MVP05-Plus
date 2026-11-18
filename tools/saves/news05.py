@@ -1865,11 +1865,12 @@ function sortT(th){var tb=th.closest('table').tBodies[0],i=[].indexOf.call(th.pa
  rows.forEach(function(r){tb.appendChild(r);});renumber();}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function tm(i,txt){return i<0?esc(txt):"<a href='#team-"+i+"'><i class='lg lg"+i+"'></i>"+esc(txt)+"</a>";}
+function noface(im){var t=im.getAttribute('data-t');if(t>=0){var i=document.createElement('i');i.className='lgb lg'+t+'b';im.replaceWith(i);}else im.remove();}
 function showPlayer(k){var el=document.getElementById('playerpage'),p=PD[k],h=[];
  h.push("<a class=back href='#top'>&lsaquo; Back to the front page</a>");
  if(!p){el.innerHTML=h.join('')+"<p>No page for that player.</p>";return el;}
  var now=NOW;
- h.push("<div class=mod><div class=mh>"+esc(p.n)+"</div><div class='mb thead'>"+(p.ph!=null&&FACES!=null?"<img class=face alt='' src='"+FACES+p.ph+".webp' onerror='this.remove()'>":"")+(p.t>=0?"<i class='lgb lg"+p.t+"b'></i>":"")+
+ h.push("<div class=mod><div class=mh>"+esc(p.n)+"</div><div class='mb thead'>"+(p.ph!=null&&FACES!=null?"<img class=face alt='' data-t='"+p.t+"' src='"+FACES+p.ph+".webp' onerror='noface(this)'>":(p.t>=0?"<i class='lgb lg"+p.t+"b'></i>":""))+
   "<div><h1>"+esc(p.n)+"</h1><p class=big>"+esc(p.pos)+(p.t>=0?(p.pos?" &middot; ":"")+tm(p.t,document.querySelector('#team-'+p.t+' h1').textContent)+(p.f?" ("+esc(p.f)+")":""):"")+
   "</p><p>"+p.bio+"</p>"+(p.ms&&p.ms.length?"<p><b>Milestone watch:</b> "+p.ms.map(esc).join(" &middot; ")+"</p>":"")+"</div></div></div>");
  if(p.status&&p.status.length){h.push("<div class=mod><div class=mh>Status</div><div class=mb><ul class=list>");
