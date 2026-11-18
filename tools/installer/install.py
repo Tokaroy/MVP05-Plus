@@ -299,6 +299,49 @@ def gc_free_name(gci, taken):
     raise DY.DynastyError("there's no free name for it on that card")
 
 
+def emulator_running(to):
+    """Whether Dolphin (to "GameCube") or PCSX2 ("PS2") is running (Windows): it keeps its card in memory and would
+    write over a card changed under it"""
+    if os.name != "nt":
+        return False
+    import subprocess
+    names = ("dolphin",) if to == "GameCube" else ("pcsx2",)
+    try:
+        r = subprocess.run(["tasklist", "/NH", "/FO", "CSV"], capture_output=True, text=True,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except OSError:
+        return False
+    return any(line.strip('"').lower().startswith(names) for line in r.stdout.splitlines())
+
+
+def write_card(frm, game, to, card, data, what):
+    """The new card written over the memory card itself, a copy of the card kept first in
+    save backups/memory cards/<date>. True when written."""
+    import datetime
+    import shutil
+    from tkinter import messagebox
+    title = "Export"
+    while emulator_running(to):
+        if not messagebox.askretrycancel(title, f"{'Dolphin' if to == 'GameCube' else 'PCSX2'} is running. Close it "
+                                                "first: it keeps the memory card in memory and would write over the "
+                                                "change. Then press Retry.", parent=frm):
+            return False
+    keep = os.path.join(game, "save backups", "memory cards", datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S"))
+    try:
+        os.makedirs(keep, exist_ok=True)
+        shutil.copy2(card, os.path.join(keep, os.path.basename(card)))
+        with open(card + ".new", "wb") as f:
+            f.write(data)
+        os.replace(card + ".new", card)
+    except OSError as e:
+        messagebox.showerror(title, f"Nothing was written: {e}.", parent=frm)
+        return False
+    messagebox.showinfo(title, f"Done: {what} is on your memory card ({os.path.basename(card)}) in place of the save "
+                               f"it was built on. Start MVP Baseball 2005 and load it.\n\nThe card as it was is in "
+                               f"save backups\\memory cards beside MVP05.exe, if you want it back.", parent=frm)
+    return True
+
+
 def remembered_dir(root, key, to=None):
     """{initialdir: the folder last chosen for key} for a file dialog, when it's still there; else the emulator's
     own folder for that console, when there is one."""
@@ -1582,8 +1625,8 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
     gc = to == "GameCube"
     how = (f"If you don't have one: in the GameCube game in Dolphin, {start}.\n\n"
            "The Launcher looks on Dolphin's own cards for it first: in GCI Folder mode (Dolphin's default) the new "
-           "save goes in that folder beside it; on a .raw memory card you get a copy of the card with the save in "
-           "it. Or choose a .gci or a .raw yourself. The save you build on isn't changed."
+           "save goes in that folder beside it; on a .raw memory card it takes the place of the save it's built on "
+           "(a copy of the card is kept first). Or choose a .gci or a .raw yourself."
            if gc else
            f"If you don't have one: in the PC game, {start}. Choose that save next (a .sav, where the PC game keeps "
            "its saves).\n\n"
@@ -1591,10 +1634,11 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
            if to == "PC" else
            f"If you don't have one: in the PS2 game, {start}. Then choose your PCSX2 memory card "
            "(.ps2) next, or that save as a .psu.\n\n"
-           "It isn't changed: from a memory card you get a copy of the card with the save in it, from a .psu a "
-           "new .psu to import (in PCSX2, with a memory card tool such as mymc; on a console, with uLaunchELF).")
+           "On a memory card it takes the place of the save it's built on (a copy of the card is kept first); from "
+           "a .psu you get a new .psu to import (in PCSX2, with a memory card tool such as mymc; on a console, with "
+           "uLaunchELF).")
     if not messagebox.askokcancel(title, (
-            f"\"{name}\" is written into a copy of one of your own {to} {mode} saves.\n\n{how}"
+            f"\"{name}\" is built on one of your own {to} {mode} saves.\n\n{how}"
             + ("" if to == "PC" or roster else
                f"\n\nThe {to} keeps each player's last 6 seasons of history, so older seasons are left out.")),
             parent=frm):
@@ -1736,6 +1780,17 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
                                    f"Dolphin and load it: it's \"{shown}\" on the card. (If Dolphin was running, "
                                    "restart the game so it reads the folder again.)", parent=frm)
         return
+    if ext in (".raw", ".ps2"):  # a memory card: written onto the card itself, so the game loads it straight away
+        shown = f"\"{name}\""
+        pick = messagebox.askyesnocancel(title, f"Write {shown} onto your memory card?\n\n{p}\n\nIt takes the place of "
+                                                f"the {mode} it was built on; the rest of the card stays as it is. A "
+                                                "copy of the card is kept first.\n\nYes: onto the card. No: save a "
+                                                "copy of the card somewhere else instead.", parent=frm)
+        if pick is None:
+            return
+        if pick:
+            write_card(frm, game, to, p, out, shown)
+            return
     dest = filedialog.asksaveasfilename(parent=frm, title=f"Save the {to} {mode} as", initialdir=os.path.dirname(p),
                                         initialfile=stem + ext, defaultextension=ext,
                                         filetypes=[("PS2 memory cards" if ext == ".ps2" else "GameCube memory cards" if ext == ".raw" else

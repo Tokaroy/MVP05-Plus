@@ -145,6 +145,7 @@ for i, (k, to, base, ok) in enumerate(exports):
         continue
     mb.reset_mock()
     mb.askokcancel.return_value = mb.askyesno.return_value = True
+    mb.askyesnocancel.return_value = False  # (a memory card: a copy of it, so the sample stays as it is)
     fd.askopenfilename.return_value = base
     dest = os.path.join(work, f"out{i}")
     fd.asksaveasfilename.return_value = dest
@@ -202,11 +203,19 @@ if sample("gc_dyn.gci") and "xb_dyn.dat" in folders:
     if card:  # the rosters are only on the .raw card
         mb.reset_mock()
         mb.askokcancel.return_value = mb.askyesno.return_value = True
-        dest = os.path.join(work, "dolphin-card-out.raw")
-        fd.asksaveasfilename.return_value = dest
+        slot_b = os.path.join(gcd, "MemoryCardB.USA.raw")
+        before = open(slot_b, "rb").read()
+        mb.askyesnocancel.return_value = True  # onto the card itself (the default)
+        fd.asksaveasfilename.reset_mock()
         install.export_dynasty(MagicMock(), folders["xb_roster.dat"], "xb_roster.dat", "GameCube", MagicMock(), MagicMock())
-        good = os.path.isfile(dest) and GCC.is_card(open(dest, "rb").read())
-        print(f"{'ok ' if good else 'BAD'} export rosters onto Dolphin's .raw card (Slot B) | {os.path.basename(dest)}")
+        after = open(slot_b, "rb").read()
+        kept = [os.path.join(dp, f) for dp, _, fs in os.walk(os.path.join(root, "save backups", "memory cards"))
+                for f in fs]
+        good = (GCC.is_card(after) and after != before and len(after) == len(before)
+                and not fd.asksaveasfilename.called and len(kept) == 1 and open(kept[0], "rb").read() == before)
+        said = [c.args[1] for c in mb.showinfo.call_args_list][-1:]
+        print(f"{'ok ' if good else 'BAD'} export rosters onto Dolphin's .raw card itself (Slot B), the card kept | "
+              f"{said[0].splitlines()[0][:70] if said else 'nothing shown'}")
         if not good:
             BAD.append("export onto Dolphin's .raw card")
         # a card with rosters only: a dynasty export says what's on it
