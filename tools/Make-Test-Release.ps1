@@ -22,7 +22,7 @@ param(
     [string]$Downloads = (Join-Path $env:USERPROFILE "Downloads"),
     [string]$GameDir = "",          # your current MVP05 folder (with assets\default.xbe); asked for if not given
     [string]$RepoName = "",         # default: MVP05-Plus for -Final, a private MVP05-Plus-test for a test
-    [string]$Version = "Beta 3.0",
+    [string]$Version = "Beta 3.0",  # (the source's own version is used when this isn't given)
     [switch]$SkipBuild,             # use the MVP05.exe already built in the work folder
     [switch]$Final,                 # the real release's draft: tag beta-3.0, no "(test)" (still a draft until you publish)
     [switch]$Refresh                # with -Final, on a release that's already published: rebuild and replace its zip,
@@ -44,11 +44,6 @@ try {
     if (-not $RepoName) { $RepoName = if ($Final) { "MVP05-Plus" } else { "MVP05-Plus-test" } }
     $work = Join-Path $Downloads "MVP05-Plus-test"
     $repo = Join-Path $work "MVP05-Plus"
-    $tag = ($Version -replace '\s', '-').ToLower()
-    if (-not $Final) { $tag = "test-" + $tag }
-    $title = "MVP05-Plus $Version" + $(if ($Final) { "" } else { " (test)" })
-    $zipName = "MVP05-Plus-" + ($Version -replace '\s', '-') + ".zip"
-
     Step "Checking what's needed"
     Need git "https://git-scm.com"
     Need gh "the GitHub CLI: https://cli.github.com, then run: gh auth login"
@@ -101,6 +96,19 @@ try {
         Set-Content $mark $repoZip.LastWriteTimeUtc.Ticks.ToString()
     }
     Get-ChildItem $repo -Recurse -File | Unblock-File
+
+    # the version: the source's own (the Launcher's VERSION), unless one was given. This script may be an older copy
+    # than the source it just brought in, so its own default can be behind.
+    if (-not $PSBoundParameters.ContainsKey("Version")) {
+        $m = Select-String -Path (Join-Path $repo "tools\installer\install.py") -Pattern '^VERSION = "([^"]+)"' |
+             Select-Object -First 1
+        if ($m) { $Version = $m.Matches[0].Groups[1].Value }
+    }
+    Write-Host "Version: $Version"
+    $tag = ($Version -replace '\s', '-').ToLower()
+    if (-not $Final) { $tag = "test-" + $tag }
+    $title = "MVP05-Plus $Version" + $(if ($Final) { "" } else { " (test)" })
+    $zipName = "MVP05-Plus-" + ($Version -replace '\s', '-') + ".zip"
 
     Step "Xbox game files for the build"
     $xbe = Join-Path $repo "assets\default.xbe"
