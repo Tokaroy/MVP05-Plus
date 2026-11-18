@@ -12,7 +12,7 @@ MVP Baseball 2005 on Windows, and on SteamOS (Linux) through Proton, built on [M
 * **Import and export saves**: rosters, dynasties and owner modes to and from the PS2, GameCube, PC and Xbox versions of MVP 2005, straight from and onto PCSX2 and Dolphin memory cards too.
 * **Custom season schedules**: the real 2005 season, or its 162 games shuffled each time you play. Create your own at any length, or import one. A 64-game season made for MVP05-Plus balances division, league and interleague games, and basic 60, 30 and 15-game schedules are included. Shorter seasons end on their own and go on to the playoffs.
 * **MVP05-Plus Launcher**: install from your discs, launch the game, import and restore saves, pick the season schedule, run the tools, adjust display settings, and update MVP05-Plus.
-* **League News**: your dynasty as a 2006-style baseball website, with scores, recaps, standings, leaders, and team and player pages.
+* **League News**: your dynasty as a 2000s-style baseball website, with scores, recaps, standings, leaders, and team and player pages.
 * **Save library**: keep more than the game's 4 saves of each type, and choose which are active with a checkbox.
 * **Mods**: add mods from a folder, files or a zip, and turn each on or off with a checkbox.
 * **Game Tweaks**: optional changes to how the game plays, like pitchers' rest, injury length and player aging. All are off by default.
