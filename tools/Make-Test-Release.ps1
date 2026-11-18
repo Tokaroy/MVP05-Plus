@@ -254,7 +254,18 @@ try {
         if (-not $run) { Fail "the build didn't show up on GitHub" }
         Write-Host "Waiting for it (about 5 minutes)..."
         & gh run watch $run --exit-status
-        if ($LASTEXITCODE -ne 0) { Fail "the GitHub build failed: gh run view $run --log-failed" }
+        if ($LASTEXITCODE -ne 0) {
+            # gh's watch can stop on a passing GitHub hiccup (an HTTP 502 fetching annotations): ask for the run's own
+            # result before calling it a failure, waiting for it to finish if it hasn't
+            $conclusion = ""
+            for ($try = 0; $try -lt 40; $try++) {
+                $state = (& gh run view $run --json status,conclusion --jq '.status + " " + .conclusion' 2>$null)
+                if ($LASTEXITCODE -eq 0 -and $state -match '^completed (\w*)') { $conclusion = $Matches[1]; break }
+                Start-Sleep -Seconds 15
+            }
+            if ($conclusion -ne "success") { Fail "the GitHub build failed ($conclusion): gh run view $run --log-failed" }
+            Write-Host "The build passed (gh stopped watching on a GitHub error, not a failure)"
+        }
         $art = Join-Path $work "artifacts"
         if (Test-Path $art) { Remove-Item $art -Recurse -Force }
         & gh run download $run --dir $art
