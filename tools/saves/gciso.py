@@ -178,4 +178,31 @@ def goals_datafile(big, games):
         out.append((name, data))
     if not n:
         raise IsoError("that datafile.big has no datafile.txt")
-    return S.write_big(out), n
+    return _rewrite_big(big, out), n
+
+
+def _rewrite_big(old, entries):
+    """The archive old with its files' data replaced by entries' (same names, same order), keeping its header as EA
+    wrote it: the bytes after the directory (e.g. "L234" and its word) and the first file's place"""
+    count, hlen = struct.unpack(">II", old[8:16])
+    p = 16
+    for _ in range(count):
+        p = old.index(b"\0", p + 8) + 1
+    tail = old[p:hlen]
+    first = struct.unpack(">I", old[16:20])[0]
+    names = [n.encode("latin-1") + b"\0" for n, _ in entries]
+    dir_len = 16 + sum(8 + len(nb) for nb in names) + len(tail)
+    start = max(first, (dir_len + 3) & ~3)
+    head, body, off = bytearray(), bytearray(), start
+    for (n, data), nb in zip(entries, names):  # (each file at a multiple of 4, as EA's)
+        head += struct.pack(">II", off, len(data)) + nb
+        body += data
+        off += len(data)
+        pad = -off % 4
+        body += b"\0" * pad
+        off += pad
+    body = body[:len(body) - (-len(entries[-1][1]) % 4 if entries else 0)] if entries else body
+    out = bytearray(b"BIGF" + struct.pack("<I", start + len(body)) + struct.pack(">II", len(entries), dir_len))
+    out += head + tail
+    out += b"\0" * (start - len(out))
+    return bytes(out + body)
