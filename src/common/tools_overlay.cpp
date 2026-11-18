@@ -34,9 +34,6 @@ bool g_unlock_all = false;
 std::atomic<int> g_unlock_request{0};
 std::atomic<int> g_points_request{0};
 std::atomic<int> g_debug_menu_request{0};
-MoundPitcher g_mound[2];
-std::atomic<int> g_stamina_request{0};
-std::atomic<uint32_t> g_stamina_want{0};
 std::atomic<float> g_budget_now{-1.0f}, g_budget_want{0.0f};
 std::atomic<int> g_budget_request{0};
 std::atomic<uint32_t> g_points_amount{10000};
@@ -381,30 +378,6 @@ void Extras() {
     }
     if (pt == 2) ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1), "Added. Save your profile to keep them.");
     if (pt == 3) ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "Sign in with a profile first, then try again.");
-    ImGui::Separator();
-    // Stamina Changer (after tywiggins' for the PC game): the stamina of the pitchers in the game being played
-    Help("Pitcher stamina, in the game being played: the pitcher who threw last, and the other team's. Based on "
-         "tywiggins' Stamina Changer.");
-    if (!g_mound[0].table.load()) {
-        ImGui::TextDisabled("Throw a pitch in a game first.");
-    } else {
-        static int want[2] = {99, 99};
-        for (int i = 0; i < 2; i++) {
-            if (!g_mound[i].table.load()) continue;
-            ImGui::PushID(i);
-            ImGui::Text("%s: %u", i == 0 ? "Pitching now" : "The other team's pitcher", g_mound[i].stamina.load());
-            ImGui::SameLine(260 * g_scale);
-            ImGui::SetNextItemWidth(160 * g_scale);
-            ImGui::SliderInt("##stamina", &want[i], 0, 99);
-            ImGui::SameLine();
-            if (ImGui::Button("Set") && g_stamina_request.load() == 0) {
-                g_stamina_want = uint32_t(want[i]);
-                g_stamina_request = i + 1;
-            }
-            ImGui::PopID();
-        }
-        Help("It can't go above the pitcher's own Stamina rating for long: the game works from that.");
-    }
     ImGui::Separator();
     Help("EA's own debug menu, left in the game: cameras, replays, rendering, fielding and more, as its developers "
          "had it. Nothing in it was meant for players: it can break a game in progress, so try it in an exhibition "

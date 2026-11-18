@@ -270,21 +270,6 @@ X86_FUNC(sub_0019FB30) {
                     LOGR("stamina: field 27 set from %08X (table of %u, record %u): %d -> %d%s", ret, count, rec, old,
                          now, big && !refill && pct < 100 && now > old ? " (recovery cut)" : "");
             }
-            if (!big && ret == 0x8F9FA) {
-                // a pitch thrown in the game being played (0x8F9F5 writes the pitcher's stamina in his in-game
-                // team's table, of 25 records): remembered
-                // for the Tools menu's Stamina Changer, the pitcher who threw last first
-                auto& m0 = tools::g_mound[0];
-                auto& m1 = tools::g_mound[1];
-                if (m0.table.load() != self) {
-                    m1.table = m0.table.load();
-                    m1.record = m0.record.load();
-                    m1.stamina = m0.stamina.load();
-                }
-                m0.table = self;
-                m0.record = rec;
-                m0.stamina = uint32_t(now);
-            }
             if (big && !refill && pct < 100 && now > old) {
                 int scaled = old + ((now - old) * pct + 50) / 100;
                 if (scaled == old) scaled = old + 1;
@@ -585,27 +570,6 @@ void RunToolRequests(X86Context& ctx) {
         }
         ctx.ecx = saved_ecx;
     }
-    // Stamina Changer: the stamina of a pitcher in the game being played, through the table's own SetField (0x19FB30,
-    // thiscall: field 27, record, value), if the table is still one (its vtable, and the record within its count)
-    if (int which = tools::g_stamina_request.load()) {
-        auto& m = tools::g_mound[which == 2 ? 1 : 0];
-        uint32_t table = m.table.load(), rec = m.record.load(), want = std::min<uint32_t>(tools::g_stamina_want.load(), 99);
-        if (table && kernel::R32(table) == kStaminaTable && rec < kernel::R32(table + 0x20) && kernel::R32(table + 0x20) < 100) {
-            uint32_t saved_ecx = ctx.ecx, saved_eax = ctx.eax;
-            ctx.ecx = table;
-            kernel::CallGuest(ctx, 0x19FB30, {kCurrentStamina, rec, want});
-            ctx.ecx = saved_ecx;
-            ctx.eax = saved_eax;
-            m.stamina = (kernel::R32(kernel::R32(table + 0x24) + rec * 20 + 0x10) >> 7) & 0x7F;
-            LOGR("stamina changer: pitcher %u of the in-game table set to %u", rec, want);
-        } else {
-            m.table = 0;  // that game is over
-        }
-        tools::g_stamina_request = 0;
-    }
-    // drop the remembered pitchers once their tables are gone
-    for (auto& m : tools::g_mound)
-        if (uint32_t t = m.table.load(); t && kernel::R32(t) != kStaminaTable) m.table = 0;
     // The payroll budget is the team's org_budget (field 21 of org.dat's table), in the game's $100,000 steps: set to
     // 110% of the payroll when a dynasty starts (0x471670) and moved each off-season by how the team did (0x49C0C0).
     // Read and set through the game's own accessors on the database (0x657288): 0x1ADF50 (0) is the dynasty's own

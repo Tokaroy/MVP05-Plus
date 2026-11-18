@@ -30,8 +30,6 @@ constexpr uint32_t kTeamChanger = 0xC5B1C;           // from the name: the contr
 constexpr uint32_t kXboxShift = 0x10;
 constexpr uint32_t kDataFromName = 60;               // the others: from the data, 60 bytes after the name
 constexpr uint32_t kMoney = 0x11802C;                // ChangeMoney: the balance, a float
-constexpr uint32_t kGame = 0x231420;                 // Stamina Changer, Box Score Extractor: the game in play
-constexpr uint32_t kPitchers[2] = {0x18C90, 0x1B120};  // from kGame: 25 pitchers of 20 bytes, each team
 
 std::vector<std::pair<uint32_t, uint32_t>> Regions() {
     std::vector<std::pair<uint32_t, uint32_t>> out;
@@ -243,26 +241,6 @@ std::string Check() {
         float money = 0, money2 = 0;
         if (Read(data + kMoney, money) && Read(data + kMoney + kXboxShift, money2))
             say("   ChangeMoney's balance: %.0f (or %.0f)", double(money), double(money2));
-        for (int sh = 0; sh <= int(kXboxShift); sh += int(kXboxShift))
-        for (int t = 0; t < 2; t++) {
-            std::string row;
-            int plausible = 0;
-            for (int k = 0; k < 25; k++) {
-                uint8_t r[20] = {};
-                bool ok = true;
-                for (int q = 0; q < 20 && ok; q++) ok = Read(data + kGame + sh + kPitchers[t] + k * 20 + q, r[q]);
-                if (!ok) break;
-                int max = r[0] % 128, cur = (r[16] >> 7) + (r[17] % 64) * 2;
-                if (max > 0 && max <= 99 && cur <= 127) plausible++;
-                if (k < 8) {
-                    char s[16];
-                    std::snprintf(s, sizeof s, " %d/%d", cur, max);
-                    row += s;
-                }
-            }
-            say("   Stamina Changer (+%d), team %d: %d of 25 look like pitchers; first (current/max):%s", sh, t + 1,
-                plausible, row.c_str());
-        }
     }
     return text;
 }

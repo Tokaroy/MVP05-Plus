@@ -1,6 +1,6 @@
 #pragma once
 // The game's database in memory, for tools ported from tywiggins' MVP 2005 (PC) programs: Team Changer, ChangeMoney,
-// Stamina Changer, Playoffs Creator. They find the loaded file "attrib.dat" and read and write at fixed distances
+// Playoffs Creator. They find the loaded file "attrib.dat" and read and write at fixed distances
 // from it. Whether the Xbox game keeps it the same way is what Check() is for.
 #include <cstdint>
 #include <string>

@@ -20,14 +20,6 @@ extern uint32_t g_dev_speed, g_aging, g_retirement, g_contract_prices, g_resign_
 // asked for from the Tools menu, done by the game's own thread at the end of a frame (src/game/hooks.cpp)
 extern bool g_unlock_all;  // the Launcher's Unlock everything: done for each profile that signs in
 extern std::atomic<int> g_unlock_request;  // 1: asked, 2: done, 3: no profile signed in
-// Stamina Changer: the two pitchers who last threw in the game being played (hooks.cpp keeps them: the in-game team's
-// pitcher table, the record and his stamina now; table 0: none), newest first, and a stamina to give one of them
-struct MoundPitcher {
-    std::atomic<uint32_t> table{0}, record{0}, stamina{0};
-};
-extern MoundPitcher g_mound[2];
-extern std::atomic<int> g_stamina_request;   // 1 or 2: set g_mound[request - 1]'s stamina to g_stamina_want
-extern std::atomic<uint32_t> g_stamina_want;
 // the payroll budget of the dynasty's own team, kept by the game thread while the menu is open (hooks.cpp): dollars now
 // (below 0: none to show), and a new figure to set when the request is 1
 extern std::atomic<float> g_budget_now, g_budget_want;
