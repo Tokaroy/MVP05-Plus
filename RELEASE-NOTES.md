@@ -1,6 +1,6 @@
-# MVP05-Plus Beta 2.5
+# MVP05-Plus Beta 3.0
 
-Mods, Game Tweaks, your own season schedules, and short seasons that finish on their own.
+League News, mods, Game Tweaks, your own season schedules, short seasons that finish on their own, and more than four saves of a type.
 
 ## Highlights
 - **Mods** (the Launcher's new Mods tab): *Add a mod…* from a folder or from files (or a zip), give it a name, and each of its files goes in place of the game's own file of that path or name, found for you (when the game has a file in more than one place, you pick). The list shows each mod with a checkbox, its name, its file types and its size; right-click a mod to turn it on or off, rename it, open its folder, export it as a zip (to share it) or remove it. A mod can come with a `mod.ini` whose `title` names it. When two mods have the same file, the one added first wins, and the list says so. Your game files are never changed: mods sit in their own folder beside the game, and one that's off isn't used. The Game Tweaks work on top of them: a tweak that changes a file a mod replaces starts from the mod's version.
@@ -40,7 +40,7 @@ Mods, Game Tweaks, your own season schedules, and short seasons that finish on t
 - **Saves in a zip or a folder:** *Import a save* (or a drop on the Saves tab) takes a zip or a folder as people share them, and finds the save in it (you pick one if there are several). *Export… → As a zip, to share* (or right-click a save) makes that zip from one of yours.
 - **Import and export remember where you were:** the file pickers open in the folder you last chose from, or the first time in Dolphin's or PCSX2's own card folder.
 - **Problems are written down:** a failed import or export, or anything unexpected in the Launcher, goes to `MVP05-Plus-Launcher.log` beside MVP05.exe, and the message says which part of the save it was.
-- **The Launcher's backups show in Saves → Backups:** the copy of a save made before an import, a Payroll Budget or Playoffs change, a rename or a delete is listed by date ("before importing a dynasty" and so on) and restores from there. Restoring one of those puts back only that save; your other saves stay. (The ones the earlier Beta 2.5 builds made are in the *save backups* folder beside MVP05.exe, but not in the list.)
+- **The Launcher's backups show in Saves → Backups:** the copy of a save made before an import, a Payroll Budget or Playoffs change, a rename or a delete is listed by date ("before importing a dynasty" and so on) and restores from there. Restoring one of those puts back only that save; your other saves stay. (The ones earlier test builds made are in the *save backups* folder beside MVP05.exe, but not in the list.)
 - **Standings Projector on a saved dynasty past the All-Star break:** the save keeps each team's record in two halves, split at the break. The Launcher's projector refused a save once the second half had started, which is when a short season ends. It now projects into both halves, as the in-game one does.
 - **Played dynasties to and from the GameCube:** the converters find each team's roster by its 4 lineups in a row. In a played season, a team's data can end in bytes that look like one more lineup, and the converter counted 127 teams and stopped ("rosters didn't come out as expected"). Seen on a KC 2006 dynasty when exporting it to the GameCube; GameCube imports find the teams the same way, which may be what stopped the Stros import. Fixed in both directions, and that dynasty now goes to the GameCube and back exactly. A team's lineup unit is now found by its marker alone, so a lineup slot holding an unexpected value (an empty slot, say) no longer hides it; one hidden and one extra gave the "no ring chain" error when KCRTEST was exported to the GameCube.
 
@@ -51,7 +51,7 @@ Mods, Game Tweaks, your own season schedules, and short seasons that finish on t
 - **Switching schedules mid-season:** a new schedule starts with the next season, and the season you're in is played out at its own length (the game reads it from the dynasty itself). One limit: if you switch during the playoffs, the new length is used at once, so switch before the playoffs or after them.
 
 ## Updating
-From Beta 2 or 2.1: *Settings → Updates*. From Beta 1: unzip into a new folder and bring your old one over when the Launcher asks.
+From Beta 2, 2.1 or 2.5: *Settings → Updates*. From Beta 1: unzip into a new folder and bring your old one over when the Launcher asks.
 
 # MVP05-Plus Beta 2.1
 
