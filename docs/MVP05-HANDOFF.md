@@ -27,7 +27,7 @@ Xbox-type and other pads are left exactly as the Xbox game has them.
    Build-Source.cmd
    ```
 3. Put `gc_icons` and `ps2_icons` beside `MVP05.exe`, replacing old copies.
-4. The settings file (`mvp05-settings.toml`) has four switches, all defaulting to true: `gamecube_layout`, `gamecube_icons`, `playstation_layout`, `playstation_icons`. It also has `save_backups` (default 10; 0 turns backups off).
+4. The settings file (`mvp05-settings.toml`) has four switches, all defaulting to true: `gamecube_layout`, `gamecube_icons`, `playstation_layout`, `playstation_icons`. It also has `save_backups` (default 30; 0 turns backups off).
 5. The log (`mvp05.log`) is the main diagnostic. It records each controller plugged in, which layout each port got, which art folder loaded, and crashes.
 
 There's no `fixes` folder any more (it came from the v30 font attempt). Delete it if it's still there.
@@ -294,7 +294,7 @@ Each pad's player index is set to its port number:
   - **When:** at every launch, before the game boots (first thing in the `init` hook).
   - **What:** `hdd\E` (UDATA, the saves; TDATA, the game's own data) is copied to `save backups\YYYY-MM-DD HH-MM-SS\E` beside the exe. A second instance (`--instance 2`, `hdd2`) gets `hdd2 <date>` folders.
   - **Unchanged saves:** if the saves match the newest backup, nothing is copied. Each backup holds `backup-contents.txt` (every file's path, size and time); it's written last, so only a complete copy counts.
-  - **Pruning:** only the newest `save_backups` backups are kept (default 10; 0 turns it off). Only folders carrying that list are ever deleted, never the user's own folders.
+  - **Pruning:** only the newest `save_backups` backups are kept (default 30; 0 turns it off). Only folders carrying that list are ever deleted, never the user's own folders.
   - **Errors** are logged and never stop the game from starting; a failed copy is removed.
   - **To restore:** close the game, then copy a backup's `E` folder over `hdd\E`.
 - **v35:** keep-awake. Windows counts only the keyboard and mouse as activity, so the screen blanked during controller-only play. `NoteActivity` in `input.cpp` calls `SetThreadExecutionState(ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED)` when any pad's input changes, at most every 5 s. That's a one-shot reset of the idle timer, the same as a mouse move, with no lasting request: put the controller down and the screen still turns off after the normal timeout. Stick changes under 3000/32767 and trigger or button-pressure changes under 24/255 don't count, so resting-stick jitter doesn't keep the screen on. Works for every pad type, GameCube adapter included.
