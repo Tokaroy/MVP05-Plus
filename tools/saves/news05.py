@@ -1512,6 +1512,7 @@ def recaps(games, db, user=None, postseason=False, days=7):
     rec = collections.defaultdict(lambda: [0, 0])
     form = collections.defaultdict(list)
     meet = collections.defaultdict(lambda: collections.Counter())
+    pair_n = collections.Counter(frozenset((g["away"], g["home"])) for g in games)
     div_of = {t: int(db.teams[t].get(5, -1)) for t in db.franchises if t in db.teams}
     out = collections.OrderedDict((d, []) for d in reversed(keep))
     i = 0
@@ -1530,7 +1531,7 @@ def recaps(games, db, user=None, postseason=False, days=7):
             form[lose].append("L")
             meet[frozenset((a, h))][win] += 1
             if d >= first_kept:
-                notes.append((g, win, lose, before, dict(meet[frozenset((a, h))])))
+                notes.append((g, win, lose, before, dict(meet[frozenset((a, h))], _n=pair_n[frozenset((a, h))])))
         if d < first_kept:
             continue
         snap = {t: tuple(rec[t]) for t in db.franchises}
@@ -1627,7 +1628,19 @@ def _recap(g, win, lose, before, season, series, snap, div_of, db, user, postsea
     wins = collections.Counter((x["away"] if x["ar"] > x["hr"] else x["home"]) for x in played_s)
     a_w, b_w = wins[win], wins[lose]
     size = f"{_num(n_all)}-game" if n_all > 1 else ""
-    if n_all > 1:
+    if postseason:  # the playoff series, from every meeting of the two (the schedule then holds only the playoffs)
+        sw, sl = season.get(win, 0), season.get(lose, 0)
+        need = 3 if season.get("_n", 7) <= 5 else 4  # (a Division Series is 5 games on the schedule)
+        if sw >= need:
+            text.append(f"{cap(c(win))} {'win' if c(win).startswith('the ') else 'wins'} the series {sw}-{sl}.")
+            weight += 0.6
+        elif sw == sl:
+            text.append(f"The series is tied {sw}-{sl}.")
+        else:
+            lead = win if sw > sl else lose
+            text.append(f"{cap(c(lead))} {'lead' if c(lead).startswith('the ') else 'leads'} the series "
+                        f"{max(sw, sl)}-{min(sw, sl)}.")
+    elif n_all > 1:
         if k == n_all:
             if b_w == 0:
                 text.append(f"{cap(c(win))} swept the {size} series.")
@@ -1645,7 +1658,7 @@ def _recap(g, win, lose, before, season, series, snap, div_of, db, user, postsea
             lead = win if a_w > b_w else lose
             text.append(f"{cap(c(lead))} {'lead' if c(lead).startswith('the ') else 'leads'} the series {max(a_w, b_w)}-{min(a_w, b_w)}.")
     sw, sl = season.get(win, 0), season.get(lose, 0)
-    if sw + sl >= 3 and sw + sl > k:
+    if not postseason and sw + sl >= 3 and sw + sl > k:
         if sw == sl:
             text.append(f"The season series is tied {sw}-{sl}.")
         elif sl == 0:
