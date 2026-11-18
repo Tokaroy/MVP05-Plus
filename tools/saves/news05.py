@@ -1414,7 +1414,6 @@ def build(save, db):
                 user=save["user"], games_played=games_played, db=db,
                 days=recaps(save["games"], db, save["user"], postseason),
                 leaders=season_leaders(save, db, stats=stats), names=save["names"], contracts=save.get("contracts", {}),
-                races={} if postseason else races(save, db),
                 playoffs=playoffs(save, db),
                 power=[] if postseason else power(save, db, stats),
                 farm=farm_report(save, db, stats, day(today) if today else
@@ -1754,10 +1753,6 @@ table.pbrief tr.out td,table.pbrief tr.out a{color:#888}table.pbrief td:nth-chil
 .sched tr.later td{color:#666}table.ser th{text-align:left}table.ser td:nth-child(n+2){text-align:center}table.ser th:nth-child(n+2){text-align:center}
 .mv{font-size:9px;color:#888;white-space:nowrap}.mv.up{color:#1a7f37}.mv.dn{color:#c8102e}
 table.pwr td.rk{font-weight:bold;text-align:right}table.pwr td.note{text-align:left;color:#444;max-width:330px}
-svg.race{width:100%;max-width:520px;height:auto;display:block}svg.race .grid{stroke:#ddd;stroke-width:1}
-svg.race .tick{font-size:9px;fill:#777;text-anchor:end}.rkey{font-size:11px;margin:3px 0 4px}
-.rkey span{display:inline-block;margin-right:9px;white-space:nowrap}.rkey span.hl{font-weight:bold}
-.rkey i{display:inline-block;width:10px;height:3px;vertical-align:middle;margin-right:3px}
 .races{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}.races h3{margin:4px 0;font-size:13px}
 .career td,.career th{text-align:right}.career td:nth-child(-n+2),.career th:nth-child(-n+2){text-align:left}
 .career .tot td{font-weight:bold;border-top:2px solid #999}
@@ -2148,8 +2143,6 @@ def render(news):
                            f"<td>{gb}</td></tr>")
             out.append("</table></div>")
         out.append("<a href='#allstandings' style='display:block;margin-top:5px'>View expanded standings &rsaquo;</a>"
-                   + ("<a href='#races' style='display:block;margin-top:3px'>Pennant races &rsaquo;</a>"
-                      if any(len(r["days"]) > 1 for r in news.get("races", {}).values()) else "")
                    + "</div></div>")
     if news.get("power"):  # the top of the power rankings
         out.append("<div class=mod id=powerbox><div class=mh>Power poll</div><div class=mb><table class=pwr>")
@@ -2268,7 +2261,6 @@ def render(news):
     out.append(transactions_page(news, lg, story))
     out.append(milestones_page(news, lg, PL, TM))
     out.append(awards_page(news, lg, PL, TM))
-    out.append(races_page(news, lg))
     out.append(playoffs_page(news, lg, TM, gid))
     out.append(farm_page(news, lg, PL))
     out.append(power_page(news, lg, PL, TM))
@@ -2292,7 +2284,7 @@ def render(news):
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
                f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
                "function route(){var h=location.hash.slice(1),t=h.indexOf('team-')==0||h.indexOf('sched-')==0?document.getElementById(h):null;"
-               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(['stats','transactions','milestones','awards','races','farm','power','playoffs'].indexOf(h)>=0)t=document.getElementById(h);"
+               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(['stats','transactions','milestones','awards','farm','power','playoffs'].indexOf(h)>=0)t=document.getElementById(h);"
                "document.querySelectorAll('.teampage').forEach(function(p){p.style.display=p==t?'block':'none'});"
                "document.querySelector('.cols').style.display=t?'none':'flex';if(t){window.scrollTo(0,0);return;}"
                "var el=h&&document.getElementById(h);if(el){var d=el.closest('.dpane');if(d)pickday(+d.id.slice(1));"
@@ -2342,12 +2334,6 @@ def team_pages(news, lg, gid, PL, TM, story):
             if pw:
                 out.append(f"<p>Power ranking: <a href='#power'>No. {pw['rank']}</a> {_move(pw)}</p>")
         out.append("</div></div></div>")
-        race = news.get("races", {}).get(int(db.teams.get(t, {}).get(5, -1)))
-        chart = race_svg(race, db, lg, highlight=t) if race else ""
-        if chart:
-            out.append(f"<div class=mod><div class=mh>The {e(DIVISIONS[int(db.teams[t][5])])} race</div>"
-                       f"<div class=mb>{chart}<p class=date>Games back of first place, game day by game day. "
-                       "<a href='#races'>All the races &rsaquo;</a></p></div></div>")
         out.append("<div class=pair>")
         mine = [g for g in news["games"] if t in (g["away"], g["home"])]
         played = sorted((g for g in mine if g["played"]), key=lambda g: g["day"])[-10:][::-1]
@@ -2647,22 +2633,6 @@ def transactions_page(news, lg, story):
     return "".join(out)
 
 
-def races_page(news, lg):
-    """#races: every division's games-back chart through the season"""
-    rs = news.get("races") or {}
-    charts = [(dv, race_svg(r, news["db"], lg)) for dv, r in sorted(rs.items())]
-    charts = [(dv, c) for dv, c in charts if c]
-    if not charts:
-        return ""
-    out = ["<div class=teampage id=races><a class=back href='#top'>&lsaquo; Back to the front page</a>"
-           "<div class=mod><div class=mh>Pennant races</div><div class=mb><p class=date>Games back of first place, "
-           "game day by game day. The key reads today's order.</p><div class=races>"]
-    for dv, c in charts:
-        out.append(f"<div><h3>{html.escape(DIVISIONS[dv])}</h3>{c}</div>")
-    out.append("</div></div></div></div>")
-    return "".join(out)
-
-
 FARM_CATS = (("AVG", "Average"), ("HR", "Home runs"), ("RBI", "RBIs"), ("OPS", "OPS"), ("SB", "Stolen bases"),
              ("W", "Wins"), ("ERA", "ERA"), ("SO", "Strikeouts"), ("SV", "Saves"))
 
@@ -2952,78 +2922,6 @@ def awards_page(news, lg, PL, TM):
     box = awards_box(news, lg, PL, TM, most=10, page=True)
     return (f"<div class=teampage id=awards><a class=back href='#top'>&lsaquo; Back to the front page</a>{box}</div>"
             if box else "")
-
-
-def races(save, db):
-    """Each division's season, game day by game day: {division: dict(days [day numbers], gb {team: [games back]})}
-    from the results (the regular season's: the playoffs' schedule replaces it, so none then)."""
-    played = sorted((g for g in save["games"] if g["played"]), key=lambda g: g["day"])
-    div = {t: int(db.teams[t].get(5, -1)) for t in db.franchises if t in db.teams}
-    if not played or not all(g["home"] in div and g["away"] in div for g in played[:5]):
-        return {}
-    wl = {t: [0, 0] for t in div}
-    out = {dv: dict(days=[], gb={t: [] for t in div if div[t] == dv}) for dv in range(6)}
-    i = 0
-    while i < len(played):
-        d = played[i]["day"]
-        while i < len(played) and played[i]["day"] == d:
-            g = played[i]
-            if g["home"] in wl and g["away"] in wl:
-                win, lose = (g["home"], g["away"]) if g["hr"] > g["ar"] else (g["away"], g["home"])
-                wl[win][0] += 1
-                wl[lose][1] += 1
-            i += 1
-        for dv, r in out.items():
-            teams = list(r["gb"])
-            best = max(teams, key=lambda t: (wl[t][0] - wl[t][1], wl[t][0]))
-            r["days"].append(d)
-            for t in teams:
-                r["gb"][t].append(((wl[best][0] - wl[t][0]) + (wl[t][1] - wl[best][1])) / 2)
-    return out
-
-
-RACE_COLORS = ("#1f4e9c", "#c8102e", "#2e8b57", "#e69f00", "#7b3fa0", "#5a5a5a")
-
-
-def race_svg(race, db, lg, highlight=None, w=440, h=150):
-    """A division's games back through the season: an inline SVG line chart (0 at the top), and a key"""
-    days, teams = race["days"], list(race["gb"])
-    if len(days) < 2:
-        return ""
-    step = max(1, len(days) // 80)  # (80 points a line at most)
-    idx = list(range(0, len(days), step))
-    if idx[-1] != len(days) - 1:
-        idx.append(len(days) - 1)
-    top = max(3, max(max(v) for v in race["gb"].values()))
-    left, right, pad = 28, 6, 10
-    x = lambda i: left + (w - left - right) * (days[i] - days[0]) / max(1, days[-1] - days[0])
-    y = lambda v: pad + (h - pad - 18) * v / top
-    order = sorted(teams, key=lambda t: race["gb"][t][-1])
-    parts = [f"<svg viewBox='0 0 {w} {h}' class=race role=img aria-label='Games back through the season'>"]
-    for v in range(0, int(top) + 1, max(1, int(top) // 4)):  # grid: games back
-        parts.append(f"<line x1={left} x2={w - right} y1={y(v):.1f} y2={y(v):.1f} class=grid />"
-                     f"<text x={left - 4} y={y(v) + 3:.1f} class=tick>{v}</text>")
-    months = {}
-    for i, d in enumerate(days):
-        months.setdefault((day(d).year, day(d).month), i)
-    for (_, m), i in months.items():
-        parts.append(f"<text x={x(i):.1f} y={h - 1} class=tick text-anchor=start>"
-                     f"{datetime.date(2000, m, 1).strftime('%b')}</text>")
-    for n, t in enumerate(reversed(order)):  # the leader drawn last, on top
-        c = RACE_COLORS[order.index(t) % len(RACE_COLORS)]
-        pts = " ".join(f"{x(i):.1f},{y(race['gb'][t][i]):.1f}" for i in idx)
-        width = 3.2 if t == highlight else (1.8 if highlight is None else 1.2)
-        op = 1 if highlight is None or t == highlight else 0.55
-        parts.append(f"<polyline points='{pts}' fill=none stroke='{c}' stroke-width={width} opacity={op} "
-                     "stroke-linejoin=round />")
-    parts.append("</svg><div class=rkey>")
-    for t in order:
-        c = RACE_COLORS[order.index(t) % len(RACE_COLORS)]
-        gb = race["gb"][t][-1]
-        parts.append(f"<span{' class=hl' if t == highlight else ''}><i style='background:{c}'></i>"
-                     f"{html.escape(db.short(t))} {'&ndash;' if gb == 0 else f'{gb:g}'}</span>")
-    parts.append("</div>")
-    return "".join(parts)
 
 
 def news_record(news, t):

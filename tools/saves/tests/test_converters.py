@@ -404,7 +404,7 @@ t('league news: standings agree with the results', news_standings)
 
 
 def news_extras():
-    """Careers (checked against the real totals), the pennant races' last day against the standings, the farm
+    """Careers (checked against the real totals), the farm
     report's leaders and the awards and milestone pages, on the KCR dynasty."""
     import shutil
     import tempfile
@@ -420,19 +420,15 @@ def news_extras():
     shutil.rmtree(root)
     by = {db.name(k): k for k in s["careers"]["pit"]}
     assert s["careers"]["pit"][by["Greg Maddux"]]["w"] >= 313
-    # the races end where the standings are
-    for d in news["divisions"]:
-        dv = N.DIVISIONS.index(d["name"])
-        for r in d["rows"]:
-            assert news["races"][dv]["gb"][r["team"]][-1] == r["gb"], (d["name"], db.short(r["team"]))
     f = news["farm"]
     assert f["prospects"] and all(f["levels"][lv]["HR"] for lv in ("AAA", "AA", "A"))
     hr = [int(x) for _, _, x in f["levels"]["AAA"]["HR"]]
     assert hr == sorted(hr, reverse=True)
-    for need in ("id=races", "id=farm", "id=awards", "id=milestones", "class=race"):
+    for need in ("id=farm", "id=awards", "id=milestones"):
         assert need in page, need
-    return f"{len(f['prospects'])} prospects, {sum(len(r['days']) for r in news['races'].values()) // 6} game days"
-t('league news: races, farm report, awards and milestones', news_extras)
+    assert "id=races" not in page and "Pennant races" not in page  # (the pennant race charts were taken out)
+    return f"{len(f['prospects'])} prospects"
+t('league news: farm report, awards and milestones', news_extras)
 
 
 def news_power_and_issues():
