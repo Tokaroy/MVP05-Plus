@@ -24,5 +24,7 @@ def gc_card(gcis):
             struct.pack_into(">H", bat, 0xA + 2 * (b - 5), bl[k + 1] if k + 1 < n else 0xFFFF)
     struct.pack_into(">H", dirb, 0x1FFA, 7)
     struct.pack_into(">H", bat, 4, 7)
+    struct.pack_into(">HH", dirb, 0x1FFC, *GCC.checksums(dirb, 0, 0x1FFC))  # (as Dolphin writes them)
+    struct.pack_into(">HH", bat, 0, *GCC.checksums(bat, 4, B))
     card[2 * B:3 * B], card[3 * B:4 * B] = dirb, bat  # the newer directory in the backup's place, the table first
     return bytes(card)

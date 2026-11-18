@@ -1146,6 +1146,22 @@ def gc_kind(file_name):
         "dynasty" if file_name.startswith("Dynasty") else "save"
 
 
+def gc_card_has(card, mode):
+    """Why a GameCube card has nothing to build a save of that kind on: what MVP 2005 saves it has, or what's on it"""
+    games = card.games()
+    mvp = games.get("GV4E", [])
+    if mvp:
+        return (f"that card has no GameCube MVP 2005 {mode} to build on. Its MVP 2005 saves: "
+                + ", ".join(f"{n} ({gc_kind(n)})" for n in mvp)
+                + f". In the GameCube game in Dolphin, {'save your rosters once' if mode == 'roster' else 'start a' + ('n owner mode' if mode == 'owner mode' else ' dynasty') + ' and save it'} on this card, then export again")
+    other = [g for g in games if g.startswith("GV4")]
+    if other:
+        return (f"that card's MVP 2005 saves are from the {', '.join(other)} version of the game; only the US version "
+                "(GV4E) converts")
+    return (f"that card has no MVP 2005 saves ({sum(map(len, games.values()))} saves of other games on it). Is it "
+            "the card the game saves to? Dolphin's Config > GameCube shows which card is in Slot A")
+
+
 def choose_card_save(parent, tk, ttk, found, prompt="There's more than one MVP 2005 save there. Which one?"):
     """One of the MVP 2005 saves on a memory card or in a zip or folder [(where, file, what, save)], picked in a small
     window; None if closed."""
@@ -1319,7 +1335,7 @@ def import_tool(frm, root, tk, ttk, start=None):
             if GCC.is_card(data):  # a Dolphin GameCube memory card: one of its MVP 2005 saves, as a .gci
                 found = [("GameCube card", n, gc_kind(n), g) for n, g in GCC.Card(data).files().items()]
                 if not found:
-                    raise GCC.GcCardError("that GameCube memory card has no MVP 2005 save on it")
+                    raise GCC.GcCardError(gc_card_has(GCC.Card(data), "save"))
                 which = found[0] if len(found) == 1 else choose_card_save(frm, tk, ttk, found)
                 if not which:
                     return
@@ -1623,14 +1639,17 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
             found = [("GameCube card", n, gc_kind(n), g) for n, g in GCC.Card(base).files().items()
                      if gc_kind(n) == want and card_pick in (None, n)]
             if not found:
-                raise GCC.GcCardError(f"that GameCube memory card has no MVP 2005 {mode} on it")
+                raise GCC.GcCardError(gc_card_has(GCC.Card(base), mode))
             which = found[0] if len(found) == 1 else choose_card_save(frm, tk, ttk, found)
             if not which:
                 return
             gc_card, base = (base, which[1]), which[3]
         elif gc and base[:4] != b"GV4E":
-            raise GCC.GcCardError("that isn't a GameCube MVP 2005 save (.gci) or a Dolphin memory card (.raw). "
-                                  "In Dolphin's GCI Folder mode the saves are .gci files in GC/USA/Card A")
+            log_failure(game, f"export to the GameCube: {os.path.basename(p)} isn't read as a card",
+                        RuntimeError(GCC.describe(base)))
+            raise GCC.GcCardError(f"{os.path.basename(p)} isn't read as a GameCube MVP 2005 save (.gci) or a Dolphin "
+                                  f"memory card (.raw) ({GCC.describe(base)}). In Dolphin's GCI Folder mode the saves "
+                                  "are .gci files in GC/USA/Card A")
         if base[:28] != PC.MAGIC:  # (a PS2 card's saves are looked through below)
             check = {("GameCube", "dynasty"): DY.read_gc, ("GameCube", "owner mode"): OW.read_gc,
                      ("GameCube", "roster"): GR.read_gc, ("PC", "dynasty"): PCD.read, ("PC", "owner mode"): OW.read_pc,

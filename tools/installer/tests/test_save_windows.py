@@ -209,6 +209,23 @@ if sample("gc_dyn.gci") and "xb_dyn.dat" in folders:
         print(f"{'ok ' if good else 'BAD'} export rosters onto Dolphin's .raw card (Slot B) | {os.path.basename(dest)}")
         if not good:
             BAD.append("export onto Dolphin's .raw card")
+        # a card with rosters only: a dynasty export says what's on it
+        from made_cards import gc_card as made
+        only = os.path.join(work, "blue.USA.raw")
+        with open(only, "wb") as f:
+            f.write(made([open(sample("gc_roster.gci"), "rb").read()]))
+        install.emulator_dirs = lambda to: []
+        mb.reset_mock()
+        mb.askokcancel.return_value = mb.askyesno.return_value = True
+        fd.askopenfilename.return_value = only
+        fd.asksaveasfilename.return_value = os.path.join(work, "never.raw")
+        install.export_dynasty(MagicMock(), folders["xb_dyn.dat"], "xb_dyn.dat", "GameCube", MagicMock(), MagicMock())
+        shown = [c.args[1] for f in ("showinfo", "showerror") for c in getattr(mb, f).call_args_list]
+        said = shown[-1] if shown else ""
+        good = "Rosters_" in said and "(rosters)" in said and not os.path.isfile(os.path.join(work, "never.raw"))
+        print(f"{'ok ' if good else 'BAD'} a card without a dynasty says what it has | {said[:110]}")
+        if not good:
+            BAD.append("card without a dynasty")
     install.emulator_dirs = real
 
 # copy and rename (right-click in Saves)

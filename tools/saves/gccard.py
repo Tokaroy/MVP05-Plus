@@ -20,12 +20,44 @@ class GcCardError(Exception):
     pass
 
 
+def checksums(block, start, end):
+    """The card's two checksums over block[start:end] (16-bit words: their sum, and the sum of their inverses; 0xFFFF
+    stored as 0), as Dolphin and the GameCube make them"""
+    a = b = 0
+    for (w,) in struct.iter_unpack(">H", block[start:end]):
+        a = (a + w) & 0xFFFF
+        b = (b + (w ^ 0xFFFF)) & 0xFFFF
+    return (0 if a == 0xFFFF else a), (0 if b == 0xFFFF else b)
+
+
+def _dir_ok(block):
+    return checksums(block, 0, 0x1FFC) == struct.unpack_from(">HH", block, 0x1FFC)
+
+
+def _bat_ok(block):
+    return checksums(block, 4, BLOCK) == struct.unpack_from(">HH", block, 0)
+
+
 def is_card(data):
-    """Whether data looks like a GameCube memory card image (its header's size matches its length)."""
+    """Whether data looks like a GameCube memory card image: its header's size matches its length, or (a card whose
+    header says otherwise, or one cut or padded) a directory and a block table whose checksums hold."""
     if len(data) < BLOCK * FIRST_DATA or len(data) % BLOCK:
         return False
     mbits = struct.unpack_from(">H", data, 0x22)[0]
-    return mbits in (4, 8, 16, 32, 64, 128) and mbits * 0x20000 == len(data)
+    if mbits in (4, 8, 16, 32, 64, 128) and mbits * 0x20000 == len(data):
+        return True
+    blk = lambda n: data[n * BLOCK:(n + 1) * BLOCK]
+    return (_dir_ok(blk(1)) or _dir_ok(blk(2))) and (_bat_ok(blk(3)) or _bat_ok(blk(4)))
+
+
+def describe(data):
+    """A line on what a file that isn't a card this reads looks like (for the error and the log)"""
+    if len(data) < BLOCK * FIRST_DATA:
+        return f"{len(data):,} bytes, too small for a memory card"
+    mbits = struct.unpack_from(">H", data, 0x22)[0]
+    return (f"{len(data):,} bytes, its header says {mbits} Mbit ({mbits * 0x20000:,} bytes); directory checksums "
+            f"{'ok' if _dir_ok(data[BLOCK:2 * BLOCK]) or _dir_ok(data[2 * BLOCK:3 * BLOCK]) else 'wrong'}, "
+            f"block table {'ok' if _bat_ok(data[3 * BLOCK:4 * BLOCK]) or _bat_ok(data[4 * BLOCK:5 * BLOCK]) else 'wrong'}")
 
 
 class Card:
@@ -35,9 +67,25 @@ class Card:
         self.data = bytes(data)
         self.blocks = len(data) // BLOCK
         d1, d2 = self._block(1), self._block(2)
-        self.dir_block = 1 if struct.unpack_from(">H", d1, 0x1FFA)[0] >= struct.unpack_from(">H", d2, 0x1FFA)[0] else 2
+        self.dir_block = self._newer(1, 2, _dir_ok(d1), _dir_ok(d2), struct.unpack_from(">h", d1, 0x1FFA)[0],
+                                     struct.unpack_from(">h", d2, 0x1FFA)[0])
         b1, b2 = self._block(3), self._block(4)
-        self.bat_block = 3 if struct.unpack_from(">H", b1, 4)[0] >= struct.unpack_from(">H", b2, 4)[0] else 4
+        self.bat_block = self._newer(3, 4, _bat_ok(b1), _bat_ok(b2), struct.unpack_from(">h", b1, 4)[0],
+                                     struct.unpack_from(">h", b2, 4)[0])
+
+    @staticmethod
+    def _newer(n1, n2, ok1, ok2, c1, c2):
+        """The copy in use: the one whose checksums hold, else the higher update counter (they count up and wrap)"""
+        if ok1 != ok2:
+            return n1 if ok1 else n2
+        return n1 if ((c1 - c2) & 0xFFFF) < 0x8000 else n2
+
+    def games(self):
+        """{game code: [file names]} of every save on the card"""
+        out = {}
+        for e in self.entries():
+            out.setdefault(e[:4].decode("ascii", "replace"), []).append(self.name(e))
+        return out
 
     def _block(self, n):
         return self.data[n * BLOCK:(n + 1) * BLOCK]

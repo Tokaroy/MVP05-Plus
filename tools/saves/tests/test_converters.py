@@ -158,6 +158,19 @@ def gc_card_rt():
     assert all(after[k] == files[k] for k in files if k != ros), "the card's other saves changed"
     return same(GR.to_xbox(after[ros], F['xb_roster']), F['xb_roster'])
 t('gamecube memory card: saves read, rosters written back in place', gc_card_rt)
+def gc_card_odd():
+    """A card whose header doesn't give its size (or one padded past it) is still read by its checksums; a card
+    with no dynasty says which MVP 2005 saves it has"""
+    import struct
+    card = bytearray(gc_card([F['gc_roster']]))
+    struct.pack_into(">H", card, 0x22, 0)
+    assert GCC.is_card(bytes(card)) and GCC.is_card(bytes(card) + bytes(GCC.BLOCK))
+    assert list(GCC.Card(bytes(card)).files()) == [F['gc_roster'][8:0x28].split(b"\0")[0].decode()]
+    bad = bytearray(card)
+    bad[GCC.BLOCK * 2 + 5] ^= 1  # (the directory in use damaged: not a card)
+    assert not GCC.is_card(bytes(bad))
+    return GCC.describe(bytes(bad))
+t('gamecube memory card: read by its checksums when its header says otherwise', gc_card_odd)
 # renamed saves: a GameCube .gci and a PC .sav as their games name them
 def gc_rename(k, reader):
     g = F[k]
