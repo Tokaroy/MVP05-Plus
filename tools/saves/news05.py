@@ -317,11 +317,13 @@ def read_save(data):
     for i in range(n):
         e = x[p + 4 + 28 * i:p + 32 + 28 * i]
         dn, bf = struct.unpack_from("<HH", e, 0)
-        g = dict(day=dn, away=struct.unpack_from("<I", e, 4)[0], home=struct.unpack_from("<I", e, 16)[0],
+        # the home team first (+4, its line +8..+15), the visitors second (+16, +20..+27): checked, a home team ahead
+        # after the top of the 9th has no bottom of it in every game (270 of 270), and the playoffs' higher seeds host
+        g = dict(day=dn, home=struct.unpack_from("<I", e, 4)[0], away=struct.unpack_from("<I", e, 16)[0],
                  played=bool(bf >> 11), innings=(bf >> 11) + 1 if bf >> 11 else 0)
         if g["played"]:
-            g.update(ar=e[8], ah=e[9], hr=e[20], hh=e[21], ae=e[10] & 15, he=e[22] & 15,
-                     aline=_line(e[10:15]), hline=_line(e[22:27]))
+            g.update(hr=e[8], hh=e[9], ar=e[20], ah=e[21], he=e[10] & 15, ae=e[22] & 15,
+                     hline=_line(e[10:15]), aline=_line(e[22:27]))
         games.append(g)
     end = p + 16 + 28 * sum(SCHED_CAPS)
     tc, mc = struct.unpack_from("<II", x, end)
@@ -1499,7 +1501,10 @@ def render(news):
                 rows = ""
                 for t, rr, hh, ee, line in ((g["away"], g["ar"], g["ah"], g["ae"], g["aline"]),
                                             (g["home"], g["hr"], g["hh"], g["he"], g["hline"])):
-                    cells = "".join(f"<td>{v}</td>" for v in (line[:8] + [rr - sum(line), line[8]] if extra else line))
+                    shown = line[:8] + [rr - sum(line), line[8]] if extra else list(line)
+                    if t == g["home"] and not extra and g["hr"] > g["ar"] and sum(line[:8]) > g["ar"]:
+                        shown[8] = "x"  # (ahead after the top of the 9th: no bottom of it)
+                    cells = "".join(f"<td>{v}</td>" for v in shown)
                     rows += (f"<tr class={'w' if t == r['win'] else ''}><td>{lg(t)}{TM(t, db.short(t))}</td>{cells}"
                              f"<td class=rhe>{rr}</td><td>{hh}</td><td>{ee}</td></tr>")
                 heads_ = "".join(f"<th>{k}</th>" for k in range(1, 9)) + (

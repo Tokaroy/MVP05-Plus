@@ -279,6 +279,8 @@ def news(k, **want):
                 assert sum(g["aline"]) <= g["ar"] and sum(g["hline"]) <= g["hr"], "line score"
                 if g["innings"] > 9:
                     assert g["ar"] - g["aline"][8] == g["hr"] - g["hline"][8], "extra innings"
+                if g["innings"] == 9 and g["hr"] > g["ar"] and sum(g["hline"][:8]) > g["ar"]:
+                    assert g["hline"][8] == 0, "home and away: a home team ahead after the top of the 9th batted"
     for key, v in want.items():
         got = len(n[key]) if isinstance(n[key], list) else n[key]
         assert (got >= v) if isinstance(v, int) and not isinstance(v, bool) else got == v, (key, got, v)
