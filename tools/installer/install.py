@@ -1205,13 +1205,12 @@ def gc_card_has(card, mode):
             "the card the game saves to? Dolphin's Config > GameCube shows which card is in Slot A")
 
 
-def choose_card_save(parent, tk, ttk, found, prompt="There's more than one MVP 2005 save there. Which one?"):
+def choose_card_save(parent, tk, ttk, found, prompt="There's more than one MVP 2005 save there. Select one:"):
     """One of the MVP 2005 saves on a memory card or in a zip or folder [(where, file, what, save)], picked in a small
     window; None if closed."""
     win = tk.Toplevel(parent)
-    win.title("Which save?")
+    win.title("Select a save")
     win.transient(parent.winfo_toplevel())
-    win.grab_set()
     f = ttk.Frame(win, padding=12)
     f.grid()
     ttk.Label(f, text=prompt).grid(sticky="w")
@@ -1228,6 +1227,12 @@ def choose_card_save(parent, tk, ttk, found, prompt="There's more than one MVP 2
         win.destroy()
     ttk.Button(f, text="Use this one", command=ok).grid(sticky="e")
     lb.bind("<Double-Button-1>", ok)
+    win.update_idletasks()  # centred over the Launcher, not in the screen's corner
+    w = parent.winfo_toplevel()
+    x = w.winfo_rootx() + (w.winfo_width() - win.winfo_reqwidth()) // 2
+    y = w.winfo_rooty() + (w.winfo_height() - win.winfo_reqheight()) // 3
+    win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+    win.grab_set()
     win.wait_window()
     return out.get("v")
 
@@ -1339,7 +1344,7 @@ def import_tool(frm, root, tk, ttk, start=None):
         if mine:
             other = ("Somewhere else", "choose a file", "", None)
             which = choose_card_save(frm, tk, ttk, [(x[0], x[1], x[2], x) for x in mine] + [other],
-                                     "Your Dolphin cards have MVP 2005 saves. Import one of them?")
+                                     "Your Dolphin cards have MVP 2005 saves. Select one to import:")
             if not which:
                 return
             if which[3] is not None:
@@ -1653,7 +1658,7 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         if mine:
             other = ("Somewhere else", "choose a .gci or a .raw card", "", None, None)
             which = choose_card_save(frm, tk, ttk, [(x[0], x[1], x[2], x) for x in mine] + [other[:3] + (other,)],
-                                     f"Which of your Dolphin {mode} saves should \"{name}\" be built on?")
+                                     f"Select the Dolphin {mode} save \"{name}\" should be built on:")
             if not which:
                 return
             pick = which[3]

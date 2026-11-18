@@ -16,6 +16,7 @@ missing is skipped:
     xb_dyn_kcr.dat                                                spy_jam's KCR dynasty at April 29, 2007 (its
                                                                   League Leaders screen is the test's answers)
     xb_dyn_po.dat                                                 the same dynasty after the Division Series
+    xb_dyn_poC.dat                                                ... with Carpenter and Greinke re-signed
 """
 import contextlib
 import io
@@ -502,6 +503,30 @@ def news_playoffs():
         shutil.rmtree(root)
     return ", ".join(f"{n} {w or '-'}" for n, w, _ in got)
 t('league news: the playoffs from a save between rounds', news_playoffs)
+
+
+def news_contracts():
+    """Contracts from the save as the game shows them (spy_jam's screens: Carpenter 1 year at $4.00M, re-signed for 5
+    at $8.30M; Greinke 2 at $3.80M, re-signed for 3 at $12.4M), and injuries on the player the injured list names"""
+    import news05 as N
+    before, after = N.read_save(F['xb_dyn_po']), N.read_save(F['xb_dyn_poC'])
+    carp, grei = 0x967B558E, 0x4E691BBF
+    assert before["contracts"][carp] == (4_000_000, 1) and after["contracts"][carp] == (8_300_000, 5)
+    assert before["contracts"][grei] == (3_800_000, 2) and after["contracts"][grei] == (12_400_000, 3)
+    # every injured player is on his team's injured list (the roster block's tail: key, then the day he's back)
+    kcr = F['xb_dyn_kcr']
+    s = N.read_save(kcr)
+    _, _, x = N._payload(kcr)
+    import struct
+    listed = 0
+    for h in s["hurt"]:
+        i = x.find(struct.pack("<I", h["player"]), 0x2C0, 0x13800)
+        while i >= 0 and not 20000 < struct.unpack_from("<I", x, i + 4)[0] < 40000:
+            i = x.find(struct.pack("<I", h["player"]), i + 1, 0x13800)
+        listed += i >= 0
+    assert listed >= len(s["hurt"]) * 0.5, (listed, len(s["hurt"]))  # (the old frame: 1 of 62; the rest day to day)
+    return f"{len(after['contracts'])} contracts, {listed} of {len(s['hurt'])} injured players on an injured list"
+t('league news: contracts and injuries from the save', news_contracts)
 # wrong kinds: each must be refused with a message, never a crash
 wrong = [
     ('owner into dynasty (gc)', lambda: DY.gc_to_xbox(F['gc_own'], F['xb_dyn'])),

@@ -72,7 +72,10 @@ HMAC-SHA1s over 0x50..0x108 and 0x108..). MVP05-Plus `tools/saves/saves05.py` (`
 - Tables 2-5: plain ints. Region 6-8: 404 B preamble + player keylist [n=3250][n][3250 x (key, row, row)];
   keys are sorted as signed ints.
 - Table 8: 3250 player rows of 60 B (`Unk8008CE64_PackE`, `player_conv`). The row frame starts 23 bytes (GC) /
-  24 bytes (Xbox) into the table and the last row wraps to the table start.
+  24 bytes (Xbox) into the table and the last row wraps to the table start. That frame is the converters' (bytes
+  are only moved); a player's own record is 60 * row on (Xbox), its words 0-5 first: the frame's words 0-5 are the
+  next player's (MVP05-Plus, from re-signings seen in the game). Word 3's f18 is the salary in $100,000 steps from
+  $100,000 (37 = $3.80M), word 4's f19 the contract's years left; f1E/f1F (injury) match the injured lists.
 - Tables 9-15: per-player packs (PackF 16 B, 4 B words, `Unk80070004_Rec` 12 B), bit-permuted from the decomp
   structs (`bitconv`, `tablesconv.PM`).
 - Region 16-18 (fixed 0x34288 B): Rec70004 table, 5 x 4 B word tables, 16 B `Unk80071170_Rec` table, an

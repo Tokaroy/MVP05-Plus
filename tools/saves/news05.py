@@ -443,7 +443,7 @@ def read_save(data):
     for i in range(min(struct.unpack_from("<I", x, end + 1872)[0], 32)):
         k, a, _, w, d1, _ = struct.unpack_from("<IIIIHH", x, end + 1876 + 20 * i)
         feed.append(dict(key=k, value=a, kind=(w >> 2) & 0x3F, word=w, day=d1))
-    names, hurt = _players(x)
+    names, hurt, contracts = _players(x)
     rosters = _rosters(x)
     history = _history(x, marks)
     careers = _careers(x)
@@ -452,7 +452,7 @@ def read_save(data):
         user = struct.unpack_from("<I", x, marks[len(marks) - 3] + 8)[0]
     return dict(name=name, kind=kind, records=records, games=games, trades=trades, moves=moves, hurt=hurt,
                 names=names, rosters=rosters, feed=feed, user=user, history=history,
-                careers=careers)
+                careers=careers, contracts=contracts)
 
 
 def _line(b):
@@ -952,14 +952,16 @@ def _players(x):
             break
     else:
         raise NewsError("this save's player list isn't where it should be")
-    twice = t8 + t8[:60]  # (the records start 24 bytes in and the last one wraps to the table's start)
-    names, hurt = {}, []
+    names, hurt, contracts = {}, [], {}
     for i in range(3250):
         key, row, _ = struct.unpack_from("<III", x, start + 8 + 12 * i)
         if row >= 3250:
             continue
-        o = (24 + 60 * row) % len(t8)
-        r = twice[o:o + 60]
+        # a record's 60 bytes are 60 * row on: its words 0-5 first (24 bytes), then words 6-7 and the names, which is
+        # the layout's record turned by 24 (checked: contracts and injuries against the game's screens and the
+        # injured lists; the converters' frame, 24 bytes on, puts words 0-5 with the record before)
+        o = 60 * row
+        r = t8[o + 24:o + 60] + t8[o:o + 24]
         first = r[8:20].split(b"\0")[0].decode("latin-1").strip()
         last = r[20:36].split(b"\0")[0].decode("latin-1").strip()
         if first or last:
@@ -967,7 +969,10 @@ def _players(x):
         f = L.xb_fields(r)
         if f.get("f1F"):
             hurt.append(dict(player=key, kind=f.get("f1E", 0), days=f["f1F"]))
-    return names, hurt
+        if f.get("f19"):  # his contract: years left (this season counts) and the salary, in $100,000 steps from
+            # $100,000 (f18 37 is the $3.80M a year the game shows)
+            contracts[key] = ((f["f18"] + 1) * 100_000, f["f19"])
+    return names, hurt, contracts
 
 
 def _careers(x):
@@ -1408,7 +1413,7 @@ def build(save, db):
                 moves=sorted((s for s in stories if s["kind"] == "Roster move"), key=lambda s: -s["day"]),
                 user=save["user"], games_played=games_played, db=db,
                 days=recaps(save["games"], db, save["user"], postseason),
-                leaders=season_leaders(save, db, stats=stats), names=save["names"],
+                leaders=season_leaders(save, db, stats=stats), names=save["names"], contracts=save.get("contracts", {}),
                 races={} if postseason else races(save, db),
                 playoffs=playoffs(save, db),
                 power=[] if postseason else power(save, db, stats),
@@ -2485,12 +2490,13 @@ def player_data(news, keys):
                 born = DAY0 + datetime.timedelta(days=num(45))
                 ref = news["today"] or datetime.date(now, 4, 1)
                 bio.append(f"Age {ref.year - born.year - ((ref.month, ref.day) < (born.month, born.day))}")
-            if num(40) and num(41):  # the 2005 contract, while it runs (re-signings aren't read from the save yet)
-                through = 2005 + num(41) - 1
-                if through >= now:
-                    bio.append(f"Contract: ${num(40) / 10:.1f}M a year through {through}".replace(".0M", "M"))
         else:
             bio.append("Created in this dynasty")
+        if k in news.get("contracts", {}):  # the save's own: re-signings and new deals included
+            pay, years = news["contracts"][k]
+            money = f"${pay / 1e6:.2f}M" if pay >= 1_000_000 else f"${pay // 1000}K"
+            bio.append(f"Contract: {money} a year, {years} year{'s' if years > 1 else ''} left (through "
+                       f"{now + years - 1})")
         status = []
         for st in news["injuries"]:
             if k in st["players"]:
@@ -2838,7 +2844,7 @@ def playoffs_page(news, lg, TM, gid):
 
     def box(sr, title):
         if not sr:
-            return f"<div class='pbox tbd'><div class=pt>{title}</div><div class=date>To come</div></div>"
+            return f"<div class='pbox tbd'><div class=pt>{title}</div><div class=date>TBD</div></div>"
         rows = []
         for t in (sr["top"], sr["other"]):
             cls = "w" if sr["winner"] == t else ("out" if sr["winner"] else "")
