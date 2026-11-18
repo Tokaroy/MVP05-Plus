@@ -418,6 +418,46 @@ def news_extras():
         assert need in page, need
     return f"{len(f['prospects'])} prospects, {sum(len(r['days']) for r in news['races'].values()) // 6} game days"
 t('league news: races, farm report, awards and milestones', news_extras)
+
+
+def news_power_and_issues():
+    """Power rankings (all 30, the record's best club near the top, moves against a week before), the schedule
+    pages' season series adding up to the record, and editions kept by date with their back-issues list."""
+    import re
+    import shutil
+    import tempfile
+    import news05 as N
+    root = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(root, "assets", "data", "database"))
+        with open(os.path.join(root, "assets", "data", "database", "database.big"), "wb") as f:
+            f.write(F["database"])
+        db = N.Database(root)
+        s = N.read_save(F['xb_dyn_kcr'])
+        news = N.build(s, db)
+        pw = news["power"]
+        assert len(pw) == 30 and [r["rank"] for r in pw] == list(range(1, 31))
+        best = max(pw, key=lambda r: r["w"] - r["l"])
+        assert best["rank"] <= 3, best
+        assert any(r["was"] and r["was"] != r["rank"] for r in pw)
+        page = N.render(news)
+        i = db.franchises.index(best["team"])
+        sched = page.split(f"id=sched-{i}>")[1].split("class=teampage")[0]
+        ser = re.findall(r"</a></td><td>(\d+)</td><td>(\d+)</td>", sched.split("Season series")[1])
+        assert (sum(int(w) for w, _ in ser), sum(int(l) for _, l in ser)) == (best["w"], best["l"])
+        base = os.path.join(root, "league news")
+        first = N.publish(root, F['xb_dyn_kcr'], base)
+        shutil.copy(first, os.path.join(os.path.dirname(first), "2007-04-22.html"))
+        N.publish(root, F['xb_dyn_kcr'], base)
+        with open(os.path.join(os.path.dirname(first), "editions.js"), encoding="utf-8") as f:
+            js = f.read()
+        assert js.index("2007-04-29.html") < js.index("2007-04-22.html"), js
+        with open(os.path.join(base, "KCR.html"), encoding="utf-8") as f:
+            assert "KCR/2007-04-29.html" in f.read()
+    finally:
+        shutil.rmtree(root)
+    return f"No. 1 {db.short(pw[0]['team'])}, {len(ser)} opponents"
+t('league news: power rankings, schedules and back issues', news_power_and_issues)
 # wrong kinds: each must be refused with a message, never a crash
 wrong = [
     ('owner into dynasty (gc)', lambda: DY.gc_to_xbox(F['gc_own'], F['xb_dyn'])),

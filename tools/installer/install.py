@@ -1653,19 +1653,15 @@ def delete_save(frm, root, folder, name, done):
 
 def league_news(frm, root, folder):
     """The league's news from a dynasty or owner mode, as a page in the browser (news05; nothing written to the
-    save): saved in "league news" beside MVP05.exe, one page a save, made again each time."""
+    save): saved in "league news" beside MVP05.exe, an edition a game day for each save (its back issues kept and
+    linked), newest opened."""
     import news05 as N
     import webbrowser
     from tkinter import messagebox
     try:
         with open(os.path.join(folder, "data.dat"), "rb") as f:
             data = f.read()
-        page = N.make(root, data)
-        name = "".join(c if c.isalnum() or c in " -_" else "_" for c in N.read_save(data)["name"]).strip() or "save"
-        out = os.path.join(root, "league news", f"{name}.html")
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        with open(out, "w", encoding="utf-8") as f:
-            f.write(page)
+        out = N.publish(root, data, os.path.join(root, "league news"))
     except (N.NewsError, OSError) as e:
         messagebox.showinfo("League News", f"No news from that save: {e}.", parent=frm)
         return
