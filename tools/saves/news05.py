@@ -1756,7 +1756,7 @@ table.pbrief tr.out td,table.pbrief tr.out a{color:#888}table.pbrief td:nth-chil
 .sched{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:4px 14px}.sched h3{margin:6px 0 2px;font-size:13px}
 .sched tr.later td{color:#666}table.ser th{text-align:left}table.ser td:nth-child(n+2){text-align:center}table.ser th:nth-child(n+2){text-align:center}
 .mv{font-size:9px;color:#888;white-space:nowrap}.mv.up{color:#1a7f37}.mv.dn{color:#c8102e}
-table.pwr td.rk{font-weight:bold;text-align:right}table.pwr td.note{text-align:left;color:#444;max-width:330px}
+table.pwr td.rk{font-weight:bold;text-align:right}#powerbox table.pwr td:nth-child(3){text-align:left;width:62%}#powerbox table.pwr td:nth-child(4){text-align:right}table.pwr td.note{text-align:left;color:#444;max-width:330px}
 .races{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}.races h3{margin:4px 0;font-size:13px}
 .career td,.career th{text-align:right}.career td:nth-child(-n+2),.career th:nth-child(-n+2){text-align:left}
 .career .tot td{font-weight:bold;border-top:2px solid #999}
@@ -1794,6 +1794,7 @@ table.pwr td.rk{font-weight:bold;text-align:right}table.pwr td.note{text-align:l
 .mh .r{position:absolute;right:8px;top:0;font:bold 10px/22px Tahoma,Arial,sans-serif;letter-spacing:0;text-transform:none;color:#f8aa34;text-shadow:none}
 .mb{padding:6px 7px}
 .pair{display:flex;gap:6px}.pair>.mod{flex:1;min-width:0}
+.pair>.stack{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}.stack>.mod{margin:0}
 .lg{display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:-4px;background:center/contain no-repeat}
 .lgb{float:left;width:100px;height:100px;margin:2px 10px 4px 0;background:center/contain no-repeat}
 .kind{font:bold 9px Tahoma,Arial,sans-serif;color:#c00;text-transform:uppercase}
@@ -2064,11 +2065,12 @@ def render(news):
         ab = {"home runs": "HR", "hits": "H", "RBIs": "RBI", "stolen bases": "SB", "wins": "W", "saves": "SV", "strikeouts": "K"}
         out.append("<div class=mod id=msbox><div class=mh>Milestone watch</div><div class=mb><table>")
         for k, t, label, m, gap in near[:8]:
-            out.append(f"<tr><td>{lg(t)}{PL(k, abbrev(pn(k)))}</td><td>{gap} {ab[label]} from {m:,}</td></tr>")
+            out.append(f"<tr><td>{lg(t)}{PL(k, abbrev(pn(k)))}<br><span class=date>{gap} {ab[label]} from {m:,}"
+                       "</span></td></tr>")
         if reached:
-            out.append("<tr><th colspan=2>Reached this season</th></tr>")
+            out.append("<tr><th>Reached this season</th></tr>")
             for k, t, label, m in reached[:5]:
-                out.append(f"<tr><td>{lg(t)}{PL(k, abbrev(pn(k)))}</td><td>{m:,} {ab[label]}</td></tr>")
+                out.append(f"<tr><td>{lg(t)}{PL(k, abbrev(pn(k)))}<br><span class=date>{m:,} {label}</span></td></tr>")
         out.append("</table></div><a class=more2 href='#milestones'>All milestones &rsaquo;</a></div>")
     if news.get("farm", {}).get("prospects"):  # the farm's best young players
         out.append("<div class=mod id=farmbox><div class=mh>Down on the farm</div><div class=mb><table>")
@@ -2107,7 +2109,7 @@ def render(news):
     # standings, tabbed: American / National, then East / Central / West / Wild Card
     mine_dv = next((i for i, d in enumerate(news["divisions"]) for r in d["rows"] if r["team"] == user), 2)
     first = (mine_dv // 3, {0: 2, 1: 1, 2: 0}[mine_dv % 3])  # (league, tab: East, Central, West, Wild Card)
-    out.append("<div class=mod id=standings><div class=mh>Standings</div>")
+    out.append("<div class=stack><div class=mod id=standings><div class=mh>Standings</div>")
     if post and news.get("playoffs"):
         out.append("<div class=mb><table class=pbrief>")
         for sr in news["playoffs"]:
@@ -2155,6 +2157,7 @@ def render(news):
             out.append(f"<tr><td class=rk>{r['rank']}</td><td>{_move(r)}</td><td>{lg(r['team'])}{TM(r['team'])}</td>"
                        f"<td>{r['w']}-{r['l']}</td></tr>")
         out.append("</table><a href='#power' style='display:block;margin-top:5px'>All 30 clubs &rsaquo;</a></div></div>")
+    out.append("</div>")  # (standings and the power poll, one above the other, beside the matchups)
     out.append("<div class=mod id=matchups><div class=mh>" + ("Postseason" if post else "Matchups") + "</div><div class=mb>")
     if news["upcoming"]:
         out.append(f"<div class=date style='margin-bottom:3px'>{fmt(news['next_day'])}</div>")
