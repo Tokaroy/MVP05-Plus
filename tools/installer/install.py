@@ -212,6 +212,93 @@ def emulator_dirs(to):
     return [d for d in out if os.path.isdir(d)]
 
 
+def dolphin_cards(dirs=None):
+    """Dolphin's GameCube memory cards, as its own settings (Config/Dolphin.ini) have them, then any others in its GC
+    folder: [(label, "raw" | "folder", path)] that are there, Slot A's first. A card is a .raw file, or in GCI Folder
+    mode (Dolphin's default now) a folder of .gci files, GC/<region>/Card A."""
+    import configparser
+    out, seen = [], set()
+
+    def add(label, kind, path):
+        path = os.path.normpath(path)
+        if path.lower() not in seen and (os.path.isfile(path) if kind == "raw" else os.path.isdir(path)):
+            seen.add(path.lower())
+            out.append((label, kind, path))
+    for gc in (dirs if dirs is not None else emulator_dirs("GameCube")):
+        user = os.path.dirname(gc)
+        core = {}
+        ini = configparser.ConfigParser(interpolation=None, strict=False)
+        try:
+            ini.read(os.path.join(user, "Config", "Dolphin.ini"), encoding="utf-8")
+            core = {k.lower(): v.strip() for k, v in ini.items("Core")} if ini.has_section("Core") else {}
+        except (configparser.Error, OSError, UnicodeDecodeError):
+            pass
+        for slot in "AB":
+            try:
+                dev = int(core.get(f"slot{slot.lower()}", "8" if slot == "A" else "255"))
+            except ValueError:
+                dev = -1
+            if dev == 8:  # GCI Folder
+                over = core.get(f"gcifolder{slot.lower()}pathoverride")
+                for path in ([over] if over else []) + [os.path.join(gc, r, f"Card {slot}") for r in ("USA", "EUR", "JAP")]:
+                    add(f"Dolphin Slot {slot} (GCI Folder)", "folder", path)
+            elif dev == 1:  # Memory Card (a .raw)
+                path = core.get(f"memcard{slot.lower()}path") or os.path.join(gc, f"MemoryCard{slot}.USA.raw")
+                add(f"Dolphin Slot {slot} (memory card)", "raw", path)
+        try:  # and any others there
+            names = sorted(os.listdir(gc))
+        except OSError:
+            names = []
+        for n in names:
+            q = os.path.join(gc, n)
+            if n.lower().endswith(".raw"):
+                add(f"Dolphin card {n}", "raw", q)
+            elif os.path.isdir(q):
+                for c in sorted(os.listdir(q)) if os.path.isdir(q) else []:
+                    if c.lower().startswith("card ") and os.path.isdir(os.path.join(q, c)):
+                        add(f"Dolphin {n} {c} folder", "folder", os.path.join(q, c))
+    return out
+
+
+def dolphin_saves(cards=None):
+    """The MVP 2005 saves on Dolphin's cards: [(card label, file name, kind, .gci bytes, (kind, path))]"""
+    import gccard as GCC
+    out = []
+    for label, kind, path in (cards if cards is not None else dolphin_cards()):
+        try:
+            if kind == "raw":
+                with open(path, "rb") as f:
+                    data = f.read()
+                if GCC.is_card(data):
+                    for n, g in GCC.Card(data).files().items():
+                        out.append((label, n, gc_kind(n), g, (kind, path)))
+            else:
+                for f in sorted(os.listdir(path)):
+                    if f.lower().endswith(".gci") and os.path.getsize(os.path.join(path, f)) < 8 << 20:
+                        with open(os.path.join(path, f), "rb") as fh:
+                            g = fh.read()
+                        if g[:4] == b"GV4E" and len(g) > 0x40:
+                            n = bytes(g[8:0x28]).split(b"\0")[0].decode("ascii", "replace")
+                            out.append((label, n, gc_kind(n), g, (kind, os.path.join(path, f))))
+        except (OSError, GCC.GcCardError):
+            continue
+    return out
+
+
+def gc_free_name(gci, taken):
+    """The .gci renamed so its file name on the card is not one of taken (the names already on that card or in that
+    folder): <name>2, <name>3 ... (file name, bytes)"""
+    import dynasty05 as DY
+    was = bytes(gci[8:0x28]).split(b"\0")[0].decode("ascii", "replace")
+    was = was[was.rindex("_") + 1:-4] if "_" in was and was.endswith(".dat") else "SAVE"
+    stem = was.rstrip("0123456789") or was
+    for k in range(2, 100):
+        fname, out = DY.gc_renamed(gci, stem[:10 - len(str(k))] + str(k))
+        if bytes(out[8:0x28]).split(b"\0")[0].decode("ascii") not in taken:
+            return fname, out
+    raise DY.DynastyError("there's no free name for it on that card")
+
+
 def remembered_dir(root, key, to=None):
     """{initialdir: the folder last chosen for key} for a file dialog, when it's still there; else the emulator's
     own folder for that console, when there is one."""
@@ -1059,7 +1146,7 @@ def gc_kind(file_name):
         "dynasty" if file_name.startswith("Dynasty") else "save"
 
 
-def choose_card_save(parent, tk, ttk, found):
+def choose_card_save(parent, tk, ttk, found, prompt="There's more than one MVP 2005 save there. Which one?"):
     """One of the MVP 2005 saves on a memory card or in a zip or folder [(where, file, what, save)], picked in a small
     window; None if closed."""
     win = tk.Toplevel(parent)
@@ -1068,10 +1155,10 @@ def choose_card_save(parent, tk, ttk, found):
     win.grab_set()
     f = ttk.Frame(win, padding=12)
     f.grid()
-    ttk.Label(f, text="There's more than one MVP 2005 save there. Which one?").grid(sticky="w")
+    ttk.Label(f, text=prompt).grid(sticky="w")
     lb = tk.Listbox(f, height=min(8, len(found)), width=56, exportselection=False)
     for folder, name, what, _ in found:
-        lb.insert("end", f"{name}: {what}   ({folder})")
+        lb.insert("end", f"{name}: {what}   ({folder})" if what else f"{folder}: {name}")
     lb.selection_set(0)
     lb.grid(sticky="we", pady=8)
     out = {}
@@ -1189,6 +1276,16 @@ def import_tool(frm, root, tk, ttk, start=None):
         ready()
 
     def pick():
+        mine = dolphin_saves()  # (the MVP 2005 saves on Dolphin's own cards, offered first)
+        if mine:
+            other = ("Somewhere else", "choose a file", "", None)
+            which = choose_card_save(frm, tk, ttk, [(x[0], x[1], x[2], x) for x in mine] + [other],
+                                     "Your Dolphin cards have MVP 2005 saves. Import one of them?")
+            if not which:
+                return
+            if which[3] is not None:
+                use(which[3][4][1])
+                return
         p = filedialog.askopenfilename(parent=frm, title="A save from another MVP 2005", filetypes=[
             ("MVP 2005 saves", "*.gci *.raw *.psu *.ps2 *.sav *.dat *.zip"), ("All files", "*.*")],
             **remembered_dir(root, "import_from"))
@@ -1467,11 +1564,10 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
     start = ("save your rosters once" if roster else
              f"start {'an owner mode' if owner else 'a dynasty'} and save it")
     gc = to == "GameCube"
-    how = (f"If you don't have one: in the GameCube game, {start}, then in Dolphin open "
-           "Tools > Memory Card Manager and export that save as a .gci file.\n\n"
-           "Choose that .gci next, or your Dolphin memory card (.raw, in Dolphin's GC folder). It isn't changed: "
-           "from a .gci you get a new .gci to import with the Memory Card Manager, from a card a copy of the card "
-           "with the save in it."
+    how = (f"If you don't have one: in the GameCube game in Dolphin, {start}.\n\n"
+           "The Launcher looks on Dolphin's own cards for it first: in GCI Folder mode (Dolphin's default) the new "
+           "save goes in that folder beside it; on a .raw memory card you get a copy of the card with the save in "
+           "it. Or choose a .gci or a .raw yourself. The save you build on isn't changed."
            if gc else
            f"If you don't have one: in the PC game, {start}. Choose that save next (a .sav, where the PC game keeps "
            "its saves).\n\n"
@@ -1488,13 +1584,36 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
             parent=frm):
         return
     game = os.path.abspath(os.path.join(folder, *[os.pardir] * 5))  # (hdd/E/UDATA/<title>/<save>)
-    p = filedialog.askopenfilename(parent=frm, title=f"One of your {to} {mode} saves", filetypes=[
+    p = None
+    in_folder = None  # (a save from Dolphin's GCI folder: the new one goes in that folder)
+    card_pick = None  # (the save picked on a Dolphin .raw card)
+    if gc:  # the saves of this kind on Dolphin's own cards, as its settings have them
+        want = {"roster": "rosters"}.get(mode, mode)
+        mine = [x for x in dolphin_saves() if x[2] == want]
+        if mine:
+            other = ("Somewhere else", "choose a .gci or a .raw card", "", None, None)
+            which = choose_card_save(frm, tk, ttk, [(x[0], x[1], x[2], x) for x in mine] + [other[:3] + (other,)],
+                                     f"Which of your Dolphin {mode} saves should \"{name}\" be built on?")
+            if not which:
+                return
+            pick = which[3]
+            if pick[3] is not None:
+                kind_, path_ = pick[4]
+                p = path_
+                if kind_ == "folder":
+                    in_folder = os.path.dirname(path_)
+                else:
+                    card_pick = pick[1]
+    if p is None:
+        p = filedialog.askopenfilename(parent=frm, title=f"One of your {to} {mode} saves", filetypes=[
         ("GameCube saves and memory cards", "*.gci *.raw") if gc else ("PC saves", "*.sav") if to == "PC" else
-        ("PS2 saves and memory cards", "*.psu *.ps2 *.sav"), ("All files", "*.*")],
-        **remembered_dir(game, f"export_from_{to}", to))
-    if not p:
-        return
-    remember_dir(game, f"export_from_{to}", p)
+            ("PS2 saves and memory cards", "*.psu *.ps2 *.sav"), ("All files", "*.*")],
+            **remembered_dir(game, f"export_from_{to}", to))
+        if not p:
+            return
+        remember_dir(game, f"export_from_{to}", p)
+        if gc and p.lower().endswith(".gci") and os.path.basename(os.path.dirname(p)).lower().startswith("card "):
+            in_folder = os.path.dirname(p)  # (a Dolphin GCI folder)
     try:
         with open(p, "rb") as f:
             base = f.read()
@@ -1502,13 +1621,16 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         if gc and GCC.is_card(base):  # a Dolphin memory card: its save of this kind, and a copy of the card back
             want = {"roster": "rosters"}.get(mode, mode)
             found = [("GameCube card", n, gc_kind(n), g) for n, g in GCC.Card(base).files().items()
-                     if gc_kind(n) == want]
+                     if gc_kind(n) == want and card_pick in (None, n)]
             if not found:
                 raise GCC.GcCardError(f"that GameCube memory card has no MVP 2005 {mode} on it")
             which = found[0] if len(found) == 1 else choose_card_save(frm, tk, ttk, found)
             if not which:
                 return
             gc_card, base = (base, which[1]), which[3]
+        elif gc and base[:4] != b"GV4E":
+            raise GCC.GcCardError("that isn't a GameCube MVP 2005 save (.gci) or a Dolphin memory card (.raw). "
+                                  "In Dolphin's GCI Folder mode the saves are .gci files in GC/USA/Card A")
         if base[:28] != PC.MAGIC:  # (a PS2 card's saves are looked through below)
             check = {("GameCube", "dynasty"): DY.read_gc, ("GameCube", "owner mode"): OW.read_gc,
                      ("GameCube", "roster"): GR.read_gc, ("PC", "dynasty"): PCD.read, ("PC", "owner mode"): OW.read_pc,
@@ -1525,10 +1647,16 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
             if gc_card:
                 out, ext = GCC.Card(gc_card[0]).replace(gc_card[1], out), ".raw"
                 stem = os.path.splitext(os.path.basename(p))[0] + " (from MVP05-Plus)"
-            else:  # a name of its own (<name>2), so it goes on the card beside the save it was built on
-                was = bytes(out[8:0x28]).split(b"\0")[0].decode("ascii", "replace")
-                was = was[was.rindex("_") + 1:-4] if "_" in was and was.endswith(".dat") else "SAVE"
-                fname, out = DY.gc_renamed(out, was[:9] + "2")
+            else:  # a name of its own (<name>2, or the next free), so it goes on the card beside the one it's built on
+                taken = set()
+                for x in os.listdir(os.path.dirname(p)) if os.path.isdir(os.path.dirname(p)) else []:
+                    if x.lower().endswith(".gci"):
+                        try:
+                            with open(os.path.join(os.path.dirname(p), x), "rb") as fh:
+                                taken.add(fh.read(0x28)[8:].split(b"\0")[0].decode("ascii", "replace"))
+                        except OSError:
+                            pass
+                fname, out = gc_free_name(out, taken)
                 stem, ext = fname[:-4], ".gci"
         elif to == "PC":
             out, ext = (OW.xbox_to_pc if owner else RO.to_pc if roster else PCD.to_pc)(data, base), ".sav"
@@ -1572,6 +1700,23 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         messagebox.showerror(title, f"Nothing was written: {e}.\n\n(Written to MVP05-Plus-Launcher.log beside "
                                     "MVP05.exe too.)", parent=frm)
         return
+    if in_folder and ext == ".gci":  # straight into Dolphin's card folder, beside the save it's built on
+        if not messagebox.askokcancel(title, f"Put it in your Dolphin card folder, as {stem}{ext}?\n\n"
+                                             f"{in_folder}\n\nThe save it's built on stays as it was.", parent=frm):
+            return
+        dest = os.path.join(in_folder, stem + ext)
+        try:
+            with open(dest + ".new", "wb") as f:
+                f.write(out)
+            os.replace(dest + ".new", dest)
+        except OSError as e:
+            messagebox.showerror(title, f"Nothing was written: {e}.", parent=frm)
+            return
+        shown = bytes(out[0x64:0x84]).split(b"\0")[0].decode("latin-1")
+        messagebox.showinfo(title, f"Saved {stem}{ext} in your Dolphin card folder.\n\nStart MVP Baseball 2005 in "
+                                   f"Dolphin and load it: it's \"{shown}\" on the card. (If Dolphin was running, "
+                                   "restart the game so it reads the folder again.)", parent=frm)
+        return
     dest = filedialog.asksaveasfilename(parent=frm, title=f"Save the {to} {mode} as", initialdir=os.path.dirname(p),
                                         initialfile=stem + ext, defaultextension=ext,
                                         filetypes=[("PS2 memory cards" if ext == ".ps2" else "GameCube memory cards" if ext == ".raw" else
@@ -1593,8 +1738,9 @@ def export_dynasty(frm, folder, name, to, tk, ttk):
         "changed). In Dolphin: Config > GameCube, choose it as the card in Slot A (or put it in place of your card, "
         "keeping a copy of that one). The rest of the card is as it was."
         if ext == ".raw" else
-        f"In Dolphin: Tools > Memory Card Manager > Import, and choose it. It goes on the card beside the {mode} it "
-        "was built on, under a name of its own."
+        f"If Dolphin uses GCI Folder mode (its default), put it in your card's folder (GC/USA/Card A in Dolphin's "
+        "user folder) and start the game. With a .raw memory card: Tools > Memory Card Manager > Import, and choose "
+        f"it. It goes on the card beside the {mode} it was built on, under a name of its own."
         if gc else
         f"Put it in the PC game's saves folder and load it there: it's called {PCD.pc_name(out)[0]} in the game. Keep "
         "the file's name: the PC game names a save's file by its name."

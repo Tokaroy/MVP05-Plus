@@ -74,7 +74,7 @@ class Inline:
 
 install.threading = MagicMock()
 install.threading.Thread = Inline
-install.choose_card_save = lambda frm, tk, ttk, found: found[0]
+install.choose_card_save = lambda frm, tk, ttk, found, *_: found[0]
 mb = sys.modules["tkinter"].messagebox
 fd = sys.modules["tkinter"].filedialog
 BAD = []
@@ -155,6 +155,61 @@ for i, (k, to, base, ok) in enumerate(exports):
     print(f"{'ok ' if good else 'BAD'} export {k[3:-4]:6} to {to:8} on {os.path.basename(base)[:24]:24} | {said[:80]}")
     if not good:
         BAD.append(f"export {k} to {to} on {os.path.basename(base)}")
+
+# Dolphin's own cards, as its settings have them: Slot A a GCI folder (its default), Slot B a .raw card. An export
+# built on the folder's dynasty goes into that folder under a name of its own (a second one under the next name);
+# one built on the .raw card's rosters gives a copy of the card.
+if sample("gc_dyn.gci") and "xb_dyn.dat" in folders:
+    import dynasty05 as DY
+    import gccard as GCC
+    dol = os.path.join(work, "Dolphin Emulator")
+    gcd = os.path.join(dol, "GC")
+    cardA = os.path.join(gcd, "USA", "Card A")
+    os.makedirs(cardA)
+    os.makedirs(os.path.join(dol, "Config"))
+    shutil.copy(sample("gc_dyn.gci"), os.path.join(cardA, "01-GV4E-dynasty.gci"))
+    if card:
+        shutil.copy(card, os.path.join(gcd, "MemoryCardB.USA.raw"))
+    with open(os.path.join(dol, "Config", "Dolphin.ini"), "w") as f:
+        f.write("[Core]\nSlotA = 8\nSlotB = 1\n")
+    real = install.emulator_dirs
+    install.emulator_dirs = lambda to: [gcd] if to == "GameCube" else []
+    cards = install.dolphin_cards()
+    good = [c[1] for c in cards] == ["folder", "raw"] if card else [c[1] for c in cards] == ["folder"]
+    print(f"{'ok ' if good else 'BAD'} Dolphin's cards from its settings | {[(c[0], os.path.basename(c[2])) for c in cards]}")
+    if not good:
+        BAD.append("Dolphin's cards")
+    names = []
+    for n in range(2):
+        mb.reset_mock()
+        mb.askokcancel.return_value = mb.askyesno.return_value = True
+        fd.askopenfilename.reset_mock()
+        install.export_dynasty(MagicMock(), folders["xb_dyn.dat"], "xb_dyn.dat", "GameCube", MagicMock(), MagicMock())
+        shown = [c.args[1] for f in ("showinfo", "showerror") for c in getattr(mb, f).call_args_list]
+        names.append(shown[-1].splitlines()[0] if shown else "nothing shown")
+    inside = sorted(os.listdir(cardA))
+    own = []
+    for x in inside:
+        with open(os.path.join(cardA, x), "rb") as fh:
+            g = fh.read()
+        own.append(g[8:0x28].split(b"\0")[0].decode())
+        DY.read_gc(g)
+    good = (len(inside) == 3 and len(set(own)) == 3 and not fd.askopenfilename.called
+            and all(x.startswith("Saved") for x in names))
+    print(f"{'ok ' if good else 'BAD'} export into Dolphin's GCI folder, twice | {own} | {names[-1][:60]}")
+    if not good:
+        BAD.append("export into Dolphin's GCI folder")
+    if card:  # the rosters are only on the .raw card
+        mb.reset_mock()
+        mb.askokcancel.return_value = mb.askyesno.return_value = True
+        dest = os.path.join(work, "dolphin-card-out.raw")
+        fd.asksaveasfilename.return_value = dest
+        install.export_dynasty(MagicMock(), folders["xb_roster.dat"], "xb_roster.dat", "GameCube", MagicMock(), MagicMock())
+        good = os.path.isfile(dest) and GCC.is_card(open(dest, "rb").read())
+        print(f"{'ok ' if good else 'BAD'} export rosters onto Dolphin's .raw card (Slot B) | {os.path.basename(dest)}")
+        if not good:
+            BAD.append("export onto Dolphin's .raw card")
+    install.emulator_dirs = real
 
 # copy and rename (right-click in Saves)
 if "xb_dyn.dat" in folders:
