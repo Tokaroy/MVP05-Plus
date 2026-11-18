@@ -15,6 +15,7 @@ missing is skipped:
     feeng.loc   logos.big                                         game's database, text and logos (League News)
     xb_dyn_kcr.dat                                                spy_jam's KCR dynasty at April 29, 2007 (its
                                                                   League Leaders screen is the test's answers)
+    xb_dyn_po.dat                                                 the same dynasty after the Division Series
 """
 import contextlib
 import io
@@ -471,6 +472,36 @@ def news_power_and_issues():
         shutil.rmtree(root)
     return f"No. 1 {db.short(pw[0]['team'])}, {len(ser)} opponents"
 t('league news: power rankings, schedules and back issues', news_power_and_issues)
+
+
+def news_playoffs():
+    """A save in the middle of the playoffs (the KCR dynasty after the Division Series): the series and their
+    winners from the schedule, the games the series didn't need left out, the bracket page and series headlines"""
+    import shutil
+    import tempfile
+    import news05 as N
+    root = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(root, "assets", "data", "database"))
+        with open(os.path.join(root, "assets", "data", "database", "database.big"), "wb") as f:
+            f.write(F["database"])
+        db = N.Database(root)
+        s = N.read_save(F['xb_dyn_po'])  # (skipped without it)
+        assert all(g["home"] != g["away"] for g in s["games"])
+        ps = N.playoffs(s, db)
+        got = [(x["name"], db.club(x["winner"]) if x["winner"] else None,
+                tuple(sorted(x["wins"].values()))) for x in ps]
+        assert got == [("ALDS", "Tigers", (0, 3)), ("ALDS", "Royals", (0, 3)), ("NLDS", "Cubs", (1, 3)),
+                       ("NLDS", "Marlins", (1, 3)), ("ALCS", None, (0, 0)), ("NLCS", None, (0, 0))], got
+        news = N.build(s, db)
+        assert news["postseason"] and news["leaders"]["final"]
+        assert news["headlines"][0]["head"] == "Royals sweep Boston, move on to the ALCS", news["headlines"][0]
+        page = N.render(news)
+        assert "id=playoffs" in page and page.count("class=pbox") == 6
+    finally:
+        shutil.rmtree(root)
+    return ", ".join(f"{n} {w or '-'}" for n, w, _ in got)
+t('league news: the playoffs from a save between rounds', news_playoffs)
 # wrong kinds: each must be refused with a message, never a crash
 wrong = [
     ('owner into dynasty (gc)', lambda: DY.gc_to_xbox(F['gc_own'], F['xb_dyn'])),

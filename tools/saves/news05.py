@@ -31,6 +31,7 @@ DIVISIONS = ("AL West", "AL Central", "AL East", "NL West", "NL Central", "NL Ea
 # how much each kind of news weighs before the players, teams and days are counted in
 WEIGHTS = dict(
     milestone=1.6,      # a career mark passed since the last edition, x its size
+    series_won=4.0,     # a playoff series won (the World Series x1.5)
     trade=1.0,          # x the players on both sides
     trade_minors=0.25,  # a trade between two farm teams
     injury=0.8,         # x the player
@@ -400,6 +401,13 @@ def _payload(data):
     return m["name"], m["typ"], m["payload"]
 
 
+def in_postseason(save):
+    """The schedule holds only the playoff games then (41 at most: two rounds of 5 and two of 7, four series each
+    for the first round): a season's shortest is 12 games a team, 180 in all. The standings then are the playoffs'
+    records (0-0 before the first game)."""
+    return 0 < len(save["games"]) <= 41
+
+
 def read_save(data):
     """{name, kind, records {index: (W, L)}, games [...], trades, moves, injuries, user} from an Xbox save."""
     name, kind, x = _payload(data)
@@ -422,6 +430,8 @@ def read_save(data):
         # after the top of the 9th has no bottom of it in every game (270 of 270), and the playoffs' higher seeds host
         g = dict(day=dn, home=struct.unpack_from("<I", e, 4)[0], away=struct.unpack_from("<I", e, 16)[0],
                  played=bool(bf >> 11), innings=(bf >> 11) + 1 if bf >> 11 else 0)
+        if g["home"] == g["away"]:  # a playoff game a series didn't need (both teams 0, marked played)
+            continue
         if g["played"]:
             g.update(hr=e[8], hh=e[9], ar=e[20], ah=e[21], he=e[10] & 15, ae=e[22] & 15,
                      hline=_line(e[10:15]), aline=_line(e[22:27]))
@@ -641,8 +651,9 @@ def season_stats(save, db):
     year = max(r["year"] for r in rows)
     season = min((g["day"] for g in save["games"]), default=None)
     last = season is not None and day(season).year != year
-    # the season's over when the standings are back at 0-0 with this year's lines kept (the postseason)
-    final = not last and not any(sum(v) for v in save["records"].values())
+    # the season's over in the postseason (the schedule then holds only the playoff games, and the standings are the
+    # playoffs' records), or when the standings are back at 0-0 with this year's lines kept
+    final = not last and (in_postseason(save) or not any(sum(v) for v in save["records"].values()))
     games = {db.franchises[i]: (162 if last else sum(v)) for i, v in save["records"].items()}
     bat, pit = {}, {}
     for k, rs in save["history"].items():
@@ -825,6 +836,62 @@ def power(save, db, stats):
         out.append(dict(team=t, rank=rank, was=was, score=score, note=note[:1].upper() + note[1:] + ("." if note else ""),
                         **r))
     return out
+
+
+ROUNDS = ("Division Series", "Championship Series", "World Series")
+
+
+def playoffs(save, db):
+    """The postseason's series from its schedule: [dict(round 0-2, name ("ALDS", "NLCS", "World Series"), league 0/1
+    (None for the World Series), top (the team at home in game 1: the higher seed), other, best (5 or 7), wins {team:
+    n}, games [game ...], winner or None, leader or None)], the rounds in order, the American League's first. The
+    series a round didn't need are already gone from the schedule; a later round is there once the one before ends."""
+    if not in_postseason(save):
+        return []
+    by = collections.OrderedDict()
+    for g in sorted(save["games"], key=lambda g: g["day"]):
+        if g["home"] in db.teams and g["away"] in db.teams:
+            by.setdefault(frozenset((g["home"], g["away"])), []).append(g)
+    starts = sorted({gs[0]["day"] for gs in by.values()})
+    out = []
+    # a round's series start within a day or two of each other; the next round starts after the last one's games
+    rnd, first = -1, None
+    for gs in sorted(by.values(), key=lambda gs: gs[0]["day"]):
+        if first is None or gs[0]["day"] - first > 2:
+            rnd, first = rnd + 1, gs[0]["day"]
+        top, other = gs[0]["home"], gs[0]["away"]
+        lgs = {int(db.teams[t].get(4, 0)) for t in (top, other)}
+        league = lgs.pop() if len(lgs) == 1 else None
+        r = min(rnd, 2) if league is not None else 2
+        best = 5 if r == 0 else 7
+        wins = {top: 0, other: 0}
+        for g in gs:
+            if g["played"]:
+                wins[g["home"] if g["hr"] > g["ar"] else g["away"]] += 1
+        need = best // 2 + 1
+        winner = next((t for t, n in wins.items() if n >= need), None)
+        leader = None if wins[top] == wins[other] else max(wins, key=wins.get)
+        name = ("World Series" if r == 2 else ("AL" if league == 0 else "NL") + ("DS" if r == 0 else "CS"))
+        out.append(dict(round=r, name=name, league=league, top=top, other=other, best=best, wins=wins, games=gs,
+                        winner=winner, leader=leader))
+    out.sort(key=lambda x: (x["round"], x["league"] if x["league"] is not None else 2, x["games"][0]["day"]))
+    return out
+
+
+def series_line(s, club):
+    """ "Royals lead 2-1", "Tigers win 3-0", "Tied 1-1", "Game 1 Wednesday" (club: a team's name)"""
+    a, b = s["top"], s["other"]
+    wa, wb = s["wins"][a], s["wins"][b]
+    if s["winner"]:
+        w = s["winner"]
+        l_ = b if w == a else a
+        return f"{club(w)} win {s['wins'][w]}-{s['wins'][l_]}"
+    if not wa and not wb:
+        return "Game 1 " + day(s["games"][0]["day"]).strftime("%A")
+    if wa == wb:
+        return f"Tied {wa}-{wb}"
+    w = s["leader"]
+    return f"{club(w)} lead {s['wins'][w]}-{min(wa, wb)}"
 
 
 def season_leaders(save, db, most=10, stats=None):
@@ -1068,8 +1135,9 @@ def build(save, db):
             wildcard[lg] = rest
 
     games_played = max((sum(rec[t]) for t in teams), default=0)
-    # the postseason: the season's records are cleared and the schedule holds only the playoff games
-    postseason = games_played == 0 and 0 < len(save["games"]) <= 41
+    postseason = in_postseason(save)
+    series_all = playoffs(save, db) if postseason else []
+    in_playoffs = {t for sr in series_all for t in (sr["top"], sr["other"])}
 
     def contention(t):
         """1.0 for a team out of it, up to 1.5 for one in the thick of a race."""
@@ -1217,6 +1285,8 @@ def build(save, db):
         # the longer he's out and the bigger he is, the bigger the story; farm teams' injuries stay in the report
         length = min(days, 120) / 30
         score = WEIGHTS["injury"] * imp * (0.4 + length) * (contention(t) if t else 1.0) * (1 if big_club else 0.12)
+        if postseason and db.org_of.get(t, t) not in in_playoffs:  # (a club whose season's over)
+            score *= 0.2
         back = day(today + days) if today else None
         kind = db.injury(h["kind"])
         rest_of_year = bool(season_end and today + days > season_end)
@@ -1261,6 +1331,35 @@ def build(save, db):
                 f"{db.club(t)} {'win' if hot else 'drop'} {k} straight" if hot else f"{db.club(t)} skid hits {k}",
                 f"{db.club(t)} are {rec[t][0]}-{rec[t][1]} and {'rolling' if hot else 'looking for answers'}.",
                 last_day, [t])
+    # the postseason: a series won (or swept), and where a series in progress stands
+    for sr in series_all:
+        played_ = [g for g in sr["games"] if g["played"]]
+        if not played_:
+            continue
+        last_g = played_[-1]
+        a, b = sr["top"], sr["other"]
+        if sr["winner"]:
+            w = sr["winner"]
+            l_ = b if w == a else a
+            ww, lw = sr["wins"][w], sr["wins"][l_]
+            nxt = {0: f"the {'AL' if sr['league'] == 0 else 'NL'}CS", 1: "the World Series"}.get(sr["round"])
+            if sr["round"] == 2:
+                head = f"{db.club(w)} win the World Series"
+            elif lw == 0:
+                head = f"{db.club(w)} sweep {db.city(l_)}, move on to {nxt}"
+            else:
+                head = f"{db.club(w)} beat {db.city(l_)} {ww}-{lw}, move on to {nxt}"
+            add(WEIGHTS["series_won"] * (1.5 if sr["round"] == 2 else 1 + 0.25 * sr["round"]), "Postseason", head,
+                f"The {db.club(w)} won the {sr['name']} {ww} games to {lw} over the {db.club(l_)}, "
+                f"{last_g['hr'] if last_g['home'] == w else last_g['ar']}-"
+                f"{last_g['ar'] if last_g['home'] == w else last_g['hr']} in the last game.", last_g["day"], [w, l_])
+        elif sr["leader"]:
+            w = sr["leader"]
+            l_ = b if w == a else a
+            add(WEIGHTS["series_won"] * 0.6, "Postseason", f"{db.club(w)} lead {db.city(l_)} "
+                f"{sr['wins'][w]}-{sr['wins'][l_]} in the {sr['name']}",
+                f"{sr['best'] // 2 + 1 - sr['wins'][w]} more win{'s' if sr['best'] // 2 + 1 - sr['wins'][w] > 1 else ''} "
+                f"and the {db.club(w)} take it.", last_g["day"], [w, l_])
     # a new division leader since the day before (from the schedule's results)
     if last_day is not None:
         for d in divisions:
@@ -1311,6 +1410,7 @@ def build(save, db):
                 days=recaps(save["games"], db, save["user"], postseason),
                 leaders=season_leaders(save, db, stats=stats), names=save["names"],
                 races={} if postseason else races(save, db),
+                playoffs=playoffs(save, db),
                 power=[] if postseason else power(save, db, stats),
                 farm=farm_report(save, db, stats, day(today) if today else
                                  datetime.date(stats["year"] if stats else 2005, 7, 1)),
@@ -1620,6 +1720,16 @@ table.stats td:nth-child(2),table.stats th:nth-child(2),table.stats td:nth-child
 #stats tr.nq{display:none}#stats.all tr.nq{display:table-row}#stats tr.nq td{color:#777}
 a.more2{display:block;text-align:right;padding:0 7px 6px;font-weight:bold}
 .teampage{display:none;padding:6px 4px 0}
+.bracket{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:center}
+.bcol{display:flex;flex-direction:column;gap:10px;justify-content:space-around;height:100%}
+.pbox{display:block;border:1px solid #c9d3e3;background:#f6f8fc;padding:4px 6px;color:#000;text-decoration:none}
+.pbox.tbd{background:#fafafa;color:#888;border-style:dashed}
+.pbox .pt{display:block;font-weight:bold;font-size:11px;color:#1f4e9c;margin-bottom:2px}
+.pbox .pr{display:flex;justify-content:space-between;font-size:12px;padding:1px 0}
+.pbox .pr.w{font-weight:bold}.pbox .pr.out{color:#888}.pbox .pr.out a{color:#888}
+table.pbrief th{text-align:left;padding-top:5px;color:#1f4e9c}table.pbrief tr.w td{font-weight:bold}
+table.pbrief tr.out td,table.pbrief tr.out a{color:#888}table.pbrief td:nth-child(2){text-align:right;padding:0 6px}
+@media (max-width:700px){.bracket{grid-template-columns:1fr 1fr}}
 #issues{display:flex;gap:10px;align-items:center}#issues select{font:10px Tahoma,Arial,sans-serif;max-width:190px}
 #issues a b{color:#c8102e}
 .sched{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:4px 14px}.sched h3{margin:6px 0 2px;font-size:13px}
@@ -1864,7 +1974,8 @@ def render(news):
     out.append("</div></div><a href='#scores'>Scoreboard</a><a href='#standings'>Standings</a>"
                + ("<a href='#stats'>Stats</a>" if news["stats"] else "") +
                "<a href='#matchups'>Schedule</a><a href='#transactions'>Transactions</a><a href='#injuries'>Injuries</a>"
-               + ("<a href='#farm'>Farm</a>" if news.get("farm") else "") + "<a href='#news'>News</a></div>")
+               + ("<a href='#farm'>Farm</a>" if news.get("farm") else "")
+               + ("<a href='#playoffs'>Playoffs</a>" if news.get("playoffs") else "") + "<a href='#news'>News</a></div>")
     out.append("<div class=cols><div class=left>")
 
     # ---- left: scoreboard, your club, hot and cold
@@ -1881,6 +1992,21 @@ def render(news):
     else:
         out.append("No final scores yet.")
     out.append("</div></div>")
+    if user in db.franchises and post and news.get("playoffs"):
+        mine = [x for x in news["playoffs"] if user in (x["top"], x["other"])]
+        lines = []
+        for x in mine:
+            them = x["other"] if x["top"] == user else x["top"]
+            if x["winner"] == user:
+                lines.append(f"Won the {x['name']} {x['wins'][user]}-{x['wins'][them]} over the {TM(them)}")
+            elif x["winner"]:
+                lines.append(f"Lost the {x['name']} {x['wins'][user]}-{x['wins'][them]} to the {TM(them)}")
+            else:
+                lines.append(f"{x['name']} vs. the {TM(them)}: {e(series_line(x, db.club))}")
+        if not mine:
+            lines.append("Not in the playoffs this year.")
+        out.append(f"<div class=mod><div class=mh>Your club</div><div class=mb>{lg(user)}<span class=big>"
+                   f"{TM(user, db.full(user))}</span><br>" + "<br>".join(lines) + "</div></div>")
     if user in db.franchises and not post:
         row, div = next(((r, d) for d in news["divisions"] for r in d["rows"] if r["team"] == user), (None, None))
         if row:
@@ -1964,7 +2090,17 @@ def render(news):
     mine_dv = next((i for i, d in enumerate(news["divisions"]) for r in d["rows"] if r["team"] == user), 2)
     first = (mine_dv // 3, {0: 2, 1: 1, 2: 0}[mine_dv % 3])  # (league, tab: East, Central, West, Wild Card)
     out.append("<div class=mod id=standings><div class=mh>Standings</div>")
-    if post:
+    if post and news.get("playoffs"):
+        out.append("<div class=mb><table class=pbrief>")
+        for sr in news["playoffs"]:
+            out.append(f"<tr><th colspan=2>{sr['name']}</th><td class=date>{e(series_line(sr, db.club))}</td></tr>")
+            for t in (sr["top"], sr["other"]):
+                won = sr["winner"] == t
+                out.append(f"<tr class='{'w' if won else ('out' if sr['winner'] else '')}'><td>{lg(t)}{TM(t)}</td>"
+                           f"<td>{sr['wins'][t]}</td><td></td></tr>")
+        out.append("</table><a href='#playoffs' style='display:block;margin-top:5px'>The bracket and every game "
+                   "&rsaquo;</a></div></div>")
+    elif post:
         out.append("<div class=mb>It's the postseason: the season's standings are put away until next year.</div></div>")
     else:
         out.append("<div class=tabs>" + "".join(
@@ -2008,6 +2144,10 @@ def render(news):
         out.append(f"<div class=date style='margin-bottom:3px'>{fmt(news['next_day'])}</div>")
         for g in news["upcoming"][:7]:
             a, h = g["away"], g["home"]
+            sr = next((x for x in news.get("playoffs", []) if g in x["games"]), None)
+            if sr:
+                n = sr["games"].index(g) + 1
+                out.append(f"<div class=date>{sr['name']}, Game {n}: {e(series_line(sr, db.club))}</div>")
             rec = "" if post else " <span class=date>(%s)</span>"
             out.append(f"<div class=match>{lg(a)}<b>{TM(a)}</b>{rec and rec % news_record(news, a)}<br>"
                        f"<span class=date>at</span> {lg(h)}<b>{TM(h)}</b>{rec and rec % news_record(news, h)}</div>")
@@ -2111,6 +2251,7 @@ def render(news):
     out.append(milestones_page(news, lg, PL, TM))
     out.append(awards_page(news, lg, PL, TM))
     out.append(races_page(news, lg))
+    out.append(playoffs_page(news, lg, TM, gid))
     out.append(farm_page(news, lg, PL))
     out.append(power_page(news, lg, PL, TM))
     out.append(schedule_pages(news, lg, gid))
@@ -2133,7 +2274,7 @@ def render(news):
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
                f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
                "function route(){var h=location.hash.slice(1),t=h.indexOf('team-')==0||h.indexOf('sched-')==0?document.getElementById(h):null;"
-               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(['stats','transactions','milestones','awards','races','farm','power'].indexOf(h)>=0)t=document.getElementById(h);"
+               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(['stats','transactions','milestones','awards','races','farm','power','playoffs'].indexOf(h)>=0)t=document.getElementById(h);"
                "document.querySelectorAll('.teampage').forEach(function(p){p.style.display=p==t?'block':'none'});"
                "document.querySelector('.cols').style.display=t?'none':'flex';if(t){window.scrollTo(0,0);return;}"
                "var el=h&&document.getElementById(h);if(el){var d=el.closest('.dpane');if(d)pickday(+d.id.slice(1));"
@@ -2670,6 +2811,58 @@ def schedule_pages(news, lg, gid):
             out.append(f"<tr><td>{lg(opp)}<a href='#team-{db.franchises.index(opp)}'>{e(db.full(opp))}</a></td>"
                        f"<td>{sw}</td><td>{sl}</td><td>{left}</td><td>{hg}</td><td>{rg}</td><td>{note}</td></tr>")
         out.append("</table></div></div></div>")
+    return "".join(out)
+
+
+def playoffs_page(news, lg, TM, gid):
+    """#playoffs: the bracket (the AL's rounds on the left, the NL's on the right, the World Series between), then
+    every series game by game, each linked to its recap"""
+    rs = news.get("playoffs") or []
+    if not rs:
+        return ""
+    db, e = news["db"], html.escape
+    recapped = {gid(r["game"]) for _, x in news["days"] for r in x}
+
+    def box(sr, title):
+        if not sr:
+            return f"<div class='pbox tbd'><div class=pt>{title}</div><div class=date>To come</div></div>"
+        rows = []
+        for t in (sr["top"], sr["other"]):
+            cls = "w" if sr["winner"] == t else ("out" if sr["winner"] else "")
+            rows.append(f"<div class='pr {cls}'><span>{lg(t)}{TM(t)}</span><b>{sr['wins'][t]}</b></div>")
+        return (f"<div class=pbox><a class=pt href='#ser-{rs.index(sr)}'>{sr['name']}</a>{''.join(rows)}"
+                f"<div class=date>{e(series_line(sr, db.club))}</div></div>")
+
+    pick = lambda r, lgi: [x for x in rs if x["round"] == r and x["league"] == lgi]
+    cols = [(pick(0, 0), "ALDS", 2), (pick(1, 0), "ALCS", 1), ([x for x in rs if x["round"] == 2], "World Series", 1),
+            (pick(1, 1), "NLCS", 1), (pick(0, 1), "NLDS", 2)]
+    out = ["<div class=teampage id=playoffs><a class=back href='#top'>&lsaquo; Back to the front page</a>"
+           f"<div class=mod><div class=mh>{day(rs[0]['games'][0]['day']).year} Postseason</div><div class=mb>"
+           "<div class=bracket>"]
+    for found, title, n in cols:
+        out.append("<div class=bcol>" + "".join(box(found[i] if i < len(found) else None, title) for i in range(n))
+                   + "</div>")
+    out.append("</div></div></div>")
+    for i, sr in enumerate(rs):
+        out.append(f"<div class=mod id=ser-{i}><div class=mh>{sr['name']}: {e(db.club(sr['top']))} vs. "
+                   f"{e(db.club(sr['other']))}</div><div class=mb><p class=date>Best of {sr['best']}. "
+                   f"{e(series_line(sr, db.club))}.</p><table class=res>")
+        for n, g in enumerate(sr["games"], 1):
+            d = day(g["day"])
+            at = f"{lg(g['away'])}{TM(g['away'])} at {lg(g['home'])}{TM(g['home'])}"
+            if g["played"]:
+                aw = g["ar"] > g["hr"]
+                score = (f"{e(db.short(g['away']))} {g['ar']}, {e(db.short(g['home']))} {g['hr']}"
+                         + (f" ({g['innings']})" if g["innings"] > 9 else ""))
+                score = f"<a href='#{gid(g)}'>{score}</a>" if gid(g) in recapped else score
+                win = g["away"] if aw else g["home"]
+                out.append(f"<tr><td>Game {n}</td><td>{d.strftime('%a')} {d.month}/{d.day}</td><td>{at}</td>"
+                           f"<td><b>{score}</b></td><td>{e(db.club(win))} win</td></tr>")
+            else:
+                out.append(f"<tr class=later><td>Game {n}</td><td>{d.strftime('%a')} {d.month}/{d.day}</td>"
+                           f"<td>{at}</td><td></td><td>{'if needed' if n > sr['best'] // 2 + 1 else ''}</td></tr>")
+        out.append("</table></div></div>")
+    out.append("</div>")
     return "".join(out)
 
 
