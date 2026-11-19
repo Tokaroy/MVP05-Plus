@@ -10,9 +10,7 @@
 #include <string>
 #include <thread>
 
-#ifdef _WIN32
-extern "C" __declspec(dllimport) short __stdcall GetAsyncKeyState(int);
-#endif
+#include "app/app.h"
 #include "core/log.h"
 #include "kernel/kernel.h"
 #include "imgui.h"
@@ -480,14 +478,7 @@ void StartCapture() {
     }).detach();
 }
 
-bool Held(int vk) {
-#ifdef _WIN32
-    return (GetAsyncKeyState(vk) & 0x8000) != 0;
-#else
-    (void)vk;
-    return false;
-#endif
-}
+bool Held(int vk) { return app::KeyHeld(vk); }
 
 }  // namespace
 

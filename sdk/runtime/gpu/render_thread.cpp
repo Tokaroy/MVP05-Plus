@@ -399,10 +399,14 @@ private:
     }
 
     void Run() {
+#ifdef XBE_UWP
+        SetThreadDescription(GetCurrentThread(), L"render");
+#else
         using SetDescription = HRESULT(WINAPI*)(HANDLE, PCWSTR);
         if (auto set = reinterpret_cast<SetDescription>(
                 reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription"))))
             set(GetCurrentThread(), L"render");
+#endif
         for (;;) {
             Batch* b;
             {

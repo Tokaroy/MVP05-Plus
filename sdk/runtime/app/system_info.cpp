@@ -33,6 +33,9 @@ std::string RegString(HKEY key, const char* name) {
 }
 
 std::string OsVersion() {
+#ifdef XBE_UWP  // no registry for an Xbox app
+    return "Xbox (Dev Mode)";
+#else
     HKEY key = nullptr;
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_READ | KEY_WOW64_64KEY,
                       &key) != ERROR_SUCCESS)
@@ -51,6 +54,7 @@ std::string OsVersion() {
     if (auto wine = reinterpret_cast<WineVersion>(reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "wine_get_version"))))
         name += std::string(" on Wine ") + wine();
     return name;
+#endif
 }
 
 std::string CpuName() {
@@ -83,6 +87,7 @@ void LogSystem() {
     MEMORYSTATUSEX mem{sizeof(mem)};
     GlobalMemoryStatusEx(&mem);
     LOGR("RAM: %.1f GB", mem.ullTotalPhys / 1073741824.0);
+#ifndef XBE_UWP  // (the Xbox app names its GPU in the D3D12 adapter line)
     // one line per adapter, each monitor reports its own
     std::vector<std::string> seen;
     for (DWORD i = 0;; i++) {
@@ -92,6 +97,7 @@ void LogSystem() {
         seen.emplace_back(dd.DeviceString);
         LOGR("GPU %zu: %s%s", seen.size(), dd.DeviceString, (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) ? " (primary)" : "");
     }
+#endif
     Mode desk = Desktop();
     LOGR("Desktop: %ux%u", desk.width, desk.height);
     LogSettings();

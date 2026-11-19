@@ -27,7 +27,6 @@
 
 #include <imgui.h>
 #include <backends/imgui_impl_dx12.h>
-#include <backends/imgui_impl_win32.h>
 
 #include "app/app.h"
 #include "core/diag.h"
@@ -543,7 +542,7 @@ private:
     D3D12_GRAPHICS_PIPELINE_STATE_DESC FullScreenPipelineDesc(ID3DBlob* vs, ID3DBlob* ps, DXGI_FORMAT rtv) const;
     // Init, in order, each callee right after its caller
     bool CreateDevice();
-    bool CreateSwapChain(HWND hwnd);
+    bool CreateSwapChain();
     void CreateHeaps();
     uint32_t CreateHeap(D3D12_DESCRIPTOR_HEAP_TYPE t, uint32_t n, bool visible, ComPtr<ID3D12DescriptorHeap>& out);
     void CreateBackBufferViews();
@@ -739,9 +738,8 @@ private:
 bool D3D12Backend::Init(uint32_t width, uint32_t height) {
     guest_w_ = width;
     guest_h_ = height;
-    HWND hwnd = static_cast<HWND>(app::Window());
     if (!CreateDevice()) return false;
-    if (!CreateSwapChain(hwnd)) return false;
+    if (!CreateSwapChain()) return false;
     CreateHeaps();
     CreateBackBufferViews();
     if (!CreateRootSignature()) return false;
@@ -799,11 +797,10 @@ bool D3D12Backend::CreateDevice() {
     return true;
 }
 
-bool D3D12Backend::CreateSwapChain(HWND hwnd) {
-    RECT rc;
-    GetClientRect(hwnd, &rc);
-    bb_w_ = std::max<LONG>(rc.right - rc.left, 1);
-    bb_h_ = std::max<LONG>(rc.bottom - rc.top, 1);
+bool D3D12Backend::CreateSwapChain() {
+    app::Mode win = app::WindowSize();
+    bb_w_ = std::max(win.width, 1u);
+    bb_h_ = std::max(win.height, 1u);
     DXGI_SWAP_CHAIN_DESC1 sd{};
     sd.Width = bb_w_;
     sd.Height = bb_h_;
@@ -819,11 +816,22 @@ bool D3D12Backend::CreateSwapChain(HWND hwnd) {
                   (low_latency ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0);
     sd.Flags = swap_flags_;
     ComPtr<IDXGISwapChain1> sc1;
+#ifdef XBE_UWP  // the Xbox app's window is its CoreWindow
+    sd.Scaling = DXGI_SCALING_STRETCH;
+    HRESULT made = factory_->CreateSwapChainForCoreWindow(queue_.Get(), static_cast<IUnknown*>(app::Window()), &sd,
+                                                         nullptr, &sc1);
+    if (FAILED(made)) {
+        LOGE("d3d12: no swap chain (%08lX)", static_cast<unsigned long>(made));
+        return false;
+    }
+#else
+    HWND hwnd = static_cast<HWND>(app::Window());
     if (FAILED(factory_->CreateSwapChainForHwnd(queue_.Get(), hwnd, &sd, nullptr, nullptr, &sc1))) {
         LOGE("d3d12: no swap chain");
         return false;
     }
     factory_->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER);
+#endif
     sc1.As(&swap_);
     if (low_latency && swap_ && SUCCEEDED(swap_->SetMaximumFrameLatency(1))) {
         latency_wait_ = swap_->GetFrameLatencyWaitableObject();
@@ -1362,6 +1370,7 @@ void D3D12Backend::Blit(ID3D12Resource* src, DXGI_FORMAT fmt, const float uvrect
 static bool g_compiler_ms = false;  // which one compiled: part of the shader cache's keys
 static pD3DCompile ShaderCompiler() {
     static pD3DCompile fn = [] {
+#ifndef XBE_UWP  // (an Xbox app loads only DLLs in its package: the system's, which is Microsoft's own there)
         std::filesystem::path dll = app::ExeDir() / L"d3dcompiler_ms.dll";
         if (HMODULE m = LoadLibraryW(dll.wstring().c_str())) {
             if (auto f = reinterpret_cast<pD3DCompile>(GetProcAddress(m, "D3DCompile"))) {
@@ -1370,6 +1379,7 @@ static pD3DCompile ShaderCompiler() {
                 return f;
             }
         }
+#endif
         LOGR("d3d12: shader compiler d3dcompiler_47.dll (the system's)");
         return static_cast<pD3DCompile>(&D3DCompile);
     }();
@@ -2936,11 +2946,9 @@ void D3D12Backend::Copy(const Surface& src, const Surface& dst, uint32_t count, 
 }
 
 void D3D12Backend::ResizeSwap() {
-    HWND hwnd = static_cast<HWND>(app::Window());
-    RECT rc;
-    GetClientRect(hwnd, &rc);
-    uint32_t w = std::max<LONG>(rc.right - rc.left, 1);
-    uint32_t h = std::max<LONG>(rc.bottom - rc.top, 1);
+    app::Mode win = app::WindowSize();
+    uint32_t w = std::max(win.width, 1u);
+    uint32_t h = std::max(win.height, 1u);
     if (w == bb_w_ && h == bb_h_) return;
     Flush();
     for (auto& f : frames_) {
@@ -3029,7 +3037,7 @@ void D3D12Backend::BlitFrame(Target& t) {
 void D3D12Backend::RenderUi() {
     std::lock_guard lock(app::UiLock());
     ImGui_ImplDX12_NewFrame();
-    ImGui_ImplWin32_NewFrame();
+    app::UiNewFrame();
     ImGui::NewFrame();
     if (app::kGame.ui) app::kGame.ui(fps_);
     ImGui::Render();
@@ -3445,8 +3453,12 @@ void D3D12Backend::SaveScreenshot(uint32_t bi) {
         tm.wYear, tm.wMonth, tm.wDay, tm.wHour, tm.wMinute, tm.wSecond,
         tm.wMilliseconds, GetCurrentProcessId(), ++serial);
     const auto path = dir / name;
+#ifdef XBE_UWP  // (CreateFileW is the desktop's)
+    HANDLE file = CreateFile2(path.c_str(), GENERIC_WRITE, 0, CREATE_NEW, nullptr);
+#else
     HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW,
                               FILE_ATTRIBUTE_NORMAL, nullptr);
+#endif
     if (file == INVALID_HANDLE_VALUE) { LOGE("screenshot: cannot create file (%lu)", GetLastError()); return; }
     CloseHandle(file);
     const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -3457,8 +3469,15 @@ void D3D12Backend::SaveScreenshot(uint32_t bi) {
         ComPtr<IWICStream> stream;
         ComPtr<IWICBitmapEncoder> encoder;
         ComPtr<IWICBitmapFrameEncode> frame;
+#ifdef XBE_UWP  // an app creates COM objects through the FromApp call
+        MULTI_QI qi{&IID_IWICImagingFactory, nullptr, S_OK};
+        HRESULT hr = CoCreateInstanceFromApp(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, nullptr, 1, &qi);
+        if (SUCCEEDED(hr)) hr = qi.hr;
+        if (SUCCEEDED(hr)) factory.Attach(static_cast<IWICImagingFactory*>(qi.pItf));
+#else
         HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
                                        IID_PPV_ARGS(&factory));
+#endif
         if (FAILED(hr)) return hr;
         if (FAILED(hr = factory->CreateStream(&stream))) return hr;
         if (FAILED(hr = stream->InitializeFromFilename(path.c_str(), GENERIC_WRITE))) return hr;

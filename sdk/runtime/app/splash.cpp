@@ -1,6 +1,7 @@
 // The boot splash: GameInfo::splash .bmp or .png beside the exe, centred in a borderless window. The game boots behind
 // it with its window hidden and waits at its first frame until the splash has been up kMinimum, since this boot takes
 // a fraction of a second. No file, or a relaunch: no splash.
+#ifndef XBE_UWP  // the Xbox (UWP) build has its own: uwp_main.cpp, input_uwp.cpp
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -135,3 +136,4 @@ void CloseSplash() {
 }
 
 }  // namespace app
+#endif  // XBE_UWP

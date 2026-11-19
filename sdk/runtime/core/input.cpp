@@ -1,5 +1,6 @@
 // controllers through SDL (Xbox, PlayStation and Switch pads) and the GameCube adapter, read into the console
 // controller's report
+#ifndef XBE_UWP  // the Xbox (UWP) build has its own: uwp_main.cpp, input_uwp.cpp
 #include "core/input.h"
 
 #include <algorithm>
@@ -282,4 +283,4 @@ void Rumble(int port, uint16_t left, uint16_t right) {
 }
 
 }  // namespace input
-
+#endif  // XBE_UWP

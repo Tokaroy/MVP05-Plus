@@ -126,12 +126,12 @@ bool FindGame(GameFiles& game) {
     }
 
     if (other_name.empty()) {
-        MessageBoxW(nullptr, kGame.missing, kGame.short_title, MB_ICONERROR);
+        Alert(kGame.missing);
         return false;
     }
     std::wstring text = other_name.filename().wstring() +
         L" does not contain a valid XBE for this game.\n\nPlease provide the correct original Xbox game files.";
-    MessageBoxW(nullptr, text.c_str(), kGame.short_title, MB_ICONERROR);
+    Alert(text.c_str());
     return false;
 }
 

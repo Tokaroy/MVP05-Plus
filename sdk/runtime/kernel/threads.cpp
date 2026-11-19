@@ -87,9 +87,13 @@ void NameHostThread(const char* name) {
     size_t i = 0;
     for (; name[i] && i < 63; i++) w[i] = wchar_t(name[i]);
     w[i] = 0;
+#ifdef XBE_UWP  // (the Xbox has it; an app has no GetModuleHandle to look it up by)
+    SetThreadDescription(GetCurrentThread(), w);
+#else
     using Fn = HRESULT(WINAPI*)(HANDLE, PCWSTR);
     static Fn set = reinterpret_cast<Fn>(reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription")));
     if (set) set(GetCurrentThread(), w);
+#endif
 #else
     pthread_setname_np(pthread_self(), name);
 #endif

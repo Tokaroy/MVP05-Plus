@@ -78,7 +78,12 @@ uint32_t Disc::ReadAt(uint64_t at, void* out, uint32_t len) const {
 
 bool Disc::Open(const std::filesystem::path& path, std::string& error) {
     path_ = path;
-#ifdef _WIN32
+#if defined(_WIN32) && defined(XBE_UWP)  // (CreateFileW is the desktop's)
+    CREATEFILE2_EXTENDED_PARAMETERS ex{sizeof(ex)};
+    ex.dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
+    ex.dwFileFlags = FILE_FLAG_OVERLAPPED;
+    file_ = intptr_t(CreateFile2(path.c_str(), GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, &ex));
+#elif defined(_WIN32)
     file_ = intptr_t(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr));
 #else
     file_ = open(path.c_str(), O_RDONLY);

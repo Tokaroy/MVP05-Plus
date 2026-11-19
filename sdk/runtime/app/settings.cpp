@@ -98,6 +98,9 @@ void LogSettings() {
 }
 
 Mode Desktop() {
+#ifdef XBE_UWP  // the Xbox: its screen is the app's window
+    return WindowSize();
+#else
     HMONITOR mon = MonitorFromWindow(static_cast<HWND>(Window()), MONITOR_DEFAULTTOPRIMARY);
     MONITORINFOEXW mi{};
     mi.cbSize = sizeof(mi);
@@ -106,6 +109,7 @@ Mode Desktop() {
     if (GetMonitorInfoW(mon, &mi) && EnumDisplaySettingsW(mi.szDevice, ENUM_REGISTRY_SETTINGS, &dm))
         return {dm.dmPelsWidth, dm.dmPelsHeight};
     return {uint32_t(GetSystemMetrics(SM_CXSCREEN)), uint32_t(GetSystemMetrics(SM_CYSCREEN))};
+#endif
 }
 
 Mode Output() {

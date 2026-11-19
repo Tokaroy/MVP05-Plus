@@ -54,7 +54,15 @@ struct GameFiles {
 };
 bool FindGame(GameFiles& game);
 int Instance();  // --instance N on the command line, 0 without: a second copy on this PC for system link tests
-void* Window();  // HWND
+void* Window();  // HWND (on the Xbox, the app's CoreWindow as an IUnknown*)
+// the window's drawable size in pixels
+Mode WindowSize();
+// a message for the player: a message box on the PC; on the Xbox, written to the log and shown on screen
+void Alert(const wchar_t* text, bool error = true);
+// whether a key (a Windows virtual-key code) is held now
+bool KeyHeld(int vk);
+// ImGui's platform side for a new frame (display size, time, mouse): the renderer calls it before ImGui::NewFrame
+void UiNewFrame();
 // boot splash: GameInfo::splash .bmp or .png beside the exe, up before the game window
 bool OpenSplash();        // window thread, at launch; false without one, and the game window opens at once
 void SplashFirstFrame();  // the game's first Swap: waits out the splash's minimum, then opens the game window

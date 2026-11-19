@@ -4,6 +4,7 @@
 // Protocol (as Dolphin and SDL use it): write 0x13 to the OUT endpoint to start reports; each 37-byte IN report
 // is 0x21 then four 9-byte ports: status (bits 4-5: 1 wired, 2 wireless; bit 2: rumble power), buttons
 // (A B X Y left right down up), buttons (start Z R L), stick x y, C x y, L, R. Rumble is 0x11 and one byte per port.
+#ifndef XBE_UWP  // the Xbox (UWP) build has its own: uwp_main.cpp, input_uwp.cpp
 #include "core/gc_adapter.h"
 
 #ifndef _WIN32
@@ -715,3 +716,4 @@ void Rumble(int slot, bool on) {
 }  // namespace gcadapter
 
 #endif  // _WIN32
+#endif  // XBE_UWP

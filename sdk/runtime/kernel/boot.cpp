@@ -172,7 +172,11 @@ std::wstring HandoverEvent(unsigned long process) {
 
 void Relaunch(const char* exe) {
     logx::Flush();
-#ifdef _WIN32
+#if defined(_WIN32) && defined(XBE_UWP)
+    // an Xbox app is one executable: a game of more than one image doesn't run there yet
+    LOGE("relaunch into %s: not possible in the Xbox app", exe);
+    Shutdown(1);
+#elif defined(_WIN32)
     wchar_t self[MAX_PATH];
     GetModuleFileNameW(nullptr, self, MAX_PATH);
     std::wstring path = self;

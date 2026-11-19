@@ -11,6 +11,9 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#ifdef XBE_UWP  // an Xbox (UWP) app commits memory with the FromApp call (VirtualAlloc is the desktop's)
+#define VirtualAlloc(a, s, t, p) VirtualAllocFromApp(a, s, t, p)
+#endif
 #else
 #include <sys/mman.h>
 #endif
@@ -35,7 +38,40 @@ void SetPhysicalSize(uint32_t megabytes) {
 
 bool Init() {
     const uint64_t size = 1ull << 32;
-#ifdef _WIN32
+#if defined(_WIN32) && defined(XBE_UWP)
+    // An Xbox (UWP) app has no MapViewOfFileEx: the 4 GB is reserved as a placeholder, split at the two physical
+    // windows, the RAM mapped into those in place of their placeholders, and the rest made plain reservations
+    HANDLE ram = CreateFileMappingFromApp(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, kPhysicalSize, nullptr);
+    const uint64_t cuts[][2] = {{0, kContiguousBase},
+                                {kContiguousBase + kPhysicalSize, kWriteCombineBase},
+                                {kWriteCombineBase + kPhysicalSize, size}};
+    for (uint64_t hint : {0x100000000ull, 0x200000000ull, 0x300000000ull, 0ull}) {
+        if (!ram) break;
+        uint8_t* b = static_cast<uint8_t*>(VirtualAlloc2FromApp(nullptr, reinterpret_cast<void*>(hint), size,
+                                                                MEM_RESERVE | MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS,
+                                                                nullptr, 0));
+        if (!b) continue;
+        bool ok = VirtualFree(b + kContiguousBase, kPhysicalSize, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER) &&
+                  VirtualFree(b + kWriteCombineBase, kPhysicalSize, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER);
+        ok = ok && MapViewOfFile3FromApp(ram, nullptr, b + kContiguousBase, 0, kPhysicalSize, MEM_REPLACE_PLACEHOLDER,
+                                         PAGE_READWRITE, nullptr, 0) == b + kContiguousBase;
+        ok = ok && MapViewOfFile3FromApp(ram, nullptr, b + kWriteCombineBase, 0, kPhysicalSize, MEM_REPLACE_PLACEHOLDER,
+                                         PAGE_READWRITE, nullptr, 0) == b + kWriteCombineBase;
+        for (auto& c : cuts)
+            ok = ok && VirtualAlloc2FromApp(nullptr, b + c[0], size_t(c[1] - c[0]), MEM_RESERVE | MEM_REPLACE_PLACEHOLDER,
+                                            PAGE_NOACCESS, nullptr, 0) == b + c[0];
+        if (ok) {
+            g_base = b;
+            break;
+        }
+        LOGW("memory: the guest space at %p didn't map (%lu), trying another place", static_cast<void*>(b),
+             GetLastError());
+        UnmapViewOfFile(b + kContiguousBase);
+        UnmapViewOfFile(b + kWriteCombineBase);
+        for (auto& c : cuts) VirtualFree(b + c[0], 0, MEM_RELEASE);
+        VirtualFree(b, 0, MEM_RELEASE);
+    }
+#elif defined(_WIN32)
     HANDLE ram = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, kPhysicalSize, nullptr);
     // a fixed base keeps crash dumps comparable between runs
     for (uint64_t hint : {0x100000000ull, 0x200000000ull, 0x300000000ull, 0ull}) {

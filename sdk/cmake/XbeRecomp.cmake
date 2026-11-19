@@ -6,6 +6,11 @@ get_filename_component(XBE_SDK_DIR ${CMAKE_CURRENT_LIST_DIR}/.. ABSOLUTE)
 file(TO_NATIVE_PATH "${XBE_SDK_DIR}" XBE_SDK_DIR_NATIVE)
 file(WRITE ${CMAKE_BINARY_DIR}/sdk_dir.txt "${XBE_SDK_DIR_NATIVE}\n")
 
+# XBE_UWP: the Xbox (UWP, Dev Mode) app instead of the PC executable: its own host (app/uwp_main.cpp) and
+# controllers (core/input_uwp.cpp), no SDL, only what an Xbox app may call (WINAPI_FAMILY_APP, WindowsApp.lib).
+# Build-Xbox.cmd builds and packages it.
+option(XBE_UWP "Build the Xbox (UWP) app" OFF)
+
 include(FetchContent)
 set(ZYDIS_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -21,8 +26,15 @@ set(SDL_RENDER OFF CACHE BOOL "" FORCE)
 set(SDL_GPU OFF CACHE BOOL "" FORCE)
 set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(SDL3 GIT_REPOSITORY https://github.com/libsdl-org/SDL.git GIT_TAG release-3.4.16 GIT_SHALLOW TRUE)
-FetchContent_MakeAvailable(zydis tomlplusplus imgui SDL3)
+if(XBE_UWP)  # (no recompiler tools, and no SDL: the app reads Xbox controllers itself)
+    FetchContent_MakeAvailable(tomlplusplus imgui)
+else()
+    FetchContent_MakeAvailable(zydis tomlplusplus imgui SDL3)
+endif()
 
+# The Xbox app's build uses the generated sources the PC build made (Build-Xbox.cmd runs that first): its tools are
+# PC programs, which the app's runtime libraries can't make
+if(NOT XBE_UWP)
 # x86 to C++ recompiler
 file(GLOB XBE_RECOMP_SOURCES CONFIGURE_DEPENDS ${XBE_SDK_DIR}/tools/recomp/*.cpp)
 add_executable(xbe_recomp ${XBE_RECOMP_SOURCES})
@@ -35,14 +47,21 @@ add_executable(xbe_symbols ${XBE_SDK_DIR}/tools/symbols/main.cpp)
 target_include_directories(xbe_symbols PRIVATE ${XBE_SDK_DIR}/runtime)
 target_compile_definitions(xbe_symbols PRIVATE _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(xbe_symbols PRIVATE Zydis tomlplusplus::tomlplusplus)
+endif()
 
 set(XBE_IMGUI_SOURCES
     ${imgui_SOURCE_DIR}/imgui.cpp
     ${imgui_SOURCE_DIR}/imgui_draw.cpp
     ${imgui_SOURCE_DIR}/imgui_tables.cpp
     ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp)
+if(NOT XBE_UWP)  # (the Xbox app gives ImGui its window size and keys itself)
+    list(APPEND XBE_IMGUI_SOURCES ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp)
+endif()
+if(XBE_UWP)  # ImGui's DX12 backend as it is, with an app's LoadLibrary (app/uwp_compat.h)
+    set_source_files_properties(${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp PROPERTIES
+        COMPILE_OPTIONS "-include;${XBE_SDK_DIR}/runtime/app/uwp_compat.h")
+endif()
 
 # ImGui's Win32 backend reads XInput pad 0 only, and turns gamepad navigation off each frame when there's none (a
 # GameCube controller on the adapter, a PlayStation pad through SDL): the game feeds every controller to ImGui itself
@@ -63,6 +82,12 @@ function(add_xbe_image target xbe config partitions game_dir)
         list(APPEND GEN_SOURCES ${GEN}/x86_recomp.${i}.cpp)
     endforeach()
     file(GLOB configs CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config/*.toml ${XBE_SDK_DIR}/xdk/*/*.toml)
+    if(XBE_UWP)
+        if(NOT EXISTS ${GEN}/x86_func_mapping.cpp)
+            message(FATAL_ERROR "No generated/${game_dir}: build the PC game once first (Build-Xbox.cmd does)")
+        endif()
+        add_custom_target(recompile_${target})
+    else()
     add_custom_command(
         OUTPUT ${GEN}/codegen.stamp
         BYPRODUCTS ${GEN_SOURCES} ${GEN}/x86_recomp_shared.h ${GEN}/image_symbols.h
@@ -73,6 +98,7 @@ function(add_xbe_image target xbe config partitions game_dir)
         COMMENT "Recompiling ${xbe}"
         VERBATIM)
     add_custom_target(recompile_${target} DEPENDS ${GEN}/codegen.stamp)
+    endif()
     set_source_files_properties(${GEN_SOURCES} PROPERTIES GENERATED TRUE
         COMPILE_OPTIONS "-O2;-fno-strict-aliasing;-Wno-unused-label;-Wno-parentheses-equality;-Wno-unused-variable")
     file(GLOB GAME_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/${game_dir}/*.cpp)
@@ -88,7 +114,15 @@ function(add_xbe_image target xbe config partitions game_dir)
     target_include_directories(${target} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
     target_compile_options(${target} PRIVATE -fno-strict-aliasing)
     target_compile_definitions(${target} PRIVATE UNICODE _UNICODE _CRT_SECURE_NO_WARNINGS)
-    target_link_libraries(${target} PRIVATE tomlplusplus::tomlplusplus $<LINK_ONLY:SDL3::SDL3-static> d3d12 dxgi dxguid d3dcompiler xaudio2 ole32 windowscodecs dbghelp winmm dwmapi ws2_32)
+    if(XBE_UWP)
+        # an app container: Windows' app API set (WindowsApp.lib) and the D3D, audio and socket libraries apps have;
+        # the C runtime is the app one (vcruntime140_app: Build-Xbox.cmd puts the store libraries first)
+        target_compile_definitions(${target} PRIVATE XBE_UWP=1 WINAPI_FAMILY=WINAPI_FAMILY_APP)
+        target_link_libraries(${target} PRIVATE tomlplusplus::tomlplusplus WindowsApp d3d12 dxgi dxguid d3dcompiler xaudio2 windowscodecs ws2_32)
+        target_link_options(${target} PRIVATE -Wl,/APPCONTAINER)
+    else()
+        target_link_libraries(${target} PRIVATE tomlplusplus::tomlplusplus $<LINK_ONLY:SDL3::SDL3-static> d3d12 dxgi dxguid d3dcompiler xaudio2 ole32 windowscodecs dbghelp winmm dwmapi ws2_32)
+    endif()
     # lld keeps the recompiled weak functions overridable by the host ones
     target_link_options(${target} PRIVATE -fuse-ld=lld -g)
 endfunction()

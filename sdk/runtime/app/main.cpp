@@ -1,4 +1,6 @@
-// the host: window, message loop, crash dumps; the game is described by app::kGame
+// the host: window, message loop, crash dumps; the game is described by app::kGame. The Xbox (UWP) build has its
+// own, uwp_main.cpp
+#ifndef XBE_UWP
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -292,6 +294,20 @@ int Instance() {
 
 void* Window() { return g_hwnd; }
 
+Mode WindowSize() {
+    RECT rc{};
+    GetClientRect(g_hwnd, &rc);
+    return {uint32_t(std::max<LONG>(rc.right - rc.left, 1)), uint32_t(std::max<LONG>(rc.bottom - rc.top, 1))};
+}
+
+void Alert(const wchar_t* text, bool error) {
+    MessageBoxW(g_hwnd, text, kGame.short_title, error ? MB_ICONERROR : MB_ICONINFORMATION);
+}
+
+bool KeyHeld(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
+
+void UiNewFrame() { ImGui_ImplWin32_NewFrame(); }
+
 std::recursive_mutex& UiLock() {
     static std::recursive_mutex m;
     return m;
@@ -387,3 +403,4 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     logx::Flush();
     kernel::Shutdown(0);
 }
+#endif  // XBE_UWP
