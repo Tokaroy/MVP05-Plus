@@ -10,14 +10,15 @@ files are in the app.
 * A PC with Visual Studio's C++ tools, LLVM Clang, CMake and Ninja (as for `Build-Source.cmd`), plus in the Visual
   Studio Installer the **Universal Windows Platform development** workload with **C++ (v143) Universal Windows
   Platform tools**.
-* Your extracted Xbox game in `assets` (as for the PC build).
+* Your extracted Xbox game in `assets` (as for the PC build), and Python 3 with Pillow (`pip install pillow`).
 
 ## Build the app
 
 From *x64 Native Tools Command Prompt for VS*, in the repository: `Build-Xbox.cmd`. It recompiles the game (as the PC
 build does), builds the Xbox app and packs it in `out\xbox`:
 
-* `MVP05-Plus-Xbox.appx`: the app
+* `MVP05-Plus-Xbox.appx`: the app, its tiles and splash screen made from your disc's MVP Baseball 2005 badge (so
+  keep it to yourself)
 * `Microsoft.VCLibs.x64.14.00.appx`: the C++ runtime it needs
 * `MVP05-Plus-Xbox.cer`: the certificate it's signed with
 

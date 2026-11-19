@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The Xbox (Dev Mode) app's manifest. Build-Xbox.cmd fills in the version and packs it with MVP05.exe and Assets.
-     No game files are in the package: the app runs the game from your MVP05-Plus folder on a USB drive, or from its
-     own storage (LocalState). -->
+<!-- The Xbox (Dev Mode) app's manifest. Build-Xbox.cmd fills in the version and packs it with MVP05.exe and the
+     tiles, made from your disc's title image by make_tiles.py. No other game files are in the package: the app runs
+     the game from your MVP05-Plus folder on a USB drive, or from its own storage (LocalState). -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
@@ -30,10 +30,10 @@
   <Applications>
     <Application Id="App" Executable="MVP05.exe" EntryPoint="MVP05Plus.App">
       <uap:VisualElements DisplayName="MVP05-Plus" Description="MVP Baseball 2005, from your own game files"
-        BackgroundColor="#0b2545" Square150x150Logo="Assets\Square150x150Logo.png"
+        BackgroundColor="#000000" Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
-        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#0b2545" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#000000" />
       </uap:VisualElements>
     </Application>
   </Applications>
