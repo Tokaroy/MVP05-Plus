@@ -666,6 +666,28 @@ void ApplySavedOptions(X86Context& ctx) {
 }
 }  // namespace
 
+// The jukebox: which songs play is the options' 16-bit word at +0xE (a bit a song, the list's first song the lowest;
+// 0xFFFF all on), saved in the Options save after the volumes (0x2CD). A dynasty or owner mode save has options of its
+// own, which the game reads into the main options when it's loaded (0x1C9410, as for an Options save, with more
+// parts: 0x10 is the volumes and the jukebox), so the songs you turned off come back on. After such a read (any but
+// an Options save's, 0x11), the jukebox goes back to your Options save's. The volumes stay the dynasty's.
+X86_EXTERN_FUNC(__imp__sub_001C9410);
+X86_FUNC(sub_001C9410) {
+    uint32_t flags = kernel::R32(ctx.esp + 12), skip = kernel::R32(ctx.esp + 16), stream = kernel::R32(ctx.esp + 20);
+    __imp__sub_001C9410(ctx, base);
+    if (flags == 0x11 || !(flags & 0x10) || (skip && !(skip & 0x10))) return;
+    if (!stream || kernel::R32(stream) != 0x5ADB30) return;  // (reading a save, not writing one)
+    uint32_t options = OptionsObject();
+    std::vector<uint8_t> data;
+    std::string which;
+    if (!options || !savedopts::NewestOptions(data, which)) return;
+    uint16_t mine = uint16_t(data[0x2CD] | data[0x2CE] << 8), had;
+    std::memcpy(&had, kernel::HostPtr(options + 0x0E), 2);
+    if (had == mine) return;
+    std::memcpy(kernel::HostPtr(options + 0x0E), &mine, 2);
+    LOGR("options: a save's own jukebox (%04X) replaced with your Options save's (%04X)", had, mine);
+}
+
 X86_EXTERN_FUNC(__imp__sub_0019E890);
 X86_FUNC(sub_0019E890) {
     uint32_t obj = ctx.ecx, which = kernel::R32(ctx.esp + 4), value = kernel::R32(ctx.esp + 8);
