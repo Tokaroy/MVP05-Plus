@@ -1856,7 +1856,8 @@ function filterT(){var t=document.getElementById('tteam').value,any=false;
  document.getElementById('tnone').style.display=any?'none':'';}
 var SS=[0,0];function pickstats(l,k){if(l!==null)SS[0]=l;if(k!==null)SS[1]=k;tab('sl',SS[0]);tab('sk',SS[1]);
  document.querySelectorAll('.spane').forEach(function(p){p.classList.toggle('on',p.id=='s'+SS[0]+SS[1]);});}
-function renumber(){document.querySelectorAll('table.stats tbody').forEach(function(tb){var n=0;
+function renumber(){document.querySelectorAll('table.stats tbody').forEach(function(tb){var n=0,h=tb.parentNode.tHead;
+ if(!h||!h.rows[0]||h.rows[0].cells[0].textContent!='#')return;
  [].forEach.call(tb.rows,function(r){if(getComputedStyle(r).display!='none')r.cells[0].textContent=++n;});});}
 function sortT(th){var tb=th.closest('table').tBodies[0],i=[].indexOf.call(th.parentNode.children,th);if(i==0)return;
  var down=th.dataset.dir!='down';[].forEach.call(th.parentNode.children,function(x){delete x.dataset.dir;x.classList.remove('sorted');});
