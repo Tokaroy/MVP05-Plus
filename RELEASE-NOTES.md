@@ -2,7 +2,7 @@
 
 ## New in 3.1
 - **Your saved options load at startup:** your newest Options save is applied when the game starts and again after Press Start, so you no longer need Options → Load.
-- **Your jukebox stays yours in dynasties:** a dynasty or owner mode save no longer turns back on the songs you turned off in your Options save.
+- **Jukebox options persist after loading a dynasty save:** a dynasty or owner mode save no longer turns back on the songs you turned off in your Options save.
 - **League News, all-time leaders:** an All-time leaders page with the record books as they stood through 2004, where your league's players climb the lists. Milestone watch shows who's climbing, player pages show each player's all-time ranks, and there's a headline when someone passes a great.
 - **Fixed:** player names on the full Milestone watch page, and positions and ages for players the dynasty made (farm report, injuries, rosters, player pages).
 
