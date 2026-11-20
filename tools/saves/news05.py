@@ -121,6 +121,8 @@ class Database:
         if not os.path.isfile(path):
             raise NewsError("the game isn't installed here (no database.big): League News reads names from it")
         self.root = root
+        self.save_pos = {}  # positions and birth dates from the save, for the players the dynasty made (build sets them)
+        self.save_born = {}
         with open(path, "rb") as f:
             d = potd._big_dir(f)
 
@@ -265,7 +267,7 @@ class Database:
         """RHP, LHP, C, 1B ... OF, DH, or "" when the database doesn't have him."""
         p = self.players.get(key)
         if not p:
-            return ""
+            return self.save_pos.get(key, "")  # (a player the dynasty made: his save record's)
         code = int(p.get(5) or -1)
         if code in (0, 10):
             return "LHP" if p.get(4) == "1" else "RHP"
@@ -283,11 +285,11 @@ class Database:
     def age(self, key, ref):
         """His age on the date ref (from the birth date, column 45: days from 1948-01-01), or None"""
         p = self.players.get(key)
-        try:
-            born = DAY0 + datetime.timedelta(days=int(p.get(45) or 0)) if p else None
+        try:  # (a player the dynasty made: his save record's birth date)
+            born = DAY0 + datetime.timedelta(days=int(p.get(45) or 0) if p else self.save_born.get(key, 0))
         except (TypeError, ValueError):
             return None
-        if not p or born == DAY0:
+        if born == DAY0:
             return None
         return ref.year - born.year - ((ref.month, ref.day) < (born.month, born.day))
 
@@ -444,7 +446,7 @@ def read_save(data):
     for i in range(min(struct.unpack_from("<I", x, end + 1872)[0], 32)):
         k, a, _, w, d1, _ = struct.unpack_from("<IIIIHH", x, end + 1876 + 20 * i)
         feed.append(dict(key=k, value=a, kind=(w >> 2) & 0x3F, word=w, day=d1))
-    names, hurt, contracts = _players(x)
+    names, hurt, contracts, (positions, born) = _players(x)
     rosters = _rosters(x)
     history = _history(x, marks)
     careers = _careers(x)
@@ -453,7 +455,7 @@ def read_save(data):
         user = struct.unpack_from("<I", x, marks[len(marks) - 3] + 8)[0]
     return dict(name=name, kind=kind, records=records, games=games, trades=trades, moves=moves, hurt=hurt,
                 names=names, rosters=rosters, feed=feed, user=user, history=history,
-                careers=careers, contracts=contracts)
+                careers=careers, contracts=contracts, positions=positions, born=born)
 
 
 def _line(b):
@@ -953,7 +955,7 @@ def _players(x):
             break
     else:
         raise NewsError("this save's player list isn't where it should be")
-    names, hurt, contracts = {}, [], {}
+    names, hurt, contracts, positions, born = {}, [], {}, {}, {}
     for i in range(3250):
         key, row, _ = struct.unpack_from("<III", x, start + 8 + 12 * i)
         if row >= 3250:
@@ -973,7 +975,16 @@ def _players(x):
         if f.get("f19"):  # his contract: years left (this season counts) and the salary, in $100,000 steps from
             # $100,000 (f18 37 is the $3.80M a year the game shows)
             contracts[key] = ((f["f18"] + 1) * 100_000, f["f19"])
-    return names, hurt, contracts
+        # his position, bits 341-344 of the record (0 or 10 a pitcher, 1 C, 2 1B ... 6-8 the outfield), and bit 354
+        # his throwing hand (1 left): for the players the dynasty made, whom the game's database doesn't have
+        # (checked against the database's own: 87% the same position, 96% the same hand for pitchers)
+        bits = int.from_bytes(r, "little")
+        code, left = (bits >> 341) & 15, (bits >> 354) & 1
+        if (bits >> 304) & 0x7FFF:  # and his birth date, bits 304-318: days from 1948-01-01 (the database's column 45)
+            born[key] = (bits >> 304) & 0x7FFF
+        positions[key] = ("LHP" if left else "RHP") if code in (0, 10) else \
+            {1: "C", 2: "1B", 3: "2B", 4: "3B", 5: "SS", 6: "OF", 7: "OF", 8: "OF"}.get(code, "")
+    return names, hurt, contracts, (positions, born)
 
 
 def _careers(x):
@@ -1076,6 +1087,8 @@ def _rosters(x):
 # ---- the news ---------------------------------------------------------------------------------------------------
 def build(save, db):
     """Everything the page shows: standings, scores, matchups and ranked headlines."""
+    db.save_pos = save.get("positions") or {}
+    db.save_born = save.get("born") or {}
     teams = db.franchises
     if len(teams) != 30:
         raise NewsError("the game's database doesn't have the 30 franchises")
