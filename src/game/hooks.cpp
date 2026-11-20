@@ -531,7 +531,12 @@ bool NewestOptions(std::vector<uint8_t>& out, std::string& which);  // src/commo
 // memory card screen's), which fills the profile's options object ([db+4], 0x1D5C00), and then sets the volumes from
 // there: five floats from 0 to 1 at 0x631B64 (Broadcast, Game Sound FX, Crowd, Music, Menu Sound FX), set by 0x1804C0
 // (stdcall: which, the volume, whether to keep it in the options too), from the object's bytes at +8 to +0xC.
-// The menus set the volumes from the object again as they open (0x26F6B0 and others). Done here:
+// The menus set the volumes from the object again as they open (0x26F6B0 and others). The two players have copies of
+// the options too ([[0x65727C]+8]+0x10 and [[0x65727C]+0xC]+0x10, the same class: vtable 0x5AE724), which Load
+// leaves at the defaults, and the menus set the volumes from the first player's (with Load's values gone, 205 is the
+// defaults' 0.8, coming back as 206 and 207). So the save is read into the main one and the first player's (in its
+// place at [db+4] for the moment of the read), keeping the player's own name (+0x200, 0x30 bytes: the save has the
+// name of whoever saved it). The second player's is left alone (with no one there it has no name). Done here:
 //  * after Press Start, the memory card screen's autoload (0x50BDD0, only reached inside 0x527670, the screen's
 //    update) puts the volumes back to 0.8 each (0x19E890, 0.8 for all five) and sets them: when 0x527670 has done
 //    that, the whole save again
@@ -567,6 +572,24 @@ void LogVolumes(const char* what, const std::string& which, const uint8_t v[5]) 
          which.c_str(), (v[0] + 25) / 51, (v[1] + 25) / 51, (v[2] + 25) / 51, (v[3] + 25) / 51, (v[4] + 25) / 51);
 }
 
+// the options objects to read the save into: the main one and the first player's (checked to be one)
+int OptionsTargets(uint32_t out[3]) {
+    int n = 0;
+    uint32_t main = OptionsObject();
+    if (!main) return 0;
+    uint32_t vtable = kernel::R32(main);
+    out[n++] = main;
+    uint32_t players = kernel::R32(0x65727C);
+    for (uint32_t i = 0; players && i < 1; i++) {
+        uint32_t holder = kernel::R32(players + 8 + 4 * i);
+        uint32_t obj = holder ? kernel::R32(holder + 0x10) : 0;
+        if (obj && obj != main && kernel::R32(obj) == vtable) out[n++] = obj;
+    }
+    return n;
+}
+
+uint32_t g_loaded[3] = {};  // the objects the save went into (to do it again when one is new)
+
 // the whole save into the options, as Load does, then the volumes from them
 void LoadSavedOptions(X86Context& ctx) {
     std::vector<uint8_t> data;
@@ -575,26 +598,40 @@ void LoadSavedOptions(X86Context& ctx) {
         LOGR("options: no Options save, the game's own options");
         return;
     }
-    uint32_t db = kernel::R32(0x657288), options = OptionsObject();
+    uint32_t db = kernel::R32(0x657288), targets[3] = {};
+    int n = OptionsTargets(targets);
     uint32_t buf = mem::AllocSystem(uint32_t(data.size())), stream = mem::AllocSystem(8);
-    if (!buf || !stream) {
+    if (!n || !buf || !stream) {
         if (buf) mem::FreeSystem(buf);
         if (stream) mem::FreeSystem(stream);
         return;
     }
-    std::memcpy(kernel::HostPtr(buf), data.data(), data.size());
-    kernel::W32(stream, 0x5ADB30);
-    kernel::W32(stream + 4, 0);
-    uint32_t saved_ecx = ctx.ecx;
-    ctx.ecx = db;
-    uint32_t read = kernel::CallGuest(ctx, 0x1C9410, {buf, uint32_t(data.size()), 0x11u, 0u, stream});
+    uint32_t main = targets[0], saved_ecx = ctx.ecx;
+    bool good = true;
+    for (int t = 0; t < n; t++) {
+        std::memcpy(kernel::HostPtr(buf), data.data(), data.size());  // (fresh each time)
+        kernel::W32(stream, 0x5ADB30);
+        kernel::W32(stream + 4, 0);
+        kernel::W32(db + 4, targets[t]);
+        uint8_t name[0x30];
+        std::memcpy(name, kernel::HostPtr(targets[t] + 0x200), sizeof(name));
+        ctx.ecx = db;
+        uint32_t read = kernel::CallGuest(ctx, 0x1C9410, {buf, uint32_t(data.size()), 0x11u, 0u, stream});
+        if (t > 0) std::memcpy(kernel::HostPtr(targets[t] + 0x200), name, sizeof(name));
+        good = good && read == 0x2D3;
+    }
+    kernel::W32(db + 4, main);
     ctx.ecx = saved_ecx;
     mem::FreeSystem(buf);
     mem::FreeSystem(stream);
+    for (int t = 0; t < 3; t++) g_loaded[t] = t < n ? targets[t] : 0;
     uint8_t v[5];
-    std::memcpy(v, kernel::HostPtr(options + 8), 5);
+    std::memcpy(v, kernel::HostPtr(main + 8), 5);
     SetVolumes(ctx, v);
-    LogVolumes(read == 0x2D3 ? "loaded" : "loaded (read an unexpected length)", which, v);
+    char what[64];
+    snprintf(what, sizeof(what), "loaded into %d %s%s", n, n == 1 ? "copy" : "copies (the main one and player 1's)",
+             good ? "" : ", read an unexpected length");
+    LogVolumes(what, which, v);
 }
 
 void ApplySavedOptions(X86Context& ctx) {
@@ -602,6 +639,17 @@ void ApplySavedOptions(X86Context& ctx) {
         static uint8_t last[5] = {};
         static uint32_t last_obj = 0;
         static int told = 0;
+        uint32_t players = kernel::R32(0x65727C), holder = players ? kernel::R32(players + 8) : 0;
+        uint32_t p1 = holder ? kernel::R32(holder + 0x10) : 0;
+        static uint8_t last1[5] = {};
+        static uint32_t last_p1 = 0;
+        if (p1 && told < 20 && (p1 != last_p1 || std::memcmp(kernel::HostPtr(p1 + 8), last1, 5) != 0)) {
+            const uint8_t* v = static_cast<const uint8_t*>(kernel::HostPtr(p1 + 8));
+            LOGR("options: player 1's options (%08X) now have volumes %u %u %u %u %u", p1, v[0], v[1], v[2], v[3], v[4]);
+            std::memcpy(last1, v, 5);
+            last_p1 = p1;
+            told++;
+        }
         uint32_t options = OptionsObject();
         if (options && told < 20) {
             const uint8_t* v = static_cast<const uint8_t*>(kernel::HostPtr(options + 8));
@@ -613,9 +661,16 @@ void ApplySavedOptions(X86Context& ctx) {
             }
         }
     }
-    if (!g_options_pending || !SoundUp()) return;
+    if (!SoundUp()) return;
     uint32_t db = kernel::R32(0x657288);
     if (!db || !kernel::R32(db + 4) || !kernel::R32(db + 0x0C)) return;
+    if (!g_options_pending) {  // a player's copy that's new since (made at Press Start, say)
+        uint32_t targets[3] = {};
+        int n = OptionsTargets(targets);
+        for (int t = 0; t < n && !g_options_pending; t++)
+            g_options_pending = targets[t] != g_loaded[0] && targets[t] != g_loaded[1] && targets[t] != g_loaded[2];
+        if (!g_options_pending) return;
+    }
     g_options_pending = false;
     LoadSavedOptions(ctx);
 }
