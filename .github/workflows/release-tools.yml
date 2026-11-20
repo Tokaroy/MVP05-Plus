@@ -38,6 +38,7 @@ jobs:
         with:
           name: MVP05-Plus-Launcher
           path: dist/MVP05-Plus-Launcher.exe
+          retention-days: 1  # the release script downloads them at once (kept a day, not 90: Actions storage)
 
   gcbridge:
     runs-on: ubuntu-latest
@@ -49,3 +50,4 @@ jobs:
         with:
           name: gcbridge
           path: gcbridge
+          retention-days: 1  # the release script downloads them at once (kept a day, not 90: Actions storage)
