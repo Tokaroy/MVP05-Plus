@@ -534,9 +534,8 @@ bool NewestOptions(std::vector<uint8_t>& out, std::string& which);  // src/commo
 // The menus set the volumes from the object again as they open (0x26F6B0 and others). Done here:
 //  * when 0x1AF4A0 (thiscall, a bool) puts the profile's options to their defaults (0.8 each: after Press Start):
 //    the volumes go in the object at once (for the menu opening), and the whole save at the end of the frame
-//  * once at the start, as soon as the sound and the options are up
-//  * and the volumes again 2 seconds after a dynasty or owner mode is loaded (the dynasty object at [0x658250]
-//    appears), in case loading it set them too
+//  * and once at the start, as soon as the sound and the options are up
+// (A dynasty keeps volumes of its own, which it sets when it's loaded: those are left alone.)
 namespace {
 bool g_options_pending = true;
 
@@ -596,23 +595,6 @@ void LoadSavedOptions(X86Context& ctx) {
 }
 
 void ApplySavedOptions(X86Context& ctx) {
-    static uint32_t dynasty = 0, dynasty_frames = 0;
-    uint32_t now = kernel::R32(0x658250);
-    if (now != dynasty) {
-        dynasty = now;
-        dynasty_frames = 0;
-    }
-    if (dynasty && ++dynasty_frames == 120) {
-        std::vector<uint8_t> data;
-        std::string which;
-        if (savedopts::NewestOptions(data, which)) {
-            uint32_t options = OptionsObject();
-            if (options)
-                for (uint32_t i = 0; i < 5; i++) *static_cast<uint8_t*>(kernel::HostPtr(options + 8 + i)) = data[0x2C8 + i];
-            SetVolumes(ctx, data.data() + 0x2C8);
-            LogVolumes("dynasty loaded, volumes again from", which, data.data() + 0x2C8);
-        }
-    }
     if (!g_options_pending || !SoundUp()) return;
     uint32_t db = kernel::R32(0x657288);
     if (!db || !kernel::R32(db + 4) || !kernel::R32(db + 0x0C)) return;
