@@ -531,21 +531,22 @@ bool NewestOptions(std::vector<uint8_t>& out, std::string& which);  // src/commo
 // memory card screen's), which fills the profile's options object ([db+4], 0x1D5C00), and then sets the volumes from
 // there: five floats from 0 to 1 at 0x631B64 (Broadcast, Game Sound FX, Crowd, Music, Menu Sound FX), set by 0x1804C0
 // (stdcall: which, the volume, whether to keep it in the options too), from the object's bytes at +8 to +0xC.
-// The menus set the volumes from the object again as they open (0x26F6B0 and others). The two players have copies of
-// the options too ([[0x65727C]+8]+0x10 and [[0x65727C]+0xC]+0x10, the same class: vtable 0x5AE724), which Load
-// leaves at the defaults, and the menus set the volumes from the first player's (with Load's values gone, 205 is the
-// defaults' 0.8, coming back as 206 and 207). So the save is read into the main one and the first player's (in its
-// place at [db+4] for the moment of the read), keeping the player's own name (+0x200, 0x30 bytes: the save has the
-// name of whoever saved it). The second player's is left alone (with no one there it has no name). Done here:
-//  * after Press Start, the memory card screen's autoload (0x50BDD0, only reached inside 0x527670, the screen's
-//    update) puts the volumes back to 0.8 each (0x19E890, 0.8 for all five) and sets them: when 0x527670 has done
-//    that, the whole save again
-//  * when 0x1AF4A0 (thiscall, a bool) puts the profile's options to their defaults: the volumes go in the object at
-//    once (for the menu opening), and the whole save at the end of the frame
-//  * and once at the start, as soon as the sound and the options are up
-// (A dynasty keeps volumes of its own, which it sets when it's loaded: those are left alone.)
+// The menus set the volumes from the object again as they open (0x26F6B0 and others). Each player has a copy of the
+// options too ([[0x65727C]+8+4n]+0x10, the same class: vtable 0x5AE724), which Load leaves alone; the menus use the
+// copy of whoever pressed Start (player 2's for a second controller). So the save is read into all three: the main
+// one, then each player's in its place at [db+4] for the moment of the read, keeping the player's own name (+0x200,
+// 0x30 bytes: the save has the name of whoever saved it, and a player with no one there has none).
+//
+// When it's done:
+//  * once at the start, as soon as the sound and the options are up, and when a player's copy is new
+//  * and whenever the game puts one of them back to its defaults: 0x19E890 (thiscall: which volume, a float; it keeps
+//    the byte) called with 0.8 for all five volumes of one copy in a frame. The memory card screen's autoload does
+//    that after Press Start (0x50BDD0, in 0x527670), then sets the volumes from it (205, coming back as 206: each pass
+//    through the floats rounds up), and so does 0x1AF4A0 when it makes a profile's options. A volume moved to 4 on
+//    the Audio Options screen is 0.8 too, but one at a time.
 namespace {
 bool g_options_pending = true;
+uint32_t g_defaulted_obj = 0, g_defaulted_mask = 0;  // 0.8 set this frame: the copy, which of its volumes
 
 uint32_t OptionsObject() {
     uint32_t db = kernel::R32(0x657288);
@@ -572,7 +573,7 @@ void LogVolumes(const char* what, const std::string& which, const uint8_t v[5]) 
          which.c_str(), (v[0] + 25) / 51, (v[1] + 25) / 51, (v[2] + 25) / 51, (v[3] + 25) / 51, (v[4] + 25) / 51);
 }
 
-// the options objects to read the save into: the main one and the first player's (checked to be one)
+// the options objects to read the save into: the main one and the players' (checked to be one)
 int OptionsTargets(uint32_t out[3]) {
     int n = 0;
     uint32_t main = OptionsObject();
@@ -580,7 +581,7 @@ int OptionsTargets(uint32_t out[3]) {
     uint32_t vtable = kernel::R32(main);
     out[n++] = main;
     uint32_t players = kernel::R32(0x65727C);
-    for (uint32_t i = 0; players && i < 1; i++) {
+    for (uint32_t i = 0; players && i < 2; i++) {
         uint32_t holder = kernel::R32(players + 8 + 4 * i);
         uint32_t obj = holder ? kernel::R32(holder + 0x10) : 0;
         if (obj && obj != main && kernel::R32(obj) == vtable) out[n++] = obj;
@@ -629,7 +630,7 @@ void LoadSavedOptions(X86Context& ctx) {
     std::memcpy(v, kernel::HostPtr(main + 8), 5);
     SetVolumes(ctx, v);
     char what[64];
-    snprintf(what, sizeof(what), "loaded into %d %s%s", n, n == 1 ? "copy" : "copies (the main one and player 1's)",
+    snprintf(what, sizeof(what), "loaded into %d %s%s", n, n == 1 ? "copy" : "copies (the main one and the players')",
              good ? "" : ", read an unexpected length");
     LogVolumes(what, which, v);
 }
@@ -661,6 +662,17 @@ void ApplySavedOptions(X86Context& ctx) {
             }
         }
     }
+    if (g_defaulted_mask == 0x1F) {  // all five of a copy put to 0.8 this frame: back to the defaults
+        uint32_t targets[3] = {};
+        int n = OptionsTargets(targets);
+        for (int t = 0; t < n; t++)
+            if (targets[t] == g_defaulted_obj && !g_options_pending) {
+                LOGR("options: %08X put back to the defaults, loading yours again", g_defaulted_obj);
+                g_options_pending = true;
+            }
+    }
+    g_defaulted_obj = 0;
+    g_defaulted_mask = 0;
     if (!SoundUp()) return;
     uint32_t db = kernel::R32(0x657288);
     if (!db || !kernel::R32(db + 4) || !kernel::R32(db + 0x0C)) return;
@@ -676,35 +688,16 @@ void ApplySavedOptions(X86Context& ctx) {
 }
 }  // namespace
 
-X86_EXTERN_FUNC(__imp__sub_00527670);
-X86_FUNC(sub_00527670) {
-    uint32_t options = OptionsObject();
-    uint8_t before[5] = {};
-    if (options) std::memcpy(before, kernel::HostPtr(options + 8), 5);
-    __imp__sub_00527670(ctx, base);
-    if (!options || options != OptionsObject()) return;
-    const uint8_t* now = static_cast<const uint8_t*>(kernel::HostPtr(options + 8));
-    static const uint8_t kDefaults[5] = {0xCD, 0xCD, 0xCD, 0xCD, 0xCD};  // (0.8)
-    if (std::memcmp(now, before, 5) == 0 || std::memcmp(now, kDefaults, 5) != 0) return;
-    std::vector<uint8_t> data;
-    std::string which;
-    if (!savedopts::NewestOptions(data, which) || std::memcmp(data.data() + 0x2C8, kDefaults, 5) == 0) return;
-    uint32_t eax = ctx.eax;
-    LOGR("options: put back to the defaults (the memory card screen), loading yours again");
-    LoadSavedOptions(ctx);
-    ctx.eax = eax;
-}
-
-X86_EXTERN_FUNC(__imp__sub_001AF4A0);
-X86_FUNC(sub_001AF4A0) {
-    uint32_t options = ctx.ecx, defaults = kernel::R32(ctx.esp + 4) & 0xFF;
-    __imp__sub_001AF4A0(ctx, base);
-    if (!defaults || !options) return;
-    std::vector<uint8_t> data;
-    std::string which;
-    if (!savedopts::NewestOptions(data, which)) return;
-    for (uint32_t i = 0; i < 5; i++) *static_cast<uint8_t*>(kernel::HostPtr(options + 8 + i)) = data[0x2C8 + i];
-    if (options == OptionsObject()) g_options_pending = true;  // (the rest at the end of the frame)
+X86_EXTERN_FUNC(__imp__sub_0019E890);
+X86_FUNC(sub_0019E890) {
+    uint32_t obj = ctx.ecx, which = kernel::R32(ctx.esp + 4), value = kernel::R32(ctx.esp + 8);
+    __imp__sub_0019E890(ctx, base);
+    if (value != 0x3F4CCCCDu || which > 4) return;  // (0.8)
+    if (obj != g_defaulted_obj) {
+        g_defaulted_obj = obj;
+        g_defaulted_mask = 0;
+    }
+    g_defaulted_mask |= 1u << which;
 }
 
 // Things the Tools menu asks the game to do, run by the game's own thread at the end of a frame: the two functions
