@@ -359,7 +359,7 @@ static void TraceSave(const std::string& host, uint32_t disposition) {
     if (low.find("udata") == std::string::npos || low.find("data.dat") == std::string::npos) return;
     if (told.fetch_add(1) >= 60) return;
     LOGR("save file: opened (disposition %u) %s", disposition, host.c_str());
-    if (Current()) LogGuestStack(*Current()->ctx, 96);
+    if (Current()) LogGuestStack(*Current()->ctx, 600);  // (deep: the game's own code is far above the save library's)
 }
 
 KERNEL_EXPORT(190, NtCreateFile, 9) {
