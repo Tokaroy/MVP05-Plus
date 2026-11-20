@@ -532,8 +532,11 @@ bool NewestOptions(std::vector<uint8_t>& out, std::string& which);  // src/commo
 // there: five floats from 0 to 1 at 0x631B64 (Broadcast, Game Sound FX, Crowd, Music, Menu Sound FX), set by 0x1804C0
 // (stdcall: which, the volume, whether to keep it in the options too), from the object's bytes at +8 to +0xC.
 // The menus set the volumes from the object again as they open (0x26F6B0 and others). Done here:
-//  * when 0x1AF4A0 (thiscall, a bool) puts the profile's options to their defaults (0.8 each: after Press Start):
-//    the volumes go in the object at once (for the menu opening), and the whole save at the end of the frame
+//  * after Press Start, the memory card screen's autoload (0x50BDD0, only reached inside 0x527670, the screen's
+//    update) puts the volumes back to 0.8 each (0x19E890, 0.8 for all five) and sets them: when 0x527670 has done
+//    that, the whole save again
+//  * when 0x1AF4A0 (thiscall, a bool) puts the profile's options to their defaults: the volumes go in the object at
+//    once (for the menu opening), and the whole save at the end of the frame
 //  * and once at the start, as soon as the sound and the options are up
 // (A dynasty keeps volumes of its own, which it sets when it's loaded: those are left alone.)
 namespace {
@@ -595,6 +598,21 @@ void LoadSavedOptions(X86Context& ctx) {
 }
 
 void ApplySavedOptions(X86Context& ctx) {
+    {  // the options' volumes whenever they change (the first 20), to see what sets them
+        static uint8_t last[5] = {};
+        static uint32_t last_obj = 0;
+        static int told = 0;
+        uint32_t options = OptionsObject();
+        if (options && told < 20) {
+            const uint8_t* v = static_cast<const uint8_t*>(kernel::HostPtr(options + 8));
+            if (options != last_obj || std::memcmp(v, last, 5) != 0) {
+                LOGR("options: the options (%08X) now have volumes %u %u %u %u %u", options, v[0], v[1], v[2], v[3], v[4]);
+                std::memcpy(last, v, 5);
+                last_obj = options;
+                told++;
+            }
+        }
+    }
     if (!g_options_pending || !SoundUp()) return;
     uint32_t db = kernel::R32(0x657288);
     if (!db || !kernel::R32(db + 4) || !kernel::R32(db + 0x0C)) return;
@@ -602,6 +620,25 @@ void ApplySavedOptions(X86Context& ctx) {
     LoadSavedOptions(ctx);
 }
 }  // namespace
+
+X86_EXTERN_FUNC(__imp__sub_00527670);
+X86_FUNC(sub_00527670) {
+    uint32_t options = OptionsObject();
+    uint8_t before[5] = {};
+    if (options) std::memcpy(before, kernel::HostPtr(options + 8), 5);
+    __imp__sub_00527670(ctx, base);
+    if (!options || options != OptionsObject()) return;
+    const uint8_t* now = static_cast<const uint8_t*>(kernel::HostPtr(options + 8));
+    static const uint8_t kDefaults[5] = {0xCD, 0xCD, 0xCD, 0xCD, 0xCD};  // (0.8)
+    if (std::memcmp(now, before, 5) == 0 || std::memcmp(now, kDefaults, 5) != 0) return;
+    std::vector<uint8_t> data;
+    std::string which;
+    if (!savedopts::NewestOptions(data, which) || std::memcmp(data.data() + 0x2C8, kDefaults, 5) == 0) return;
+    uint32_t eax = ctx.eax;
+    LOGR("options: put back to the defaults (the memory card screen), loading yours again");
+    LoadSavedOptions(ctx);
+    ctx.eax = eax;
+}
 
 X86_EXTERN_FUNC(__imp__sub_001AF4A0);
 X86_FUNC(sub_001AF4A0) {
