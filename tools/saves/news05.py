@@ -1071,6 +1071,60 @@ def milestones(save, db, stats):
     return near, reached
 
 
+def _fold(name):
+    """A name to compare by: no accents, dots, "Jr." or case (Andrés Galarraga, Cal Ripken Jr.)"""
+    import unicodedata
+    n = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower().replace(".", "")
+    return " ".join(w for w in n.split() if w not in ("jr", "sr", "ii", "iii"))
+
+
+ALL_TIME_MOST = 50  # how far down each all-time list goes
+
+
+def all_time(save, db, careers=None):
+    """{label: [(total, name, key or None)]}: each MILESTONES stat's all-time list, the best ALL_TIME_MOST: the careers
+    in the save (the 2005 players' real seasons and the dynasty's, and the players it made) among the ones who had
+    retired by 2004 (alltime05). A retired player who is in the save too counts once, from the save."""
+    import alltime05 as A
+    car = careers if careers is not None else (save.get("careers") or {})
+    names = save.get("names") or {}
+    out = {}
+    for side, stat, label, _, _ in MILESTONES:
+        mine = [(c[stat], names.get(k) or db.name(k) or "", k) for k, c in car.get(side, {}).items() if c[stat] > 0]
+        have = {_fold(n) for _, n, _ in mine if n}
+        rows = mine + [(t, n, None) for n, t in A.RETIRED.get(label, []) if _fold(n) not in have]
+        rows.sort(key=lambda r: (-r[0], r[1]))
+        out[label] = rows[:ALL_TIME_MOST]
+    return out
+
+
+def all_time_rank(rows, total):
+    """Where a total ranks on a list (1 is the top; ties share a rank)"""
+    return 1 + sum(1 for t, _, _ in rows if t > total)
+
+
+def climbing(save, db, lists, near_reach=1):
+    """[(key, team, label, passing name, their total, to go, rank once past)]: the active players within reach (as the
+    milestones count it) of passing a retired great on an all-time list, closest first"""
+    on = {k: db.franchises[i] for i, ks in save["rosters"].items() if i < len(db.franchises) for k in ks}
+    car = save.get("careers") or {}
+    out = []
+    for side, stat, label, _, reach in MILESTONES:
+        rows = lists.get(label, [])
+        for k, c in car.get(side, {}).items():
+            team = on.get(k)
+            if team is None:
+                continue
+            have = c[stat]
+            above = [r for r in rows if r[0] > have and r[2] is None and r[0] - have <= reach * near_reach]
+            if above:
+                t, n, _ = min(above, key=lambda r: r[0])
+                out.append((k, team, label, n, t, t - have, all_time_rank(rows, t)))
+    reach = {x_[2]: x_[4] for x_ in MILESTONES}
+    out.sort(key=lambda z: (z[6], z[5] / reach[z[2]]))
+    return out
+
+
 def _rosters(x):
     """{franchise index 0-29: [player keys]}: the 25 on each big-league club, from the roster blocks (FORMAT_NOTES
     3.1: 4 lineup units, then 25 player keys), in the franchises' order."""
@@ -1397,6 +1451,8 @@ def build(save, db):
     stories.sort(key=lambda s: -s["score"])
     stats = season_stats(save, db)
     near, reached = milestones(save, db, stats)
+    lists = all_time(save, db)
+    climb = climbing(save, db, lists)
     prev_car = (save.get("prev") or {}).get("careers")
     if prev_car and last_day:  # marks passed since the previous edition (the newest earlier backup): news today
         for k, t, label, m in reached:
@@ -1404,6 +1460,21 @@ def build(save, db):
             if prev_car[side].get(k, {}).get(stat, 0) < m:
                 add((0.6 + m / marks[-1]) * WEIGHTS["milestone"], "Milestone", f"{last(k)} reaches {m:,} {label}",
                     f"{who(k)} of the {db.full(t)} reached {m:,} career {label}.", last_day, [t], [k])
+        # a retired great passed on an all-time list since the previous edition
+        on = {k: db.franchises[i] for i, ks in save["rosters"].items() if i < len(db.franchises) for k in ks}
+        for side, stat, label, marks, _ in MILESTONES:
+            rows = lists.get(label, [])
+            for k, c in (save.get("careers") or {}).get(side, {}).items():
+                was, now = prev_car[side].get(k, {}).get(stat, 0), c[stat]
+                passed = [r for r in rows if r[2] is None and was <= r[0] < now]
+                if not passed or k not in on:
+                    continue
+                top = max(passed, key=lambda r: r[0])
+                rank = all_time_rank(rows, now)
+                add((0.5 + (ALL_TIME_MOST - rank) / ALL_TIME_MOST) * WEIGHTS["milestone"], "Milestone",
+                    f"{last(k)} passes {top[1]} on the all-time {label} list",
+                    f"{who(k)} of the {db.full(on[k])} has {now:,} career {label}, past {top[1]}'s {top[0]:,}: "
+                    f"{_ord(rank)} all-time.", last_day, [on[k]], [k])
         stories.sort(key=lambda s_: -s_["score"])
     headlines = _spread(stories, recent=today - 10)
     results = [g for g in played if g["day"] == last_day] if last_day else []
@@ -1420,7 +1491,7 @@ def build(save, db):
                 next_day=day(next_day) if next_day else None, divisions=divisions, wildcard=wildcard,
                 results=results, upcoming=tomorrow, headlines=headlines, postseason=postseason,
                 # big-league clubs' deals first, then the farm teams'
-                milestones=(near, reached),
+                milestones=(near, reached), all_time=lists, climbing=climb,
                 trades=sorted((s for s in stories if s["kind"] == "Trade"), key=lambda s: -s["day"]),
                 injuries=sorted((s for s in stories if s["kind"] == "Injury"),
                                 key=lambda s: (not s["big_club"], -s["days"])),
@@ -1746,6 +1817,7 @@ a.score{display:block;color:#000;text-decoration:none}a.score:hover{border-color
 .tk button.on{background:#212c5d;color:#fff;border-color:#212c5d}
 .tday h3{font:bold 12px Arial,Helvetica,sans-serif;color:#333;background:#dcdcdc;margin:8px 0 2px;padding:3px 6px}
 .spane{display:none}.spane.on{display:block;overflow-x:auto}
+.atgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px 20px}.atgrid b{display:block;margin:6px 0 2px}tr.retired td{color:#777}
 table.stats th{cursor:pointer;white-space:nowrap}table.stats th.sorted{background:#dcdcdc}
 table.stats td:nth-child(2),table.stats th:nth-child(2),table.stats td:nth-child(3),table.stats th:nth-child(3){text-align:left}
 #stats tr.nq{display:none}#stats.all tr.nq{display:table-row}#stats tr.nq td{color:#777}
@@ -2282,6 +2354,7 @@ def render(news):
     out.append(stats_page(news, lg, PL, TM))
     out.append(transactions_page(news, lg, story))
     out.append(milestones_page(news, lg, PL, TM))
+    out.append(alltime_page(news, lg, PL, TM))
     out.append(awards_page(news, lg, PL, TM))
     out.append(playoffs_page(news, lg, TM, gid))
     out.append(farm_page(news, lg, PL))
@@ -2307,7 +2380,7 @@ def render(news):
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
                f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
                "function route(){var h=location.hash.slice(1),t=h.indexOf('team-')==0||h.indexOf('sched-')==0?document.getElementById(h):null;"
-               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(['stats','transactions','milestones','awards','farm','power','playoffs'].indexOf(h)>=0)t=document.getElementById(h);"
+               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(['stats','transactions','milestones','alltime','awards','farm','power','playoffs'].indexOf(h)>=0)t=document.getElementById(h);"
                "document.querySelectorAll('.teampage').forEach(function(p){p.style.display=p==t?'block':'none'});"
                "document.querySelector('.cols').style.display=t?'none':'flex';if(t){window.scrollTo(0,0);return;}"
                "var el=h&&document.getElementById(h);if(el){var d=el.closest('.dpane');if(d)pickday(+d.id.slice(1));"
@@ -2565,6 +2638,9 @@ def _career_bits(news, k, hitter):
         nxt = next((m for m in marks if m > car[stat]), None)
         if nxt is not None and nxt - car[stat] <= 3 * reach:
             ms.append(f"{nxt - car[stat]} {label} from {nxt:,}")
+        rows = (news.get("all_time") or {}).get(label, [])
+        if any(r[2] == k for r in rows):
+            ms.append(f"{_ord(all_time_rank(rows, car[stat]))} all-time in {label}")
     return dict(car=[car[c] for c in cols], ms=ms)
 
 
@@ -2924,7 +3000,15 @@ def milestones_page(news, lg, PL, TM):
         now = car.get(side, {}).get(k, {}).get(stat, m - gap)
         out.append(f"<tr><td>{PL(k)}</td><td>{lg(t)}{TM(t, db.short(t))}</td><td>{now:,} {label}</td><td>{m:,}</td>"
                    f"<td>{gap}</td></tr>")
-    out.append("</tbody></table></div>")
+    out.append("</tbody></table><p><a href='#alltime'>All-time leaders &rsaquo;</a></p></div>")
+    climb = news.get("climbing") or []
+    if climb:
+        out.append("<div class=mh>Climbing the all-time lists</div><div class=mb><table class=stats><thead><tr>"
+                   "<th>Player</th><th>Club</th><th>Next to pass</th><th>To go</th><th>Would be</th></tr></thead><tbody>")
+        for k, t, label, n, tot, gap, rank in climb[:40]:
+            out.append(f"<tr><td>{PL(k)}</td><td>{lg(t)}{TM(t, db.short(t))}</td><td>{html.escape(n)}, {tot:,} {label}"
+                       f"</td><td>{gap}</td><td>{_ord(rank)} all-time</td></tr>")
+        out.append("</tbody></table></div>")
     if reached:
         out.append("<div class=mh>Reached this season</div><div class=mb><table class=stats><thead><tr><th>Player</th>"
                    "<th>Club</th><th>Mark</th></tr></thead><tbody>")
@@ -2932,6 +3016,34 @@ def milestones_page(news, lg, PL, TM):
             out.append(f"<tr><td>{PL(k)}</td><td>{lg(t)}{TM(t, db.short(t))}</td><td>{m:,} {label}</td></tr>")
         out.append("</tbody></table></div>")
     out.append("</div></div>")
+    return "".join(out)
+
+
+def alltime_page(news, lg, PL, TM):
+    """#alltime: each stat's all-time leaders, the retired greats (through 2004) and the save's players together"""
+    lists = news.get("all_time") or {}
+    if not any(lists.values()):
+        return ""
+    db, on = news["db"], news.get("team_of") or {}
+    out = ["<div class=teampage id=alltime><a class=back href='#top'>&lsaquo; Back to the front page</a>"
+           "<div class=mod><div class=mh>All-time leaders</div><div class=mb><p class=date>Careers through this "
+           "season. In gray, the greats who had retired by 2004, and Barry Bonds, who isn't in the game (his totals "
+           "through 2004). The rest are your league's players: every big-league season counts, real and played.</p>"
+           "<div class=atgrid>"]
+    for _, _, label, _, _ in MILESTONES:
+        rows = lists.get(label, [])[:25]
+        out.append(f"<div><b>{label[:1].upper() + label[1:]}</b><table class=stats><thead><tr><th>Rank</th><th>Player</th>"
+                   f"<th>Total</th></tr></thead><tbody>")
+        for tot, n, k in rows:
+            rank = all_time_rank(lists[label], tot)
+            if k is None:
+                out.append(f"<tr class=retired><td>{rank}</td><td>{html.escape(n)}</td><td>{tot:,}</td></tr>")
+            else:
+                t = on.get(k)
+                club = lg(db.org_of.get(t, t)) if t in db.org_of or t in db.franchises else ""
+                out.append(f"<tr><td>{rank}</td><td>{club}{PL(k)}</td><td>{tot:,}</td></tr>")
+        out.append("</tbody></table></div>")
+    out.append("</div></div></div></div>")
     return "".join(out)
 
 
