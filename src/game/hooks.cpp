@@ -532,8 +532,10 @@ bool NewestVolumes(uint8_t out[5], std::string& which);  // src/common/saved_opt
 // volumes from there again as they open (0x26F6B0 and others), so that's where yours go:
 //  * 0x1AF4A0 (thiscall, a bool) puts the options to their defaults when a profile's are made; after it, the
 //    volumes are the newest Options save's instead of 0.8 (and set at once, when the sound is up)
-//  * and once at the start, as soon as the sound manager is up, for the start screen (and the options object too, if
+//  * once at the start, as soon as the sound manager is up, for the start screen (and the options object too, if
 //    it's there by then)
+//  * and again 2 seconds after a dynasty or owner mode is loaded (the dynasty object at [0x658250] appears), in case
+//    loading it set them too
 namespace {
 void SetVolumes(X86Context& ctx, const uint8_t v[5], uint32_t options) {
     if (options)
@@ -555,7 +557,21 @@ void LogVolumes(const char* when, const std::string& which, const uint8_t v[5]) 
 
 void ApplySavedVolumes(X86Context& ctx) {
     static bool done = false;
-    static uint32_t frames = 0;
+    static uint32_t frames = 0, dynasty = 0, dynasty_frames = 0;
+    uint32_t now = kernel::R32(0x658250);
+    if (now != dynasty) {
+        dynasty = now;
+        dynasty_frames = 0;
+    }
+    if (dynasty && done && ++dynasty_frames == 120) {
+        uint8_t v[5];
+        std::string which;
+        uint32_t db = kernel::R32(0x657288);
+        if (savedopts::NewestVolumes(v, which)) {
+            SetVolumes(ctx, v, db ? kernel::R32(db + 4) : 0);
+            LogVolumes("dynasty loaded", which, v);
+        }
+    }
     if (done || ++frames < 30) return;
     uint32_t sound = kernel::R32(0x654164);
     if (!sound || !kernel::R32(sound)) return;
