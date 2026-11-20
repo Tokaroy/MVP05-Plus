@@ -527,43 +527,64 @@ bool NewestVolumes(uint8_t out[5], std::string& which);  // src/common/saved_opt
 // Your saved audio options at the start, as Options > Load would put them (the game itself starts at its own
 // volumes, 0.8 each, until you load the Options save). The volumes are five floats from 0 to 1 at 0x631B64 (Broadcast,
 // Game Sound FX, Crowd, Music, Menu Sound FX: the save's order), set by 0x1804C0 (stdcall: which, the volume, and
-// whether to keep it in the options too), which hands it to the sound manager ([0x654164]) at once. Options > Load
-// calls it for each with the save's byte / 255 (0x1E3D40). Done once, as soon as the sound manager is up; the options
-// are kept too (as Load does) once the profiles are there to keep them ([[0x657288]+4]: the Load path's own check),
-// or else the volumes alone are set, after 10 seconds.
+// whether to keep it in the options too), which hands it to the sound manager ([0x654164]) at once. The options keep
+// them as bytes (0 to 255) at +8 to +0xC of the options object ([[0x657288]+4], 0x1D5C00), and the menus set the
+// volumes from there again as they open (0x26F6B0 and others), so that's where yours go:
+//  * 0x1AF4A0 (thiscall, a bool) puts the options to their defaults when a profile's are made; after it, the
+//    volumes are the newest Options save's instead of 0.8 (and set at once, when the sound is up)
+//  * and once at the start, as soon as the sound manager is up, for the start screen (and the options object too, if
+//    it's there by then)
 namespace {
-void ApplySavedVolumes(X86Context& ctx) {
-    static int state = 0;  // 0 waiting, 1 done
-    static uint32_t frames = 0;
-    if (state || ++frames < 30) return;
+void SetVolumes(X86Context& ctx, const uint8_t v[5], uint32_t options) {
+    if (options)
+        for (uint32_t i = 0; i < 5; i++) *static_cast<uint8_t*>(kernel::HostPtr(options + 8 + i)) = v[i];
     uint32_t sound = kernel::R32(0x654164);
     if (!sound || !kernel::R32(sound)) return;
-    uint32_t db = kernel::R32(0x657288);
-    bool keep = db && kernel::R32(db + 4);
-    if (!keep && frames < 600) return;
-    state = 1;
+    for (uint32_t i = 0; i < 5; i++) {
+        float f = float(v[i]) / 255.0f;
+        uint32_t bits;
+        std::memcpy(&bits, &f, 4);
+        kernel::CallGuest(ctx, 0x1804C0, {i, bits, 0u});
+    }
+}
+
+void LogVolumes(const char* when, const std::string& which, const uint8_t v[5]) {
+    LOGR("options: %s, the volumes from %s: %u %u %u %u %u of 5 (Broadcast, Game Sound FX, Crowd, Music, Menu Sound FX)",
+         when, which.c_str(), (v[0] + 25) / 51, (v[1] + 25) / 51, (v[2] + 25) / 51, (v[3] + 25) / 51, (v[4] + 25) / 51);
+}
+
+void ApplySavedVolumes(X86Context& ctx) {
+    static bool done = false;
+    static uint32_t frames = 0;
+    if (done || ++frames < 30) return;
+    uint32_t sound = kernel::R32(0x654164);
+    if (!sound || !kernel::R32(sound)) return;
+    done = true;
     uint8_t v[5];
     std::string which;
     if (!savedopts::NewestVolumes(v, which)) {
         LOGR("options: no Options save, the game's own volumes");
         return;
     }
-    if (keep) {  // the setter asks 0xAB4E0 (made on first use, [0x65825C]) which way to keep them: only once it's made,
-                 // and its other way (+0xB2 set: a profile in [0x65A690]) only when that's there
-        uint32_t made = kernel::R32(0x65825C);
-        if (!made || ((kernel::R32(made + 0xB0) >> 16 & 0xFF) && !kernel::R32(0x65A690))) keep = false;
-    }
-    for (uint32_t i = 0; i < 5; i++) {
-        float f = float(v[i]) / 255.0f;
-        uint32_t bits;
-        std::memcpy(&bits, &f, 4);
-        kernel::CallGuest(ctx, 0x1804C0, {i, bits, keep ? 1u : 0u});
-    }
-    LOGR("options: volumes from %s: %u %u %u %u %u of 5 (Broadcast, Game Sound FX, Crowd, Music, Menu Sound FX)%s",
-         which.c_str(), (v[0] + 25) / 51, (v[1] + 25) / 51, (v[2] + 25) / 51, (v[3] + 25) / 51, (v[4] + 25) / 51,
-         keep ? "" : ", not kept in the options");
+    uint32_t db = kernel::R32(0x657288);
+    SetVolumes(ctx, v, db ? kernel::R32(db + 4) : 0);
+    LogVolumes("at the start", which, v);
 }
 }  // namespace
+
+X86_EXTERN_FUNC(__imp__sub_001AF4A0);
+X86_FUNC(sub_001AF4A0) {
+    uint32_t options = ctx.ecx, defaults = kernel::R32(ctx.esp + 4) & 0xFF;
+    __imp__sub_001AF4A0(ctx, base);
+    if (!defaults || !options) return;
+    uint8_t v[5];
+    std::string which;
+    if (!savedopts::NewestVolumes(v, which)) return;
+    uint32_t eax = ctx.eax;
+    SetVolumes(ctx, v, options);
+    ctx.eax = eax;
+    LogVolumes("options made", which, v);
+}
 
 // Things the Tools menu asks the game to do, run by the game's own thread at the end of a frame: the two functions
 // that hand a finished frame to D3D (0x2F9320 and 0x2F8D00, around D3DDevice_Swap).
