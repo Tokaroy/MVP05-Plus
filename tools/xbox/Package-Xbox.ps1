@@ -36,9 +36,9 @@ function SdkTool($name) {
 $makeappx = SdkTool "makeappx.exe"
 $signtool = SdkTool "signtool.exe"
 
-# the package's version: 3.0 and the build's date and time (each part under 65536), so each build is newer
+# the package's version: 3.1 and the build's date and time (each part under 65536), so each build is newer
 $now = Get-Date
-$version = "3.0.{0}.{1}" -f [int]$now.ToString("MMdd"), [int]$now.ToString("HHmm")
+$version = "3.1.{0}.{1}" -f [int]$now.ToString("MMdd"), [int]$now.ToString("HHmm")
 $manifest = Get-Content (Join-Path $PSScriptRoot "AppxManifest.xml") -Raw
 Set-Content -Path (Join-Path $stage "AppxManifest.xml") -Value $manifest.Replace("@VERSION@", $version) -Encoding UTF8
 Copy-Item $exe $stage
