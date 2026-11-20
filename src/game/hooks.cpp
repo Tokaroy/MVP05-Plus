@@ -636,32 +636,6 @@ void LoadSavedOptions(X86Context& ctx) {
 }
 
 void ApplySavedOptions(X86Context& ctx) {
-    {  // the options' volumes whenever they change (the first 20), to see what sets them
-        static uint8_t last[5] = {};
-        static uint32_t last_obj = 0;
-        static int told = 0;
-        uint32_t players = kernel::R32(0x65727C), holder = players ? kernel::R32(players + 8) : 0;
-        uint32_t p1 = holder ? kernel::R32(holder + 0x10) : 0;
-        static uint8_t last1[5] = {};
-        static uint32_t last_p1 = 0;
-        if (p1 && told < 20 && (p1 != last_p1 || std::memcmp(kernel::HostPtr(p1 + 8), last1, 5) != 0)) {
-            const uint8_t* v = static_cast<const uint8_t*>(kernel::HostPtr(p1 + 8));
-            LOGR("options: player 1's options (%08X) now have volumes %u %u %u %u %u", p1, v[0], v[1], v[2], v[3], v[4]);
-            std::memcpy(last1, v, 5);
-            last_p1 = p1;
-            told++;
-        }
-        uint32_t options = OptionsObject();
-        if (options && told < 20) {
-            const uint8_t* v = static_cast<const uint8_t*>(kernel::HostPtr(options + 8));
-            if (options != last_obj || std::memcmp(v, last, 5) != 0) {
-                LOGR("options: the options (%08X) now have volumes %u %u %u %u %u", options, v[0], v[1], v[2], v[3], v[4]);
-                std::memcpy(last, v, 5);
-                last_obj = options;
-                told++;
-            }
-        }
-    }
     if (g_defaulted_mask == 0x1F) {  // all five of a copy put to 0.8 this frame: back to the defaults
         uint32_t targets[3] = {};
         int n = OptionsTargets(targets);
