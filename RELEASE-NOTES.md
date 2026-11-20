@@ -1,53 +1,110 @@
-# MVP05-Plus Beta 3.0
+# MVP05-Plus Beta 3.1
 
-League News, mods, Game Tweaks, your own season schedules, short seasons that finish on their own, and more than four saves of a type.
+## New in 3.1
+- **Your saved options load at startup:** your newest Options save is applied when the game starts and again after Press Start, so you no longer need Options → Load.
+- **League News, all-time leaders:** an All-time leaders page with the record books as they stood through 2004, where your league's players climb the lists. Milestone watch shows who's climbing, player pages show each player's all-time ranks, and there's a headline when someone passes a great.
+- **Fixed:** player names on the full Milestone watch page, and positions and ages for players the dynasty made (farm report, injuries, rosters, player pages).
+
+League News, mods, Game Tweaks, custom season schedules, short seasons that end on their own, and active and inactive saves.
 
 ## Highlights
-- **Mods** (the Launcher's new Mods tab): *Add a mod…* from a folder or from files (or a zip), give it a name, and each of its files goes in place of the game's own file of that path or name, found for you (when the game has a file in more than one place, you pick). The list shows each mod with a checkbox, its name, its file types and its size; right-click a mod to turn it on or off, rename it, open its folder, export it as a zip (to share it) or remove it. A mod can come with a `mod.ini` whose `title` names it. When two mods have the same file, the one added first wins, and the list says so. Your game files are never changed: mods sit in their own folder beside the game, and one that's off isn't used. The Game Tweaks work on top of them: a tweak that changes a file a mod replaces starts from the mod's version.
-- **Create a schedule** (*Schedule → Create a schedule…*): a season of any even number of games from 12 to 162. Every team plays the same number of games, exactly half at home, in 2 to 4-game series. Interleague as in 2005, matchups you choose, a new matchup each dynasty year, or none (with interleague, 30 games or more). Natural rivals every year if you like, and the All-Star Game hosted by the AL, the NL, or each in turn. A different season for each of the three dynasty years, previewed team by team before you save it to your list.
-- **Share a schedule** (*Schedule → Export…*): a schedule you created or imported (or one made for MVP05-Plus) as a small zip. *Import a schedule…* takes the zip as it is.
-- **Dynasty goals fit the season:** goals that count games or stats (home and road wins, total wins, team home runs, pitchers' wins, players' home runs) are scaled to your season's length, and so is the win percentage goal (its target and the figure shown beside it). A 40/40 season counts at the same pace (about 11 home runs and 11 steals in 46 games). A 3-year goal of 100 home wins is 28 in a 46-game season.
-- **Short seasons end on their own:** a season shorter than 162 games goes on to the playoffs by itself. The game counts the games in your schedule when it starts, so it works whichever schedule is installed and however it got there.
-- **Drag and drop** in the Launcher: drag a mod's folder, zip or files onto the *Mods* tab, or a save onto the *Saves* tab or the *Import a save* window. (Windows doesn't allow drops onto a program run as administrator; the buttons still work.)
-- **Payroll Budget** (*Tools* tab): your team's payroll budget, and in owner mode the owner's bank balance, changed in the save. In the game, F10's *Dynasty* tab does the same for the one that's loaded.
-- **Unlock everything** (*Settings* tab): every stadium, team, player, jersey and Legend, for whoever signs in, without spending MVP points.
-- **EA's debug menu** (in-game Tools menu, F10, Extras): the developers' own menu is still in the game, and a button opens it: cameras, replays, rendering, fielding tests and more. It was never meant for players and can break a game in progress (being tested).
-- **Game Tweaks**: changes to how the game plays, built into MVP05-Plus. All are off unless you pick them (MVP 05 Default).
-  - *Dynasty adjustments* (Tools tab): **pitchers' rest** (slow down how fast pitchers get their stamina back, so a starter needs about four days like a five-man rotation and a busy bullpen tires), **injury length** (injured players out half as long, or up to twice as long), and how fast players **develop** and **age**, how often they **retire**, what players **ask for** in new contracts (free agents and your own), the chance your players **re-sign**, and more star-level **rookies** (EA's own data tables, and the game's asking-price code for contracts).
-  - *Graphics…* (Settings tab): more detailed players away from the play (the game keeps six at full detail and ten at the next level, and draws umpires and far fielders with two simpler models: on by default: the first ten of those get the second-best model); day games in daylight at Fenway, Turner Field and the other parks EA lit as dusk (the lighting, and a day sky from one of EA's own day parks); **rain** at every outdoor park (the game has rain, but only at SBC Park and at Safeco Field at night: showers in about 2 games in 9 there; this gives every outdoor park the same, or rain in every game).
-  - *Mods* tab, at the bottom: **memory** doubled from the Xbox's 64 MB to 128 MB, growing the game's heap from 41 MB to 97 MB, for mods that load more than the Xbox could hold.
-- **Extras** (in-game Tools menu, F10): **Unlock everything** and **Add MVP points**, EA's own from their debug menu, for the profile you're signed in with.
-- **Dynasty** (in-game Tools menu): set your **Owner Mode bank balance** and your team's **payroll budget**, and **hold your manager rating** so you keep your job.
+- **Mods** (new *Mods* tab): add a mod from a folder, files or a zip. Each file replaces the game's matching file. Turn mods on or off, rename, export as a zip or remove them. If two mods change the same file, the one added first wins. Your game files are never changed.
+- **Create a schedule** (*Schedule → Create a schedule…*): any even number of games from 12 to 162, half at home, in 2 to 4-game series. Choose interleague matchups, natural rivals and the All-Star host, with a different season for each dynasty year.
+- **Share a schedule** (*Schedule → Export…*): as a small zip, which *Import a schedule…* takes as it is.
+- **Short seasons end on their own:** a season under 162 games goes to the playoffs by itself, whichever schedule is installed.
+- **Dynasty goals fit the season:** win, home run and win percentage goals scale to your season's length.
+- **Drag and drop:** mods onto *Mods*, saves onto *Saves* or *Import a save*.
+- **Payroll Budget** (*Tools*): change your team's payroll budget, and the owner's bank balance in owner mode.
+- **Unlock everything** (*Settings*): all stadiums, teams, players, jerseys and Legends without spending MVP points.
+- **EA's debug menu** (F10 → *Extras*): the developers' own menu. It can break a game in progress (being tested).
+- **Game Tweaks** (all off by default):
+  - *Dynasty adjustments* (*Tools*): pitcher rest (five-man rotation), injury length, player development, aging, retirement, contract demands, re-signing and star rookies.
+  - *Graphics…* (*Settings*): more detailed players away from the play, day games in daylight at dusk-lit parks, and rain at any outdoor park.
+  - *Mods* tab: double the game's memory (64 MB to 128 MB) for larger mods.
+- **In-game Tools (F10):** *Extras* adds Unlock everything and MVP points. *Dynasty* sets the Owner Mode bank balance and payroll budget, and can hold your manager rating.
 
-## League News (new, first version)
-- **League News** (the *League News* button at the bottom right of *Play*, for your newest dynasty or owner mode; or right-click any save in *Saves*): your league in your browser, an MVP Baseball site laid out like a baseball front page from 2006, with the MVP Baseball 2005 badge from your own disc (Team Sites list, scoreboard, your club, hot and cold streaks, tabbed standings, matchups, a navy news column, expanded standings). **Scores & recaps** (a tab a day, oldest to newest) writes up every game of the last seven game days: the line score (runs by inning, extra innings together before the last one, then R, H and E), what happened (walk-offs, extra innings, shutouts, one-hitters, no-hitters, slugfests), streaks made or snapped, how the series and the season series stand, and where both clubs are in their divisions afterwards; the day's biggest game leads as the Game of the Day, and the scoreboard's boxes jump to their recaps. **Team pages**: every club in *Team Sites* (or a club's name in the standings) opens its page: record, place, streak and splits, the last 10 games (linked to their recaps) and the next ones, the 25-man roster with each player's season line (AB, AVG, HR, RBI, R, SB; G, W-L, ERA, SV, IP, SO), and the club's news, injuries and transactions. **Player pages**: click a player anywhere (leaders, rosters, transactions, injuries, headlines) for his position, club (and farm club), number, bats and throws, age, his 2005 contract while it runs, a status box (an injury, his latest move), and season-by-season line from the save's player history (his real seasons, then the dynasty's, minor-league years with their clubs; this season highlighted, career totals), and the stories about him. Club names link to their pages everywhere (standings, matchups, scores, recaps, transactions, Your club). **Stats** (the menu, or *Full list* under the leaders): every big-leaguer's season so far, by league, hitting (G, AB, R, H, HR, RBI, SB, BB, SO, AVG, OBP, SLG, OPS, OPS+) and pitching (G, W, L, SV, IP, ER, BB, SO, ERA, ERA+, K/9); click a column to sort, qualified players first. OPS+ and ERA+ compare a player with his league that season (100 is average; not adjusted for parks). OPS, OPS+ and ERA+ are on the rosters and the players' pages too, OPS in the leaders (for the seasons played in the dynasty: the real seasons before 2005 don't keep walks and total bases). In the postseason the season's final leaders stay up, qualified over the games the season had (a dynasty's season can be shorter than 162). **Transactions** (the menu, or *All transactions* under the front page's box): every trade and roster move by day, newest first, filtered by club and by kind (trades, signings, call-ups, send-downs, farm moves). It reaches back past the save's own last 30 trades and 60 moves through the game's backups of that dynasty (the game copies the saves each time it starts, keeping 30). Moves read as the game's ticker has them: a move into another organization without a trade is a signing. **Hitting and pitching leaders** (left column, a box each): the top ten in each league in batting average, home runs and RBI, and in wins, ERA, saves and strikeouts, read from the save as the game's own League Leaders screen shows them (at least 2.7 at-bats a team game for average, an inning every three team games for ERA); before a season's first game, last season's, made from the save. It has the latest scores, standings by division with games back, last 10 and streaks, the wild card races, tomorrow's best matchups, the transactions wire (newest first) and the injury report. The top stories are ranked by how big the players are (star power, salary, top prospects), how much the teams' races make it matter, what happened (trades, injuries, call-ups, no-hitters, marathons, routs, streaks, a new division leader) and how recent it is. Your team's latest news always makes the front page. Transactions read like a wire report ("The Texas Rangers acquired RHP Vicente Padilla, 3B Hank Blalock and 2B Edgardo Alfonzo from the Chicago White Sox for ...", farm teams with their big-league club and level). The injury report lists every hurt player with his team and how long he's out ("about 3 weeks, expected back around September 4", or for the rest of the season), big-league clubs first. Names are the save's own, dynasty-made players included; positions, star power and salaries come from your own game. Nothing in the save is changed. Each injury is named as the game names it ("out with a torn rotator cuff for the rest of the season"), suspensions too, and the teams' logos are on the scoreboard, the standings and the top story; both are read from your game. Not in it yet: All-Star votes.
-- **League News, more pages**: **Milestone watch** (left column, and a page): active players closing in on career marks (500 home runs, 3,000 hits, 2,000 RBIs, 300 wins, 3,000 strikeouts, 400 saves and the round numbers on the way), counting every big-league season, real and played, with a headline when someone gets there. **Awards races**: MVP, Cy Young and Rookie of the Year in each league, the leaders and why, on the front page and a page of their own. **Farm report** (*Farm* in the menu, and *Down on the farm* on the front page): the top 30 prospects (the game's top prospects, the dynasty's own draftees, and anyone 23 or under, ranked by how they're doing at their level), the AAA, AA and Class A leaders, and each club's farm teams' best hitters and pitchers on its team page. **Power rankings**: all 30 clubs ranked on the record, run differential and last 10, with arrows for the move since a week of games before and a line about each. **Team pages** show the club's division standings and its league's wild card race. **Schedules**: each club's whole season month by month (results with the record after each game, linked to their recaps, then the games to come) and its season series with every opponent (won, lost, left, home and road). **Player pictures** on player pages, from your own game's portraits (made once into *league news\faces*). **Contracts** on player pages are the save's own, re-signings included (as the game's Payroll screen shows them). **Injuries** are now on the right player: they had been read one player off. **Playoffs** (*Playoffs* in the menu, and the bracket in place of the standings on the front page): the bracket, every series game by game with links to the recaps, what's next in each series, and headlines when a series is won. **Back issues**: each League News is kept by its game day (*league news/<save>/2007-04-29.html*), and every edition has *Previous issue*, *Next issue*, *Latest* and a *Back issues* list; *league news/<save>.html* opens the newest. The newest 120 editions of a save are kept.
+## League News (first version)
+Your league as a 2000s-style baseball website, opened from *Play* or by right-clicking a save. Nothing in the save is changed.
+- **Front page:** scores, standings, wild card, matchups, top stories, transactions and injuries.
+- **Scores & recaps:** line scores and write-ups for the last seven game days.
+- **Team pages:** record, splits, roster stats, schedule, season series, division standings and wild card.
+- **Player pages:** picture, contract, status and career stats.
+- **Stats:** sortable hitting and pitching for every player, including OPS+ and ERA+.
+- **Leaders, milestones, awards races, farm report, power rankings and transactions:** each with its own page.
+- **Playoffs:** the bracket and every series game by game.
+- **Back issues:** the newest 120 editions of each save are kept.
 
 ## Saves
-- **More than four saves of a type** (*Saves*, *Your saves*): the game holds 4 saves of each type (dynasty, owner mode, rosters ...). Each save now has a checkbox, as mods do: ticked saves are in the game; untick one (or right-click, Deactivate) and the Launcher keeps it (in *save library* beside MVP05.exe) until you tick it again. With 4 of that type ticked already, it asks which one to untick to make room. Nothing in a save changes; if the game has a save of the same name, it can go back under another. League News, Export and Share work on unticked saves too, and deleting one backs it up first.
-- Rosters, dynasties and owner modes go **both ways** between your Xbox saves and the PS2, GameCube and PC versions: *Saves → Import a save…* brings one in, *Export…* (or a right-click on a save) sends one out, built on a save of yours from that console.
-- **Owner mode saves** move between consoles too: *Import a save…* takes an owner mode from the PS2, GameCube, PC or another Xbox, and *Export…* (or a right-click on it in *Your saves*) takes one to the GameCube, PS2 or PC. As with dynasties, each goes into an owner mode save of your own on the console it goes to. Being tested.
-- **Export a dynasty to the GameCube, the PS2 or the PC** (*Saves → Your saves*, right-click a dynasty → *Export to…*): writes a .gci for Dolphin's Memory Card Manager, a .psu for a PS2 memory card, or a PC .sav, built on one of your own dynasty saves from there. The GameCube and the PS2 keep each player's last 6 seasons of history; the PC keeps all 16.
-- **Export rosters to the GameCube, PS2 or PC** (*Saves*: pick a roster save, *Export…*, or right-click it): built on a roster save of yours from that console, as dynasties are.
-- **GameCube dynasty imports** keep a traded player's older seasons that could be dropped before.
-- **Exports straight onto a PS2 memory card:** choose your PCSX2 memory card (`.ps2`) to build on and the save is written onto the card in place of the one it was built on (rosters, dynasty or owner mode), so the game loads it straight away. A copy of the card is kept first in *save backups\memory cards*, and the Launcher asks you to close PCSX2 if it's running. Or choose *No* to save a copy of the card instead. A `.psu` still gives a `.psu`.
-- **Dolphin GameCube memory cards (.raw):** import a save straight from your Dolphin card (you pick the save if there's more than one), and export onto the card itself in place of the save it's built on, ready to load (a copy of the card is kept first, and Dolphin has to be closed; or save a copy of the card instead). No Memory Card Manager steps. (Made-up cards only so far: tell us if your card isn't read.)
-- **Dolphin's GCI Folder mode (its default) and its own settings:** Import and Export read Dolphin's settings (Config/Dolphin.ini) to find the cards it actually uses, Slot A and B: a .raw card, or in GCI Folder mode the folder of .gci files (GC/USA/Card A, or the folder you set). Its MVP 2005 saves are listed first to pick from (or *Somewhere else* for a file). An export built on a save in the GCI folder goes straight into that folder under a name of its own (<name>2, then <name>3 ...), so you just start the game in Dolphin and load it. A card is now also recognized by its directory's and block table's checksums (as Dolphin writes them), not only by the size in its header, so a card under any name or of an unusual size reads. When a card has nothing to build on, the message lists the MVP 2005 saves it does have (an export needs a GameCube save of the same kind on it: a dynasty for a dynasty), or says it has none, or that they're from a non-US version; a file that isn't read as a card says what it looks like, and that goes in MVP05-Plus-Launcher.log too.
-- **Import as a new save:** instead of replacing one of yours, pick *As a new save…* at the end of the list and name it. It's made in the folder the game itself would use for that name, so saving it in the game keeps one copy.
-- **Copy, rename and delete saves** (*Saves*, right-click a save): a copy under a new name (to try something in a dynasty without losing it), the save renamed, or deleted (backed up first). A copy or a renamed save goes in the folder the game uses for the name.
-- **PC and GameCube exports get a name of their own:** the new .sav is named and called inside like the PC game names its saves (RESOX2_Dynasty.sav is RESOX2 in the game), so saving it in the PC game doesn't write over the save it was built on. A GameCube .gci export is <name>2 too, so Dolphin puts it on the card beside the one it was built on (an export onto a Dolphin card still takes that save's place).
-- **Saves in a zip or a folder:** *Import a save* (or a drop on the Saves tab) takes a zip or a folder as people share them, and finds the save in it (you pick one if there are several). *Export… → As a zip, to share* (or right-click a save) makes that zip from one of yours.
-- **Import and export remember where you were:** the file pickers open in the folder you last chose from, or the first time in Dolphin's or PCSX2's own card folder.
-- **Problems are written down:** a failed import or export, or anything unexpected in the Launcher, goes to `MVP05-Plus-Launcher.log` beside MVP05.exe, and the message says which part of the save it was.
-- **The Launcher's backups show in Saves → Backups:** the copy of a save made before an import, a Payroll Budget or Playoffs change, a rename or a delete is listed by date ("before importing a dynasty" and so on) and restores from there. Restoring one of those puts back only that save; your other saves stay. (The ones earlier test builds made are in the *save backups* folder beside MVP05.exe, but not in the list.)
-- **Standings Projector on a saved dynasty past the All-Star break:** the save keeps each team's record in two halves, split at the break. The Launcher's projector refused a save once the second half had started, which is when a short season ends. It now projects into both halves, as the in-game one does.
-- **Played dynasties to and from the GameCube:** the converters find each team's roster by its 4 lineups in a row. In a played season, a team's data can end in bytes that look like one more lineup, and the converter counted 127 teams and stopped ("rosters didn't come out as expected"). Seen on a KC 2006 dynasty when exporting it to the GameCube; GameCube imports find the teams the same way, which may be what stopped the Stros import. Fixed in both directions, and that dynasty now goes to the GameCube and back exactly. A team's lineup unit is now found by its marker alone, so a lineup slot holding an unexpected value (an empty slot, say) no longer hides it; one hidden and one extra gave the "no ring chain" error when KCRTEST was exported to the GameCube.
+- **Active and inactive saves:** keep more than four saves of a type. Check a save to make it active in the game, or uncheck it to make it inactive. With four already active, the Launcher asks which one to make inactive.
+- **Imports and exports** for rosters, dynasties and owner modes, between Xbox, PS2, GameCube and PC. Each is built on a save of yours from that console. Owner mode is being tested.
+- **Memory cards:** exports go straight onto a PCSX2 (`.ps2`) or Dolphin card, or into Dolphin's GCI folder. A backup of the card is made first. Dolphin's settings are read to find the card it uses.
+- **Import as a new save** instead of replacing one.
+- **Copy, rename and delete** saves (right-click). Deleted saves are backed up first.
+- **Zips and folders:** import from a shared zip or folder, or export a save as a zip.
+- File pickers remember the last folder you used.
+- Problems are written to `MVP05-Plus-Launcher.log`.
+- The Launcher's own backups are listed in *Saves → Backups* and restore only that save.
+
+## Fixes
+- Played dynasties now convert to and from the GameCube correctly ("rosters didn't come out as expected" and "no ring chain" errors).
+- GameCube dynasty imports keep a traded player's older seasons.
+- The Standings Projector works on saves past the All-Star break.
 
 ## Changed
-- **Standings Projector** (was the Short Season Advancer): no longer needed for short seasons. It's kept for a dynasty stuck at the end of a short season from an older version: in the game it's now a checkbox in F10's *Extras* tab.
+- **Standings Projector** (was the Short Season Advancer): short seasons no longer need it. It's still in F10 → *Extras* if you want statistics and standings closer to a full 162-game season.
 
-## Known issues
-- **Switching schedules mid-season:** a new schedule starts with the next season, and the season you're in is played out at its own length (the game reads it from the dynasty itself). One limit: if you switch during the playoffs, the new length is used at once, so switch before the playoffs or after them.
+## Updating
+From Beta 2, 2.1, 2.5 or 3.0: *Settings → Updates*. From Beta 1: unzip into a new folder and bring your old one over when the Launcher asks.
+
+# MVP05-Plus Beta 3.0
+
+League News, mods, Game Tweaks, custom season schedules, short seasons that end on their own, and active and inactive saves.
+
+## Highlights
+- **Mods** (new *Mods* tab): add a mod from a folder, files or a zip. Each file replaces the game's matching file. Turn mods on or off, rename, export as a zip or remove them. If two mods change the same file, the one added first wins. Your game files are never changed.
+- **Create a schedule** (*Schedule → Create a schedule…*): any even number of games from 12 to 162, half at home, in 2 to 4-game series. Choose interleague matchups, natural rivals and the All-Star host, with a different season for each dynasty year.
+- **Share a schedule** (*Schedule → Export…*): as a small zip, which *Import a schedule…* takes as it is.
+- **Short seasons end on their own:** a season under 162 games goes to the playoffs by itself, whichever schedule is installed.
+- **Dynasty goals fit the season:** win, home run and win percentage goals scale to your season's length.
+- **Drag and drop:** mods onto *Mods*, saves onto *Saves* or *Import a save*.
+- **Payroll Budget** (*Tools*): change your team's payroll budget, and the owner's bank balance in owner mode.
+- **Unlock everything** (*Settings*): all stadiums, teams, players, jerseys and Legends without spending MVP points.
+- **EA's debug menu** (F10 → *Extras*): the developers' own menu. It can break a game in progress (being tested).
+- **Game Tweaks** (all off by default):
+  - *Dynasty adjustments* (*Tools*): pitcher rest (five-man rotation), injury length, player development, aging, retirement, contract demands, re-signing and star rookies.
+  - *Graphics…* (*Settings*): more detailed players away from the play, day games in daylight at dusk-lit parks, and rain at any outdoor park.
+  - *Mods* tab: double the game's memory (64 MB to 128 MB) for larger mods.
+- **In-game Tools (F10):** *Extras* adds Unlock everything and MVP points. *Dynasty* sets the Owner Mode bank balance and payroll budget, and can hold your manager rating.
+
+## League News (first version)
+Your league as a 2000s-style baseball website, opened from *Play* or by right-clicking a save. Nothing in the save is changed.
+- **Front page:** scores, standings, wild card, matchups, top stories, transactions and injuries.
+- **Scores & recaps:** line scores and write-ups for the last seven game days.
+- **Team pages:** record, splits, roster stats, schedule, season series, division standings and wild card.
+- **Player pages:** picture, contract, status and career stats.
+- **Stats:** sortable hitting and pitching for every player, including OPS+ and ERA+.
+- **Leaders, milestones, awards races, farm report, power rankings and transactions:** each with its own page.
+- **Playoffs:** the bracket and every series game by game.
+- **Back issues:** the newest 120 editions of each save are kept.
+
+## Saves
+- **Active and inactive saves:** keep more than four saves of a type. Check a save to make it active in the game, or uncheck it to make it inactive. With four already active, the Launcher asks which one to make inactive.
+- **Imports and exports** for rosters, dynasties and owner modes, between Xbox, PS2, GameCube and PC. Each is built on a save of yours from that console. Owner mode is being tested.
+- **Memory cards:** exports go straight onto a PCSX2 (`.ps2`) or Dolphin card, or into Dolphin's GCI folder. A backup of the card is made first. Dolphin's settings are read to find the card it uses.
+- **Import as a new save** instead of replacing one.
+- **Copy, rename and delete** saves (right-click). Deleted saves are backed up first.
+- **Zips and folders:** import from a shared zip or folder, or export a save as a zip.
+- File pickers remember the last folder you used.
+- Problems are written to `MVP05-Plus-Launcher.log`.
+- The Launcher's own backups are listed in *Saves → Backups* and restore only that save.
+
+## Fixes
+- Played dynasties now convert to and from the GameCube correctly ("rosters didn't come out as expected" and "no ring chain" errors).
+- GameCube dynasty imports keep a traded player's older seasons.
+- The Standings Projector works on saves past the All-Star break.
+
+## Changed
+- **Standings Projector** (was the Short Season Advancer): short seasons no longer need it. It's still in F10 → *Extras* if you want statistics and standings closer to a full 162-game season.
 
 ## Updating
 From Beta 2, 2.1 or 2.5: *Settings → Updates*. From Beta 1: unzip into a new folder and bring your old one over when the Launcher asks.
