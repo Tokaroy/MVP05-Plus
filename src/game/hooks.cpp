@@ -539,13 +539,15 @@ bool NewestOptions(std::vector<uint8_t>& out, std::string& which);  // src/commo
 //
 // When it's done:
 //  * once at the start, as soon as the sound and the options are up, and when a player's copy is new
-//  * and whenever the game puts one of them back to its defaults: 0x19E890 (thiscall: which volume, a float; it keeps
+//  * and again the first time the game puts one of them back to its defaults, after which the game is left alone (a
+//    later reset, or a Defaults button, works as it always has): 0x19E890 (thiscall: which volume, a float; it keeps
 //    the byte) called with 0.8 for all five volumes of one copy in a frame. The memory card screen's autoload does
 //    that after Press Start (0x50BDD0, in 0x527670), then sets the volumes from it (205, coming back as 206: each pass
 //    through the floats rounds up), and so does 0x1AF4A0 when it makes a profile's options. A volume moved to 4 on
 //    the Audio Options screen is 0.8 too, but one at a time.
 namespace {
 bool g_options_pending = true;
+bool g_options_done = false;  // the first reset after the start handled: nothing more
 uint32_t g_defaulted_obj = 0, g_defaulted_mask = 0;  // 0.8 set this frame: the copy, which of its volumes
 
 uint32_t OptionsObject() {
@@ -636,13 +638,15 @@ void LoadSavedOptions(X86Context& ctx) {
 }
 
 void ApplySavedOptions(X86Context& ctx) {
+    if (g_options_done && !g_options_pending) return;  // (the last load can wait for the sound)
     if (g_defaulted_mask == 0x1F) {  // all five of a copy put to 0.8 this frame: back to the defaults
         uint32_t targets[3] = {};
         int n = OptionsTargets(targets);
         for (int t = 0; t < n; t++)
             if (targets[t] == g_defaulted_obj && !g_options_pending) {
-                LOGR("options: %08X put back to the defaults, loading yours again", g_defaulted_obj);
+                LOGR("options: %08X put back to the defaults, loading yours again (the last time)", g_defaulted_obj);
                 g_options_pending = true;
+                g_options_done = true;
             }
     }
     g_defaulted_obj = 0;
