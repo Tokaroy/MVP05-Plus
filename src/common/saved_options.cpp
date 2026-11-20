@@ -1,9 +1,10 @@
-// Your saved audio options, put back when the game starts. The game only loads its Options save from Options > Load,
-// so until then it plays at its own volumes (and the Audio Options screen shows them). hooks.cpp sets the five
-// volumes from the newest Options save once the game's sound is up, the way Load does.
+// Your Options save, put back when the game starts. The game only loads it from Options > Load, so until then it
+// plays with its own options (and the Options screens show them). hooks.cpp reads it into the game the way Load does.
 //
-// The Options save (data.dat, 1288 bytes) keeps them as bytes after the marker at 0x2C0 of its data (0x108 in):
-// Broadcast, Game Sound FX, Crowd, Music, Menu Sound FX, 51 a step of the screen's 0 to 5.
+// The Options save's data.dat is 1288 bytes: 0x108 of header, then the options as the game wrote them (0x400, of
+// which 0x2D7 are used): the profile's options object, a marker (0xBEEFF00D), the rest of it (the five volumes at
+// 0x2C8: Broadcast, Game Sound FX, Crowd, Music, Menu Sound FX, 51 a step of the screen's 0 to 5), another marker,
+// and the length (0x2D3).
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -16,7 +17,7 @@
 namespace savedopts {
 namespace fs = std::filesystem;
 
-bool NewestVolumes(uint8_t out[5], std::string& which) {
+bool NewestOptions(std::vector<uint8_t>& out, std::string& which) {
     fs::path dir = app::ExeDir() / "hdd" / "E" / "UDATA" / "45410056";
     std::error_code ec;
     fs::file_time_type best{};
@@ -35,8 +36,11 @@ bool NewestVolumes(uint8_t out[5], std::string& which) {
         if (d.size() != 0x108 + 0x400) continue;
         const uint8_t* p = d.data() + 0x108;
         static const uint8_t kMarker[4] = {0x0D, 0xF0, 0xEF, 0xBE};
-        if (std::memcmp(p + 0x2C0, kMarker, 4) != 0) continue;
-        std::memcpy(out, p + 0x2C8, 5);
+        uint32_t length;
+        std::memcpy(&length, p + 0x2D3, 4);
+        if (std::memcmp(p + 0x2C0, kMarker, 4) != 0 || std::memcmp(p + 0x2CF, kMarker, 4) != 0 || length != 0x2D3)
+            continue;  // (not as this game writes them)
+        out.assign(p, p + 0x400);
         which = e.path().filename().string();
         best = t;
         found = true;
