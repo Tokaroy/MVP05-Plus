@@ -1,0 +1,47 @@
+// Your saved audio options, put back when the game starts. The game only loads its Options save from Options > Load,
+// so until then it plays at its own volumes (and the Audio Options screen shows them). hooks.cpp sets the five
+// volumes from the newest Options save once the game's sound is up, the way Load does.
+//
+// The Options save (data.dat, 1288 bytes) keeps them as bytes after the marker at 0x2C0 of its data (0x108 in):
+// Broadcast, Game Sound FX, Crowd, Music, Menu Sound FX, 51 a step of the screen's 0 to 5.
+#include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <vector>
+
+#include "app/app.h"
+
+namespace savedopts {
+namespace fs = std::filesystem;
+
+bool NewestVolumes(uint8_t out[5], std::string& which) {
+    fs::path dir = app::ExeDir() / "hdd" / "E" / "UDATA" / "45410056";
+    std::error_code ec;
+    fs::file_time_type best{};
+    bool found = false;
+    for (auto& e : fs::directory_iterator(dir, ec)) {
+        std::ifstream meta(e.path() / "SaveMeta.xbx", std::ios::binary);
+        std::string m((std::istreambuf_iterator<char>(meta)), {});
+        std::string ascii;  // (the name is UTF-16)
+        for (size_t i = 0; i < m.size(); i += 2) ascii += m[i];
+        if (ascii.find("(Options)") == std::string::npos) continue;
+        std::error_code tec;
+        auto t = fs::last_write_time(e.path() / "data.dat", tec);
+        if (tec || (found && t <= best)) continue;
+        std::ifstream f(e.path() / "data.dat", std::ios::binary);
+        std::vector<uint8_t> d((std::istreambuf_iterator<char>(f)), {});
+        if (d.size() != 0x108 + 0x400) continue;
+        const uint8_t* p = d.data() + 0x108;
+        static const uint8_t kMarker[4] = {0x0D, 0xF0, 0xEF, 0xBE};
+        if (std::memcmp(p + 0x2C0, kMarker, 4) != 0) continue;
+        std::memcpy(out, p + 0x2C8, 5);
+        which = e.path().filename().string();
+        best = t;
+        found = true;
+    }
+    return found;
+}
+
+}  // namespace savedopts

@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <cstdio>
@@ -350,18 +349,6 @@ bool ReadGameFile(const std::string& xbox_path, std::vector<uint8_t>& out) {
 
 // exports
 
-// A save's data.dat opened by the game: which game code did it, for working out how the game loads and saves (the
-// first 60, each with the guest's call stack: the return addresses on it name the functions)
-static void TraceSave(const std::string& host, uint32_t disposition) {
-    static std::atomic<int> told{0};
-    std::string low = host;
-    for (char& c : low) c = char(std::tolower(static_cast<unsigned char>(c)));
-    if (low.find("udata") == std::string::npos || low.find("data.dat") == std::string::npos) return;
-    if (told.fetch_add(1) >= 60) return;
-    LOGR("save file: opened (disposition %u) %s", disposition, host.c_str());
-    if (Current()) LogGuestStack(*Current()->ctx, 600);  // (deep: the game's own code is far above the save library's)
-}
-
 KERNEL_EXPORT(190, NtCreateFile, 9) {
     uint32_t handle_out = a[0], access = a[1], attrs = a[2], iosb = a[3], disposition = a[7], options = a[8];
     (void)access;
@@ -462,7 +449,6 @@ KERNEL_EXPORT(190, NtCreateFile, 9) {
     W32(handle_out, NewHandle(f));
     IoStatus(iosb, kSuccess, info);
     LOG_FIRST(400, "open %s", name.c_str());
-    TraceSave(host, disposition);
     return kSuccess;
 }
 

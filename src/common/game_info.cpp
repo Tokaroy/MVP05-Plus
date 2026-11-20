@@ -8,9 +8,6 @@
 #include "dynasty_data.h"
 #include "mods.h"
 
-namespace optprobe {
-void Start();  // options_probe.cpp: test build only
-}
 #include "season_length.h"
 #include "tuning.h"
 #include "tools_overlay.h"
@@ -56,7 +53,6 @@ const app::GameInfo app::kGame = {
         dynastydata::Apply();              // the dynasty's data tables (development, contracts, ...) as they ask
         mods::Mount();                     // then the mods' folders, after the tweaks' (which win)
         gc::Init();
-        optprobe::Start();                 // test build: where the audio options sit in memory
     },
     .loaded = nullptr,                    // image in memory, before its entry point runs
     .window = gc::Window,                  // the game window is up: the button art for the controllers connected
