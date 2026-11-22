@@ -266,10 +266,13 @@ try {
             if ($conclusion -ne "success") { Fail "the GitHub build failed ($conclusion): gh run view $run --log-failed" }
             Write-Host "The build passed (gh stopped watching on a GitHub error, not a failure)"
         }
+        # the build's files are on its tools-build draft release (not artifacts: those count against the Actions
+        # storage quota)
         $art = Join-Path $work "artifacts"
         if (Test-Path $art) { Remove-Item $art -Recurse -Force }
-        & gh run download $run --dir $art
-        if ($LASTEXITCODE -ne 0) { Fail "couldn't download the build's files" }
+        New-Item -ItemType Directory $art | Out-Null
+        & gh release download tools-build --dir $art --clobber
+        if ($LASTEXITCODE -ne 0) { Fail "couldn't download the build's files (the tools-build draft release)" }
     } finally { Pop-Location }
 
     Step "Packing $zipName"

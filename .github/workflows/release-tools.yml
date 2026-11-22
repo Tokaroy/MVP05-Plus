@@ -1,14 +1,33 @@
 # Builds what a release needs besides MVP05.exe (which needs your own game files, so it's built on your PC):
 #   MVP05-Plus-Launcher.exe  (Windows, PyInstaller)      gcbridge  (Linux, static, for SteamOS)
-# Run it from the Actions tab (Run workflow), or it runs on a pushed tag; the files are under the run's Artifacts.
+# Run it from the Actions tab (Run workflow), or it runs on a pushed tag. The files go on a draft release named
+# tools-build (made fresh each run), where the release script downloads them: a release's files don't count against
+# the Actions storage quota, as artifacts do (a full quota stops every upload for 6 to 12 hours).
 name: release tools
 on:
   workflow_dispatch:
   push:
     tags: ["v*", "beta-*"]
 
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: A fresh tools-build draft release
+        run: |
+          gh release delete tools-build --yes 2>/dev/null || true
+          gh release create tools-build --draft --title "tools-build (the release script's, made by each build)" \
+            --notes "The Launcher and gcbridge from the latest release tools build. Not a release."
+
   installer:
+    needs: prepare
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,20 +53,16 @@ jobs:
           --add-data "tools/saves/mvp05/lib/*.json;mvp05/lib" --add-data "tools/installer/easter/*.png;easter"
           --collect-submodules iconlib
           tools/installer/install.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: MVP05-Plus-Launcher
-          path: dist/MVP05-Plus-Launcher.exe
-          retention-days: 1  # the release script downloads them at once (kept a day, not 90: Actions storage)
+      - name: Put it on the tools-build draft
+        shell: bash
+        run: gh release upload tools-build dist/MVP05-Plus-Launcher.exe --clobber
 
   gcbridge:
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: gcc -O2 -march=x86-64 -static -s -o gcbridge tools/gcbridge/gcbridge.c
       - run: grep -c GCBRIDGE-PROTOCOL-3 gcbridge
-      - uses: actions/upload-artifact@v4
-        with:
-          name: gcbridge
-          path: gcbridge
-          retention-days: 1  # the release script downloads them at once (kept a day, not 90: Actions storage)
+      - name: Put it on the tools-build draft
+        run: gh release upload tools-build gcbridge --clobber
