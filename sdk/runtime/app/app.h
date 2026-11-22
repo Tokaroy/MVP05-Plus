@@ -22,7 +22,6 @@ struct Settings {
     uint32_t fps_cap = 60;           // 0 unlimited
     bool vsync = true;
     bool low_latency = false;        // at most one finished frame waits for the screen (instead of up to three)
-    bool software_renderer = false;  // Windows' software renderer (WARP: D3D12 on the CPU) in place of the GPU
     bool xbox_720p = false;         // advertise guest 720p; independent of host output size
     uint32_t aniso = 0;              // 0 as the game asks
     std::string join_ip;                   // co-op: a host past the LAN the system link search also asks
@@ -30,9 +29,7 @@ struct Settings {
 };
 
 Settings& Get();
-// the software renderer in use: ticked, or chosen by the renderer itself when no DirectX 12 graphics card makes a
-// device (then after the game has picked its video mode, which goes by the setting alone)
-inline bool g_software_drawing = false;
+
 void Load();
 void Save();
 void LogSettings();  // every setting, as the settings file has them

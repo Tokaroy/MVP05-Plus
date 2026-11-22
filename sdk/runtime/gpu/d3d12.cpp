@@ -767,27 +767,10 @@ bool D3D12Backend::CreateDevice() {
     if (SUCCEEDED(factory_.As(&f6))) {
         f6->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter));
     }
-    // the software renderer (WARP: D3D12 on the CPU, part of Windows) when asked for, or when no graphics card can
-    // make a D3D12 device (one without DirectX 12): slow in a game, but it starts
-    auto warp = [&](const char* why) {
-        adapter = nullptr;
-        ComPtr<IDXGIAdapter> a;
-        if (FAILED(factory_->EnumWarpAdapter(IID_PPV_ARGS(&a))) || FAILED(a.As(&adapter)) ||
-            FAILED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev_)))) {
-            LOGE("d3d12: no device, not even the software renderer");
-            return false;
-        }
-        LOGR("d3d12: software renderer (WARP): %s; drawn at the game's own resolution, without extra texture "
-             "filtering", why);
-        app::g_software_drawing = true;  // (also when chosen by itself: RenderScale and the filtering go by it)
-        return true;
-    };
-    if (app::Get().software_renderer) {
-        if (!warp("software_renderer is on")) return false;
-    } else if (FAILED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev_))) &&
-               FAILED(D3D12CreateDevice((adapter = nullptr).Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev_)))) {
-        LOGE("d3d12: no DirectX 12 graphics card");
-        if (!warp("no DirectX 12 graphics card")) return false;
+    if (FAILED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev_))) &&
+        FAILED(D3D12CreateDevice((adapter = nullptr).Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev_)))) {
+        LOGE("d3d12: no device (the graphics card has no DirectX 12 driver)");
+        return false;
     }
     if (GetEnvironmentVariableW(L"XBE_D3D12_DEBUG", nullptr, 0)) {
         ComPtr<ID3D12InfoQueue1> diagnostics;
@@ -2029,7 +2012,7 @@ D3D12_SAMPLER_DESC StageSampler(const State& s, int i, const DrawTextures& stage
 
 uint32_t D3D12Backend::EnsureStageSamplers(const State& s, const DrawTextures& stages, bool clamp) {
     D3D12_SAMPLER_DESC sd[4];
-    uint32_t aniso = app::g_software_drawing ? 0 : app::Get().aniso;  // (every filtered sample costs CPU time)
+    uint32_t aniso = app::Get().aniso;
     for (int i = 0; i < 4; i++) sd[i] = StageSampler(s, i, stages, clamp, aniso);
     uint64_t key = Hash(sd, sizeof(sd));
     auto it = samplers_.find(key);

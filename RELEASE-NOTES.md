@@ -2,7 +2,6 @@
 
 ## New in 3.2
 - **Keyboard as a controller:** with no controller plugged in, the keyboard plays as controller 1 (arrows, W A S D, Enter, Backspace and more). Plug a controller in and it takes over. The keys can be changed in `[keyboard]` in `mvp05-settings.toml`.
-- **Software renderer** (*Settings*): your CPU draws the game, for graphics cards without DirectX 12. Used automatically if none is found.
 - **Older graphics cards:** when a graphics driver turns down part of the game's drawing, the log now says what, so it can be fixed.
 
 ## New in 3.1

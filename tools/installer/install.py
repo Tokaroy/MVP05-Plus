@@ -2420,7 +2420,6 @@ def settings_tab(tabs, root, tk, ttk):
     aniso = tk.StringVar()
     vsync = tk.BooleanVar()
     low_latency = tk.BooleanVar()
-    software = tk.BooleanVar()
     x720 = tk.BooleanVar()
     desk = desktop_resolution()
     # The game plays widescreen when the resolution is 3:2 or wider (app::Widescreen), else 4:3, with black bars at
@@ -2455,10 +2454,9 @@ def settings_tab(tabs, root, tk, ttk):
     x720_box.grid(row=9, column=0, columnspan=3, sticky="w")
     ttk.Checkbutton(frm, text="Low latency (1 frame queued for the screen, not 3: less input delay, may stutter)",
                     variable=low_latency).grid(row=10, column=0, columnspan=3, sticky="w")
-    ttk.Checkbutton(frm, text="Software renderer (your CPU draws the game: for graphics cards without DirectX 12)", variable=software).grid(row=11, column=0, columnspan=3, sticky="w")
     # (Unlock everything isn't on this tab: it's in the settings file, unlock_all, and left as it is by Save)
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
-    note.grid(row=13, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    note.grid(row=12, column=0, columnspan=3, sticky="w", pady=(6, 0))
     # the line under the buttons takes room only while it says something (the tab is no taller than it needs)
     note_configure = note.configure
 
@@ -2534,7 +2532,6 @@ def settings_tab(tabs, root, tk, ttk):
         aniso.set(name_of(aniso_names, s["anisotropic_filtering"]))
         vsync.set(bool(s["vsync"]))
         low_latency.set(bool(s.get("low_latency", False)))
-        software.set(s.get("software_renderer", False) is True)
         wide_720[0] = bool(s["xbox_720p"]) if aspect.get() == WIDE else True
         x720.set(wide_720[0] if aspect.get() == WIDE else False)
 
@@ -2561,7 +2558,6 @@ def settings_tab(tabs, root, tk, ttk):
             return
         ST.write(root, {"display_mode": mode.get().lower(), "width": w, "height": h, "render_percent": sc,
                         "fps_cap": fp, "vsync": vsync.get(), "low_latency": low_latency.get(),
-                        "software_renderer": software.get(),
                         "anisotropic_filtering": an,
                         "xbox_720p": x720.get()})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
@@ -2576,7 +2572,7 @@ def settings_tab(tabs, root, tk, ttk):
     import shortcuts as SC
     # shortcuts and updates side by side under the display settings
     lower = ttk.Frame(frm)
-    lower.grid(row=14, column=0, columnspan=3, sticky="nwe", pady=(8, 0))
+    lower.grid(row=13, column=0, columnspan=3, sticky="nwe", pady=(8, 0))
     lower.columnconfigure(0, weight=1)
     lower.columnconfigure(2, weight=1)
     scf = ttk.Frame(lower)
@@ -2627,7 +2623,7 @@ def settings_tab(tabs, root, tk, ttk):
     updates_section(upf, root, tk, ttk, 0)
 
     bar = ttk.Frame(frm)
-    bar.grid(row=12, column=0, columnspan=3, sticky="we", pady=(8, 0))
+    bar.grid(row=11, column=0, columnspan=3, sticky="we", pady=(8, 0))
     ttk.Button(bar, text="Save", command=save).pack(side="right")
     ttk.Button(bar, text="Defaults", command=defaults).pack(side="right", padx=6)
     ttk.Button(bar, text="Open the settings file", command=lambda: os.startfile(os.path.join(root, ST.FILE))
