@@ -2459,6 +2459,15 @@ def settings_tab(tabs, root, tk, ttk):
     # (Unlock everything isn't on this tab: it's in the settings file, unlock_all, and left as it is by Save)
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
     note.grid(row=13, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    # the line under the buttons takes room only while it says something (the tab is no taller than it needs)
+    note_configure = note.configure
+
+    def note_say(**kw):
+        note_configure(**kw)
+        if "text" in kw:
+            note.grid() if kw["text"] else note.grid_remove()
+    note.configure = note_say
+    note.grid_remove()
 
     def name_of(d, v):
         return next((k for k, x in d.items() if x == v), str(v))
