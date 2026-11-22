@@ -59,3 +59,35 @@ retirement = 100
 contract_prices = 100
 resign_chance = 100
 rookie_quality = 0
+
+# The keyboard plays as controller 1 while no controller is plugged in (plug one in and it takes over). Each control's
+# keys, separated by commas: a letter or digit, or Up Down Left Right Enter Space Backspace Tab Shift LeftShift
+# RightShift Ctrl LeftCtrl RightCtrl CapsLock Insert Delete Home End PageUp PageDown Comma Period Minus Equals
+# Semicolon Slash Backquote LeftBracket RightBracket Backslash Quote F1 F2 F4-F9 Numpad0-Numpad9 NumpadPlus
+# NumpadMinus NumpadMultiply NumpadDivide NumpadPeriod; "none" for no key. Esc, F3 and F10-F12 are the game's own.
+# Letters are the letters on your keyboard (W is W on an AZERTY one too, wherever it is).
+[keyboard]
+dpad_up = "Up"
+dpad_down = "Down"
+dpad_left = "Left"
+dpad_right = "Right"
+left_stick_up = "W"
+left_stick_down = "S"
+left_stick_left = "A"
+left_stick_right = "D"
+right_stick_up = "I"
+right_stick_down = "K"
+right_stick_left = "J"
+right_stick_right = "L"
+a = "Enter, Space"
+b = "Backspace"
+x = "Q"
+y = "E"
+black = "R"
+white = "F"
+left_trigger = "Z"
+right_trigger = "C"
+start = "Tab"
+back = "X"
+left_stick_click = "LeftShift"
+right_stick_click = "RightShift"

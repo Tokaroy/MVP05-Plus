@@ -53,6 +53,11 @@ void Load() {
     s.xbox_720p = t["xbox_720p"].value_or(s.xbox_720p);
     s.aniso = t["anisotropic_filtering"].value_or(s.aniso);
     s.join_ip = t["join_ip"].value_or(s.join_ip);
+    if (const toml::table* keys = t["keyboard"].as_table()) {
+        s.keyboard.clear();
+        for (auto&& [control, value] : *keys)
+            s.keyboard.emplace_back(std::string(control.str()), value.value_or(std::string()));
+    }
     for (const Option& o : kGame.options) {
         if (o.flag) *o.flag = t[o.key].value_or(*o.flag);
         else *o.value = t[o.key].value_or(*o.value);
@@ -80,6 +85,11 @@ toml::table Table() {
         else t.insert(o.key, int64_t(*o.value));
     }
     if (kGame.save) kGame.save(&t);
+    if (!s.keyboard.empty()) {
+        toml::table keys;
+        for (const auto& [control, value] : s.keyboard) keys.insert(control, value);
+        t.insert("keyboard", std::move(keys));
+    }
     return t;
 }
 

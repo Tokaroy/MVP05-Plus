@@ -26,6 +26,7 @@ struct Settings {
     bool xbox_720p = false;         // advertise guest 720p; independent of host output size
     uint32_t aniso = 0;              // 0 as the game asks
     std::string join_ip;                   // co-op: a host past the LAN the system link search also asks
+    std::vector<std::pair<std::string, std::string>> keyboard;  // [keyboard]: a control, its keys ("Enter, Space")
 };
 
 Settings& Get();

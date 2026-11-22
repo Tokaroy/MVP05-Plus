@@ -4,6 +4,9 @@
 #include "core/input.h"
 
 #include <algorithm>
+#include <utility>
+#include <vector>
+#include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -212,12 +215,88 @@ void Init() {
 }
 
 // The keyboard as controller 1, while no controller is plugged in at all (one plugged in takes over at once); its
-// keys count only while the game's window has the focus. Keys the window already uses (Esc, F3, F10 to F12, Alt+Enter,
-// Alt+F4) are left out; Enter with Alt held is the fullscreen switch, not A.
-//   Arrows: d-pad    W A S D: left stick    I J K L: right stick
-//   Enter or Space: A    Backspace: B    Q: X    E: Y    R: black    F: white
-//   Z: left trigger    C: right trigger    Tab: Start    X: Back    Left Shift: left stick click
-//   Right Shift: right stick click
+// keys count only while the game's window has the focus. Each control's keys come from [keyboard] in the settings
+// file ("Enter, Space"; "none" for no key), the defaults below for any it doesn't name. Keys the window already uses
+// (Esc, F3, F10 to F12, Alt+Enter, Alt+F4) are best left out; Enter with Alt held is the fullscreen switch, not A.
+enum Control {
+    kUp, kDown, kLeft, kRight, kStart, kBack, kLeftClick, kRightClick,  // the buttons' bits, in order
+    kA, kB, kX, kY, kBlack, kWhite, kLeftTrigger, kRightTrigger,       // analog[0..7]
+    kLeftUp, kLeftDown, kLeftLeft, kLeftRight, kRightUp, kRightDown, kRightLeft, kRightRight,
+    kControls
+};
+struct ControlName {
+    const char* name;
+    const char* keys;  // the default
+};
+const ControlName kControlNames[kControls] = {
+    {"dpad_up", "Up"}, {"dpad_down", "Down"}, {"dpad_left", "Left"}, {"dpad_right", "Right"},
+    {"start", "Tab"}, {"back", "X"}, {"left_stick_click", "LeftShift"}, {"right_stick_click", "RightShift"},
+    {"a", "Enter, Space"}, {"b", "Backspace"}, {"x", "Q"}, {"y", "E"}, {"black", "R"}, {"white", "F"},
+    {"left_trigger", "Z"}, {"right_trigger", "C"},
+    {"left_stick_up", "W"}, {"left_stick_down", "S"}, {"left_stick_left", "A"}, {"left_stick_right", "D"},
+    {"right_stick_up", "I"}, {"right_stick_down", "K"}, {"right_stick_left", "J"}, {"right_stick_right", "L"},
+};
+
+// a key's name: a letter or digit, or one of these (any case, spaces and dashes ignored)
+int KeyCode(std::string name) {
+    std::string n;
+    for (char c : name)
+        if (c != ' ' && c != '-' && c != '_') n += char(std::tolower(static_cast<unsigned char>(c)));
+    if (n.size() == 1 && std::isalnum(static_cast<unsigned char>(n[0]))) return std::toupper(static_cast<unsigned char>(n[0]));
+    static const std::pair<const char*, int> kNames[] = {
+        {"up", VK_UP}, {"down", VK_DOWN}, {"left", VK_LEFT}, {"right", VK_RIGHT}, {"enter", VK_RETURN},
+        {"return", VK_RETURN}, {"space", VK_SPACE}, {"backspace", VK_BACK}, {"tab", VK_TAB},
+        {"shift", VK_SHIFT}, {"leftshift", VK_LSHIFT}, {"rightshift", VK_RSHIFT}, {"ctrl", VK_CONTROL},
+        {"control", VK_CONTROL}, {"leftctrl", VK_LCONTROL}, {"rightctrl", VK_RCONTROL}, {"capslock", VK_CAPITAL},
+        {"insert", VK_INSERT}, {"delete", VK_DELETE}, {"home", VK_HOME}, {"end", VK_END}, {"pageup", VK_PRIOR},
+        {"pagedown", VK_NEXT}, {"comma", VK_OEM_COMMA}, {"period", VK_OEM_PERIOD}, {"minus", VK_OEM_MINUS},
+        {"equals", VK_OEM_PLUS}, {"semicolon", VK_OEM_1}, {"slash", VK_OEM_2}, {"backquote", VK_OEM_3},
+        {"leftbracket", VK_OEM_4}, {"backslash", VK_OEM_5}, {"rightbracket", VK_OEM_6}, {"quote", VK_OEM_7},
+        {"f1", VK_F1}, {"f2", VK_F2}, {"f4", VK_F4}, {"f5", VK_F5}, {"f6", VK_F6}, {"f7", VK_F7}, {"f8", VK_F8},
+        {"f9", VK_F9}, {"numpadenter", VK_RETURN}, {"numpadplus", VK_ADD}, {"numpadminus", VK_SUBTRACT},
+        {"numpadmultiply", VK_MULTIPLY}, {"numpaddivide", VK_DIVIDE}, {"numpadperiod", VK_DECIMAL},
+    };
+    for (const auto& [k, vk] : kNames)
+        if (n == k) return vk;
+    if (n.size() == 7 && n.compare(0, 6, "numpad") == 0 && std::isdigit(static_cast<unsigned char>(n[6])))
+        return VK_NUMPAD0 + (n[6] - '0');
+    return 0;
+}
+
+// each control's keys, from the settings (once)
+const std::vector<int>* KeyboardLayout() {
+    static std::vector<int> keys[kControls];
+    static bool made = false;
+    if (made) return keys;
+    made = true;
+    const auto& mine = app::Get().keyboard;
+    for (int c = 0; c < kControls; c++) {
+        std::string list = kControlNames[c].keys;
+        for (const auto& [control, value] : mine)
+            if (control == kControlNames[c].name) list = value;
+        size_t at = 0;
+        while (at <= list.size()) {
+            size_t comma = std::min(list.find(',', at), list.size());
+            std::string one = list.substr(at, comma - at);
+            one.erase(0, one.find_first_not_of(' '));
+            one.erase(one.find_last_not_of(' ') + 1);
+            at = comma + 1;
+            if (one.empty()) continue;
+            std::string lower = one;
+            for (char& ch : lower) ch = char(std::tolower(static_cast<unsigned char>(ch)));
+            if (lower == "none") continue;
+            if (int vk = KeyCode(one)) keys[c].push_back(vk);
+            else LOGW("input: [keyboard] %s: no key called \"%s\", left out", kControlNames[c].name, one.c_str());
+        }
+    }
+    for (const auto& [control, value] : mine) {
+        bool known = false;
+        for (const ControlName& n : kControlNames) known = known || control == n.name;
+        if (!known) LOGW("input: [keyboard] %s isn't a control, left out", control.c_str());
+    }
+    return keys;
+}
+
 bool KeyboardPad(Pad& p) {
     static bool was = false;
     bool none = true;
@@ -230,18 +309,20 @@ bool KeyboardPad(Pad& p) {
     p.connected = true;  // (plugged in while the window is in the background too, with nothing pressed)
     HWND window = static_cast<HWND>(app::Window());
     if (!window || GetForegroundWindow() != window) return true;
-    auto down = [](int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; };
-    bool alt = down(VK_MENU);
-    p.buttons = uint16_t(down(VK_UP) << 0 | down(VK_DOWN) << 1 | down(VK_LEFT) << 2 | down(VK_RIGHT) << 3 |
-                         down(VK_TAB) << 4 | down('X') << 5 | down(VK_LSHIFT) << 6 | down(VK_RSHIFT) << 7);
-    const bool face[8] = {(down(VK_RETURN) && !alt) || down(VK_SPACE), down(VK_BACK), down('Q'), down('E'),
-                          down('R'), down('F'), down('Z'), down('C')};
-    for (int i = 0; i < 8; i++) p.analog[i] = face[i] ? 0xFF : 0;
-    auto axis = [&](int minus, int plus) { return int16_t(down(plus) ? 32767 : down(minus) ? -32768 : 0); };
-    p.lx = axis('A', 'D');
-    p.ly = axis('S', 'W');  // (y up)
-    p.rx = axis('J', 'L');
-    p.ry = axis('K', 'I');
+    const std::vector<int>* keys = KeyboardLayout();
+    const bool alt = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+    auto held = [&](int c) {
+        for (int vk : keys[c])
+            if ((GetAsyncKeyState(vk) & 0x8000) && !(vk == VK_RETURN && alt)) return true;
+        return false;
+    };
+    for (int c = kUp; c <= kRightClick; c++) p.buttons |= uint16_t(held(c) << (c - kUp));
+    for (int c = kA; c <= kRightTrigger; c++) p.analog[c - kA] = held(c) ? 0xFF : 0;
+    auto axis = [&](int minus, int plus) { return int16_t(held(plus) ? 32767 : held(minus) ? -32768 : 0); };
+    p.lx = axis(kLeftLeft, kLeftRight);
+    p.ly = axis(kLeftDown, kLeftUp);  // (y up)
+    p.rx = axis(kRightLeft, kRightRight);
+    p.ry = axis(kRightDown, kRightUp);
     return true;
 }
 
