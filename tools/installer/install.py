@@ -2457,9 +2457,7 @@ def settings_tab(tabs, root, tk, ttk):
                     variable=low_latency).grid(row=10, column=0, columnspan=3, sticky="w")
     ttk.Checkbutton(frm, text="Software renderer (for a graphics card without DirectX 12: slow in games, fine for menus "
                               "and rosters)", variable=software).grid(row=11, column=0, columnspan=3, sticky="w")
-    unlock_all = tk.BooleanVar()
-    ttk.Checkbutton(frm, text="Unlock everything (every stadium, team, player, jersey and Legend, for whoever signs in)",
-                    variable=unlock_all).grid(row=12, column=0, columnspan=3, sticky="w")
+    # (Unlock everything isn't on this tab: it's in the settings file, unlock_all, and left as it is by Save)
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
     note.grid(row=13, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
@@ -2529,7 +2527,6 @@ def settings_tab(tabs, root, tk, ttk):
         vsync.set(bool(s["vsync"]))
         low_latency.set(bool(s.get("low_latency", False)))
         software.set(s.get("software_renderer", False) is True)
-        unlock_all.set(s.get("unlock_all", False) is True)
         wide_720[0] = bool(s["xbox_720p"]) if aspect.get() == WIDE else True
         x720.set(wide_720[0] if aspect.get() == WIDE else False)
 
@@ -2557,7 +2554,6 @@ def settings_tab(tabs, root, tk, ttk):
         ST.write(root, {"display_mode": mode.get().lower(), "width": w, "height": h, "render_percent": sc,
                         "fps_cap": fp, "vsync": vsync.get(), "low_latency": low_latency.get(),
                         "software_renderer": software.get(),
-                        "unlock_all": unlock_all.get(),
                         "anisotropic_filtering": an,
                         "xbox_720p": x720.get()})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
@@ -2623,7 +2619,7 @@ def settings_tab(tabs, root, tk, ttk):
     updates_section(upf, root, tk, ttk, 0)
 
     bar = ttk.Frame(frm)
-    bar.grid(row=11, column=0, columnspan=3, sticky="we", pady=(8, 0))
+    bar.grid(row=12, column=0, columnspan=3, sticky="we", pady=(8, 0))
     ttk.Button(bar, text="Save", command=save).pack(side="right")
     ttk.Button(bar, text="Defaults", command=defaults).pack(side="right", padx=6)
     ttk.Button(bar, text="Open the settings file", command=lambda: os.startfile(os.path.join(root, ST.FILE))
