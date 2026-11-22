@@ -1,8 +1,7 @@
 # MVP05-Plus Beta 3.2
 
 ## New in 3.2
-- **Keyboard as a controller:** with no controller plugged in, the keyboard plays as controller 1 (arrows, W A S D, Enter, Backspace and more). Plug a controller in and it takes over. The keys can be changed in `[keyboard]` in `mvp05-settings.toml`.
-- **Older graphics cards:** when a graphics driver turns down part of the game's drawing, the log now says what, so it can be fixed.
+- **Keyboard as a controller:** when the game starts with no controller plugged in, the keyboard plays as controller 1 (arrows, W A S D, Enter, Backspace and more). Plugging in a controller takes over. Keys can be changed in `[keyboard]` in `mvp05-settings.toml`.
 
 ## New in 3.1
 - **Your saved options load at startup:** your newest Options save is applied when the game starts and again after Press Start, so you no longer need Options → Load.

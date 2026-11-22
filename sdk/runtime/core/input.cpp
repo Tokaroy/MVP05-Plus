@@ -214,8 +214,9 @@ void Init() {
     }
 }
 
-// The keyboard as controller 1, while no controller is plugged in at all (one plugged in takes over at once); its
-// keys count only while the game's window has the focus. Each control's keys come from [keyboard] in the settings
+// The keyboard as controller 1 when the game starts with no controller plugged in. A controller plugged in takes
+// over for the rest of the run (unplugging it again doesn't bring the keyboard back). Its keys count only while the
+// game's window has the focus. Each control's keys come from [keyboard] in the settings
 // file ("Enter, Space"; "none" for no key), the defaults below for any it doesn't name. Keys the window already uses
 // (Esc, F3, F10 to F12, Alt+Enter, Alt+F4) are best left out; Enter with Alt held is the fullscreen switch, not A.
 enum Control {
@@ -298,14 +299,19 @@ const std::vector<int>* KeyboardLayout() {
 }
 
 bool KeyboardPad(Pad& p) {
-    static bool was = false;
+    static bool on = true, told = false;
+    if (!on) return false;
     bool none = true;
     for (int i = 0; i < 4; i++) none = none && Free(i);
-    if (none != was) {
-        LOGR(none ? "input: no controller: the keyboard is controller 1" : "input: a controller is in: the keyboard isn't");
-        was = none;
+    if (!none) {
+        on = false;
+        if (told) LOGR("input: a controller is in: the keyboard isn't controller 1 any more");
+        return false;
     }
-    if (!none) return false;
+    if (!told) {
+        LOGR("input: no controller: the keyboard is controller 1");
+        told = true;
+    }
     p.connected = true;  // (plugged in while the window is in the background too, with nothing pressed)
     HWND window = static_cast<HWND>(app::Window());
     if (!window || GetForegroundWindow() != window) return true;
