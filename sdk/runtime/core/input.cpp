@@ -211,6 +211,40 @@ void Init() {
     }
 }
 
+// The keyboard as controller 1, while no controller is plugged in at all (one plugged in takes over at once); its
+// keys count only while the game's window has the focus. Keys the window already uses (Esc, F3, F10 to F12, Alt+Enter,
+// Alt+F4) are left out; Enter with Alt held is the fullscreen switch, not A.
+//   Arrows: d-pad    W A S D: left stick    I J K L: right stick
+//   Enter or Space: A    Backspace: B    Q: X    E: Y    R: black    F: white
+//   Z: left trigger    C: right trigger    Tab: Start    X: Back    Left Shift: left stick click
+//   Right Shift: right stick click
+bool KeyboardPad(Pad& p) {
+    static bool was = false;
+    bool none = true;
+    for (int i = 0; i < 4; i++) none = none && Free(i);
+    if (none != was) {
+        LOGR(none ? "input: no controller: the keyboard is controller 1" : "input: a controller is in: the keyboard isn't");
+        was = none;
+    }
+    if (!none) return false;
+    p.connected = true;  // (plugged in while the window is in the background too, with nothing pressed)
+    HWND window = static_cast<HWND>(app::Window());
+    if (!window || GetForegroundWindow() != window) return true;
+    auto down = [](int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; };
+    bool alt = down(VK_MENU);
+    p.buttons = uint16_t(down(VK_UP) << 0 | down(VK_DOWN) << 1 | down(VK_LEFT) << 2 | down(VK_RIGHT) << 3 |
+                         down(VK_TAB) << 4 | down('X') << 5 | down(VK_LSHIFT) << 6 | down(VK_RSHIFT) << 7);
+    const bool face[8] = {(down(VK_RETURN) && !alt) || down(VK_SPACE), down(VK_BACK), down('Q'), down('E'),
+                          down('R'), down('F'), down('Z'), down('C')};
+    for (int i = 0; i < 8; i++) p.analog[i] = face[i] ? 0xFF : 0;
+    auto axis = [&](int minus, int plus) { return int16_t(down(plus) ? 32767 : down(minus) ? -32768 : 0); };
+    p.lx = axis('A', 'D');
+    p.ly = axis('S', 'W');  // (y up)
+    p.rx = axis('J', 'L');
+    p.ry = axis('K', 'I');
+    return true;
+}
+
 Pad Poll(int port) {
     Pad p;
     {
@@ -267,6 +301,8 @@ Pad Poll(int port) {
             p.ly = c.ly;
             p.rx = c.cx;
             p.ry = c.cy;
+        } else if (port == 0) {
+            KeyboardPad(p);
         }
         NoteActivity(port, p);
     }

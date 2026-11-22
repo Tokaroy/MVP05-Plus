@@ -14,6 +14,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -22,6 +23,7 @@
 #include <filesystem>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -765,10 +767,25 @@ bool D3D12Backend::CreateDevice() {
     if (SUCCEEDED(factory_.As(&f6))) {
         f6->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter));
     }
-    if (FAILED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev_))) &&
-        FAILED(D3D12CreateDevice((adapter = nullptr).Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev_)))) {
-        LOGE("d3d12: no device");
-        return false;
+    // the software renderer (WARP: D3D12 on the CPU, part of Windows) when asked for, or when no graphics card can
+    // make a D3D12 device (one without DirectX 12): slow in a game, but it starts
+    auto warp = [&](const char* why) {
+        adapter = nullptr;
+        ComPtr<IDXGIAdapter> a;
+        if (FAILED(factory_->EnumWarpAdapter(IID_PPV_ARGS(&a))) || FAILED(a.As(&adapter)) ||
+            FAILED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev_)))) {
+            LOGE("d3d12: no device, not even the software renderer");
+            return false;
+        }
+        LOGR("d3d12: software renderer (WARP): %s", why);
+        return true;
+    };
+    if (app::Get().software_renderer) {
+        if (!warp("software_renderer is on")) return false;
+    } else if (FAILED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev_))) &&
+               FAILED(D3D12CreateDevice((adapter = nullptr).Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev_)))) {
+        LOGE("d3d12: no DirectX 12 graphics card");
+        if (!warp("no DirectX 12 graphics card")) return false;
     }
     if (GetEnvironmentVariableW(L"XBE_D3D12_DEBUG", nullptr, 0)) {
         ComPtr<ID3D12InfoQueue1> diagnostics;
@@ -1713,7 +1730,25 @@ ID3D12PipelineState* D3D12Backend::EnsurePipeline(const PsoKey& k, ID3DBlob* vs,
     if (k.topo == uint32_t(Topology::Points)) ExpandPoints(d);
     ComPtr<ID3D12PipelineState> pso;
     g_perf.psos++;
-    if (FAILED(dev_->CreateGraphicsPipelineState(&d, IID_PPV_ARGS(&pso)))) LOGE("d3d12: pipeline creation failed");
+    HRESULT hr = dev_->CreateGraphicsPipelineState(&d, IID_PPV_ARGS(&pso));
+    if (FAILED(hr)) {
+        // what the driver turned down (the first 16 kinds): for a GPU whose driver rejects something others take
+        static std::atomic<int> told{0};
+        if (told.fetch_add(1) < 16) {
+            std::string inputs;
+            char one[24];
+            for (uint32_t i = 0; i < n; i++) {
+                snprintf(one, sizeof(one), "%s%u", i ? "," : "", unsigned(el[i].Format));
+                inputs += one;
+            }
+            LOGE("d3d12: pipeline creation failed (hr %08X): rt %u (format %u) depth %u (format %u) topology %u "
+                 "gs %d blend %u (%u,%u,%u mask %X) depth test %u write %u func %u stencil %u cull %u fill %u "
+                 "bias %d/%.3f inputs [%s]",
+                 unsigned(hr), d.NumRenderTargets, unsigned(d.RTVFormats[0]), k.has_ds, unsigned(d.DSVFormat),
+                 unsigned(d.PrimitiveTopologyType), d.GS.pShaderBytecode != nullptr, k.blend, k.src, k.dst, k.op,
+                 k.wmask, k.zen, k.zwrite, k.zfunc, k.sten, k.cull, k.fill, k.zbias, k.zslope, inputs.c_str());
+        }
+    }
     psos_[h] = pso;
     return pso.Get();
 }

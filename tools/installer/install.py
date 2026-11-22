@@ -2420,6 +2420,7 @@ def settings_tab(tabs, root, tk, ttk):
     aniso = tk.StringVar()
     vsync = tk.BooleanVar()
     low_latency = tk.BooleanVar()
+    software = tk.BooleanVar()
     x720 = tk.BooleanVar()
     desk = desktop_resolution()
     # The game plays widescreen when the resolution is 3:2 or wider (app::Widescreen), else 4:3, with black bars at
@@ -2454,11 +2455,13 @@ def settings_tab(tabs, root, tk, ttk):
     x720_box.grid(row=9, column=0, columnspan=3, sticky="w")
     ttk.Checkbutton(frm, text="Low latency (1 frame queued for the screen, not 3: less input delay, may stutter)",
                     variable=low_latency).grid(row=10, column=0, columnspan=3, sticky="w")
+    ttk.Checkbutton(frm, text="Software renderer (for a graphics card without DirectX 12: slow in games, fine for menus "
+                              "and rosters)", variable=software).grid(row=11, column=0, columnspan=3, sticky="w")
     unlock_all = tk.BooleanVar()
     ttk.Checkbutton(frm, text="Unlock everything (every stadium, team, player, jersey and Legend, for whoever signs in)",
-                    variable=unlock_all).grid(row=11, column=0, columnspan=3, sticky="w")
+                    variable=unlock_all).grid(row=12, column=0, columnspan=3, sticky="w")
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
-    note.grid(row=12, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    note.grid(row=13, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
     def name_of(d, v):
         return next((k for k, x in d.items() if x == v), str(v))
@@ -2525,6 +2528,7 @@ def settings_tab(tabs, root, tk, ttk):
         aniso.set(name_of(aniso_names, s["anisotropic_filtering"]))
         vsync.set(bool(s["vsync"]))
         low_latency.set(bool(s.get("low_latency", False)))
+        software.set(s.get("software_renderer", False) is True)
         unlock_all.set(s.get("unlock_all", False) is True)
         wide_720[0] = bool(s["xbox_720p"]) if aspect.get() == WIDE else True
         x720.set(wide_720[0] if aspect.get() == WIDE else False)
@@ -2552,6 +2556,7 @@ def settings_tab(tabs, root, tk, ttk):
             return
         ST.write(root, {"display_mode": mode.get().lower(), "width": w, "height": h, "render_percent": sc,
                         "fps_cap": fp, "vsync": vsync.get(), "low_latency": low_latency.get(),
+                        "software_renderer": software.get(),
                         "unlock_all": unlock_all.get(),
                         "anisotropic_filtering": an,
                         "xbox_720p": x720.get()})
@@ -2567,7 +2572,7 @@ def settings_tab(tabs, root, tk, ttk):
     import shortcuts as SC
     # shortcuts and updates side by side under the display settings
     lower = ttk.Frame(frm)
-    lower.grid(row=13, column=0, columnspan=3, sticky="nwe", pady=(8, 0))
+    lower.grid(row=14, column=0, columnspan=3, sticky="nwe", pady=(8, 0))
     lower.columnconfigure(0, weight=1)
     lower.columnconfigure(2, weight=1)
     scf = ttk.Frame(lower)

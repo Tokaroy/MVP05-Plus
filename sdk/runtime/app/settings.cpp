@@ -49,6 +49,7 @@ void Load() {
     s.fps_cap = t["fps_cap"].value_or(s.fps_cap);
     s.vsync = t["vsync"].value_or(s.vsync);
     s.low_latency = t["low_latency"].value_or(s.low_latency);
+    s.software_renderer = t["software_renderer"].value_or(s.software_renderer);
     s.xbox_720p = t["xbox_720p"].value_or(s.xbox_720p);
     s.aniso = t["anisotropic_filtering"].value_or(s.aniso);
     s.join_ip = t["join_ip"].value_or(s.join_ip);
@@ -70,6 +71,7 @@ toml::table Table() {
                   {"fps_cap", int64_t(s.fps_cap)},
                   {"vsync", s.vsync},
                   {"low_latency", s.low_latency},
+                  {"software_renderer", s.software_renderer},
                   {"xbox_720p", s.xbox_720p},
                   {"anisotropic_filtering", int64_t(s.aniso)},
                   {"join_ip", s.join_ip}};
