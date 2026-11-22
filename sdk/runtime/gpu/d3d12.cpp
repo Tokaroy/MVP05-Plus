@@ -779,7 +779,7 @@ bool D3D12Backend::CreateDevice() {
         }
         LOGR("d3d12: software renderer (WARP): %s; drawn at the game's own resolution, without extra texture "
              "filtering", why);
-        app::Get().software_renderer = true;  // (also when chosen by itself: RenderScale and the filtering go by it)
+        app::g_software_drawing = true;  // (also when chosen by itself: RenderScale and the filtering go by it)
         return true;
     };
     if (app::Get().software_renderer) {
@@ -2029,7 +2029,7 @@ D3D12_SAMPLER_DESC StageSampler(const State& s, int i, const DrawTextures& stage
 
 uint32_t D3D12Backend::EnsureStageSamplers(const State& s, const DrawTextures& stages, bool clamp) {
     D3D12_SAMPLER_DESC sd[4];
-    uint32_t aniso = app::Get().software_renderer ? 0 : app::Get().aniso;  // (every filtered sample costs CPU time)
+    uint32_t aniso = app::g_software_drawing ? 0 : app::Get().aniso;  // (every filtered sample costs CPU time)
     for (int i = 0; i < 4; i++) sd[i] = StageSampler(s, i, stages, clamp, aniso);
     uint64_t key = Hash(sd, sizeof(sd));
     auto it = samplers_.find(key);

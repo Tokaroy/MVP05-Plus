@@ -30,6 +30,9 @@ struct Settings {
 };
 
 Settings& Get();
+// the software renderer in use: ticked, or chosen by the renderer itself when no DirectX 12 graphics card makes a
+// device (then after the game has picked its video mode, which goes by the setting alone)
+inline bool g_software_drawing = false;
 void Load();
 void Save();
 void LogSettings();  // every setting, as the settings file has them

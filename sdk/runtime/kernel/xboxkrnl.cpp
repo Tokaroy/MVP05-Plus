@@ -96,7 +96,8 @@ void InitKernelData() {
     PutAnsi(DataAddress(42), "0000000000000000");
     W32(DataAddress(40), 3);
     // XGetVideoFlags only exposes HDTV capabilities with XC_AV_PACK_HDTV.
-    const uint32_t av_pack = app::Get().xbox_720p && app::Widescreen() ? 1u : 0u;
+    // (not with the software renderer ticked: 480p, a third of 720p's pixels, each drawn on the CPU)
+    const uint32_t av_pack = app::Get().xbox_720p && !app::Get().software_renderer && app::Widescreen() ? 1u : 0u;
     W32(DataAddress(356), av_pack);
     LOGR("video mode: boot AV pack=%u (1=HDTV)", av_pack);
     // IDE_CHANNEL_OBJECT DeviceQueue.DeviceListHead, XAPI walks it to cancel file I/O
@@ -1229,7 +1230,7 @@ KERNEL_EXPORT(29, ExSaveNonVolatileSetting, 4) {
 static uint32_t VideoFlags() {
     const bool wide = app::Widescreen();
     return (wide ? 0x00010000 : 0) | 0x00080000 |
-           (wide && app::Get().xbox_720p ? 0x00020000 : 0);
+           (wide && app::Get().xbox_720p && !app::Get().software_renderer ? 0x00020000 : 0);
 }
 
 KERNEL_EXPORT(24, ExQueryNonVolatileSetting, 5) {

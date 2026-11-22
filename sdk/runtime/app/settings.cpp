@@ -148,7 +148,7 @@ float RenderScale(uint32_t guest_height) {
     float scale = guest_height ? std::max(h / guest_height, 0.1f) : 1.0f;
     // the software renderer draws every pixel on the CPU: no more of them than the game's own (scaled up to the
     // screen after), or a 4K screen is nine times the work of 720p and the game runs in slow motion
-    return Get().software_renderer ? std::min(scale, 1.0f) : scale;
+    return g_software_drawing ? std::min(scale, 1.0f) : scale;
 }
 
 }  // namespace app
