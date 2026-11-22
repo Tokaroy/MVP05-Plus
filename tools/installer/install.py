@@ -2455,8 +2455,7 @@ def settings_tab(tabs, root, tk, ttk):
     x720_box.grid(row=9, column=0, columnspan=3, sticky="w")
     ttk.Checkbutton(frm, text="Low latency (1 frame queued for the screen, not 3: less input delay, may stutter)",
                     variable=low_latency).grid(row=10, column=0, columnspan=3, sticky="w")
-    ttk.Checkbutton(frm, text="Software renderer (for a graphics card without DirectX 12: slow in games, fine for menus "
-                              "and rosters)", variable=software).grid(row=11, column=0, columnspan=3, sticky="w")
+    ttk.Checkbutton(frm, text="Software renderer (your CPU draws the game: for graphics cards without DirectX 12)", variable=software).grid(row=11, column=0, columnspan=3, sticky="w")
     # (Unlock everything isn't on this tab: it's in the settings file, unlock_all, and left as it is by Save)
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
     note.grid(row=13, column=0, columnspan=3, sticky="w", pady=(6, 0))
