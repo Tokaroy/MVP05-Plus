@@ -4084,6 +4084,19 @@ def update_window(w, root, tk, ttk, info):
         threading.Thread(target=work, daemon=True).start()
     go.configure(command=start)
 
+    # in the middle of the Launcher's window, or of the screen when the window isn't up yet (the check when the
+    # Launcher opens can finish first): it had opened at the screen's top left
+    win.withdraw()
+    win.update_idletasks()
+    ww, wh = win.winfo_reqwidth(), win.winfo_reqheight()
+    if w.winfo_viewable() and w.winfo_width() > 1:
+        x = w.winfo_rootx() + (w.winfo_width() - ww) // 2
+        y = w.winfo_rooty() + (w.winfo_height() - wh) // 2
+    else:
+        x, y = (win.winfo_screenwidth() - ww) // 2, (win.winfo_screenheight() - wh) // 2
+    win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+    win.deiconify()
+
 
 def backups_tab(frm, root, tk, ttk, refresh_current):
     from tkinter import messagebox
