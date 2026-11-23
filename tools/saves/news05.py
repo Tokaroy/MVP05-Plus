@@ -1145,8 +1145,9 @@ def _placed(x):
     injured list in the block's 45-byte tail (u8, 3 u32, 4 x (key, return day)), FORMAT_NOTES 3.1. The injured list is
     where a hurt player's club is: he's off the 25, and his last trade or move may be seasons old (or no longer in
     the save's last 30 and 60), which put a player the Astros had signed with the club whose farm he'd once been in.
-    And {player key: (roster block, the day he can come back)}: the injured lists, which keep a healed player until
-    his club activates him (his record's days left are 0 by then: Berroa, healed, still on Kansas City's list)."""
+    And {player key: (roster block, the day he went on the list)}: the injured lists, which keep a healed player until
+    his club activates him (his record's days left are 0 by then: Berroa, healed, still on Kansas City's list). The
+    day is when he went on (Kinney, hurt on April 30 for 90 days, on it from May 1), not when he can come off."""
     import dynasty05 as DY
     with DY._in_lib():
         import xb2gc as X
@@ -1168,7 +1169,7 @@ def _placed(x):
             p, back = struct.unpack_from("<II", x, end - 45 + 13 + 8 * i)
             if ok(p):
                 keys.append(p)
-                listed.setdefault(p, (k, back & 0xFFFF))
+                listed.setdefault(p, (k, back & 0xFFFF))  # (back: the day he went on the list)
         for p in keys:
             if ok(p):
                 out.setdefault(p, k)
@@ -1432,8 +1433,7 @@ def build(save, db):
         where = f" ({db.tag(t)})" if t else ""
         if today and back and back <= today:
             when = day(back)
-            body = f"{who(k)}{where} is healthy and can come off the injured list (eligible since " \
-                   f"{when.strftime('%B')} {when.day})."
+            body = f"{who(k)}{where} is healthy, on the injured list since {when.strftime('%B')} {when.day}."
         else:
             body = f"{who(k)}{where} is on the injured list."
         add(0.02 * db.importance(k), "Injury", f"{last(k)} ready to return", body, today, [t] if t else [], [k])
