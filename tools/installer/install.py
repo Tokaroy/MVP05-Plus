@@ -4205,13 +4205,55 @@ def backups_tab(frm, root, tk, ttk, refresh_current):
     return refresh
 
 
+def news_only(root, folder):
+    """League News for a save, opened in the browser, with no Launcher window (from the game's Tools menu): the
+    newest dynasty or owner mode when no folder is given. A problem is shown in a message box and logged."""
+    import news05 as N
+    import saves05 as S
+
+    def tell(text):
+        if os.name == "nt":
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(None, text, "League News", 0x40 | 0x40000)  # (information, on top)
+        else:
+            print(text)
+    if not folder:
+        try:
+            s = next((s for s in S.list_saves(root) if s["type"] in ("Dynasty", "Owner Mode")), None)
+        except Exception as e:
+            s = None
+            log_failure(root, "League News", e)
+        if not s:
+            return tell("No dynasty or owner mode save yet: save one in the game first.")
+        folder = s["folder"]
+    try:
+        with open(os.path.join(folder, "data.dat"), "rb") as f:
+            data = f.read()
+        out = N.publish(root, data, os.path.join(root, "league news"))
+    except (N.NewsError, OSError) as e:
+        return tell(f"No news from that save: {e}.")
+    except Exception as e:
+        log_failure(root, "League News", e)
+        return tell(f"Something went wrong: {e}. It's written to MVP05-Plus-Launcher.log.")
+    if os.name == "nt":
+        os.startfile(out)
+    else:
+        import webbrowser
+        webbrowser.open("file://" + os.path.abspath(out))
+
+
 def main():
     a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     a.add_argument("--xbox")
     a.add_argument("--gamecube")
     a.add_argument("--ps2")
     a.add_argument("--dir", default=game_dir())
+    a.add_argument("--league-news", nargs="?", const="", metavar="SAVE_FOLDER",
+                   help="League News for a save (the newest dynasty or owner mode without one), opened in the browser, "
+                        "without the Launcher's window: the game's Tools menu (F10) runs this")
     o = a.parse_args()
+    if o.league_news is not None:
+        return news_only(o.dir, o.league_news)
     if not (o.xbox or o.gamecube or o.ps2):
         return gui(o.dir)
     try:

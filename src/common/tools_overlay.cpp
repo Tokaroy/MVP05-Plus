@@ -4,12 +4,19 @@
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <chrono>
 #include <cstdio>
 #include <mutex>
 #include <string>
 #include <thread>
 
+#ifndef XBE_UWP
+#ifndef NOMINMAX
+#define NOMINMAX  // (std::max below)
+#endif
+#include <windows.h>
+#endif
 #include "app/app.h"
 #include "core/log.h"
 #include "kernel/kernel.h"
@@ -402,8 +409,44 @@ void Extras() {
     }
 }
 
+#ifndef XBE_UWP
+// League News from the game: the Launcher beside MVP05.exe makes it for the newest dynasty or owner mode save and
+// opens it in the browser (MVP05-Plus-Launcher.exe --league-news, no Launcher window). It reads the save on disk, so
+// it's as of the last save.
+void LeagueNewsButton() {
+    static std::string note;
+    Help("League News: your league as a website, made from your newest saved dynasty or owner mode (save first to "
+         "see today's games). It opens in your browser.");
+    if (ImGui::Button("Open League News")) {
+        std::filesystem::path launcher = app::ExeDir() / "MVP05-Plus-Launcher.exe";
+        std::wstring line = L"\"" + launcher.wstring() + L"\" --league-news --dir \"" + app::ExeDir().wstring() + L"\"";
+        STARTUPINFOW si{sizeof(si)};
+        PROCESS_INFORMATION pi{};
+        if (std::filesystem::exists(launcher) &&
+            CreateProcessW(launcher.c_str(), line.data(), nullptr, nullptr, FALSE, 0, nullptr,
+                           app::ExeDir().c_str(), &si, &pi)) {
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+            note = "Making it: it opens in your browser in a few seconds.";
+            LOGR("tools: League News asked of the Launcher");
+        } else {
+            note = "MVP05-Plus-Launcher.exe isn't beside MVP05.exe, so League News can't be made from here.";
+            LOGW("tools: League News: couldn't start %s", launcher.string().c_str());
+        }
+    }
+    if (!note.empty()) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", note.c_str());
+    }
+    ImGui::Separator();
+}
+#endif
+
 // Dynasty: EA's debug menu's Owner Bank Balance and Override Manager Rating, on the dynasty loaded
 void Dynasty() {
+#ifndef XBE_UWP
+    LeagueNewsButton();
+#endif
     // the Owner Mode bank balance: [[[profiles 0x657288] + 0x34] + 4] + 0x12B7C, a float of dollars (the game adds
     // each game's revenue to it, db_sec 0x450766)
     uint32_t a = Ptr(0x657288), b = a ? Ptr(a + 0x34) : 0, c = b ? Ptr(b + 4) : 0;
