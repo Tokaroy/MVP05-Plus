@@ -1437,8 +1437,8 @@ def build(save, db):
         where = f" ({db.tag(t)})" if t else ""
         left = max(0, back + length - now) if back and now else 0
         body = f"{who(k)}{where} is healthy, " + (
-            f"with {left} day{'s' if left != 1 else ''} left on the {length}-day injured list." if left else
-            f"and can come off the {length}-day injured list.")
+            f"eligible to come off the {length}-day injured list in {left} day{'s' if left != 1 else ''}." if left else
+            f"eligible to come off the {length}-day injured list now.")
         add(0.02 * db.importance(k), "Injury", f"{last(k)} ready to return", body, today, [t] if t else [], [k])
         stories[-1].update(days=0, big_club=t in rec)
 
