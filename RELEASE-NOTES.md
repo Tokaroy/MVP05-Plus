@@ -2,6 +2,7 @@
 
 ## Fixed in 3.2.1
 - **League News:** injured players are listed with their current club. A player who had left your organization could still show in your injury report.
+- **League News:** players still on the 15- or 60-day injured list after healing are in the injury report, with the days left on the list (as the game's Disabled List shows them).
 
 ## New in 3.2
 - **Keyboard as a controller:** when the game starts with no controller plugged in, the keyboard plays as controller 1 (arrows, W A S D, Enter, Backspace and more). Plugging in a controller takes over. Keys can be changed in `[keyboard]` in `mvp05-settings.toml`.

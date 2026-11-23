@@ -1145,9 +1145,11 @@ def _placed(x):
     injured list in the block's 45-byte tail (u8, 3 u32, 4 x (key, return day)), FORMAT_NOTES 3.1. The injured list is
     where a hurt player's club is: he's off the 25, and his last trade or move may be seasons old (or no longer in
     the save's last 30 and 60), which put a player the Astros had signed with the club whose farm he'd once been in.
-    And {player key: (roster block, the day he went on the list)}: the injured lists, which keep a healed player until
-    his club activates him (his record's days left are 0 by then: Berroa, healed, still on Kansas City's list). The
-    day is when he went on (Kinney, hurt on April 30 for 90 days, on it from May 1), not when he can come off."""
+    And {player key: (roster block, the day he went on the list, 15 or 60)}: the injured lists, which keep a healed
+    player until his club activates him (his record's days left are 0 by then: Berroa, healed, still on Kansas City's
+    list). The four places are the 15-day list's (the 1st and 3rd) and the 60-day list's (the 2nd and 4th); the day is
+    when he went on (Kinney, hurt on April 30 for 90 days, on the 60-day list from May 1). The game's Disabled List
+    screen counts the days left on it from the next game day: Berroa, on the 15-day list from April 20, 4 on May 1."""
     import dynasty05 as DY
     with DY._in_lib():
         import xb2gc as X
@@ -1169,7 +1171,7 @@ def _placed(x):
             p, back = struct.unpack_from("<II", x, end - 45 + 13 + 8 * i)
             if ok(p):
                 keys.append(p)
-                listed.setdefault(p, (k, back & 0xFFFF))  # (back: the day he went on the list)
+                listed.setdefault(p, (k, back & 0xFFFF, 60 if i % 2 else 15))  # (back: the day he went on it)
         for p in keys:
             if ok(p):
                 out.setdefault(p, k)
@@ -1424,18 +1426,19 @@ def build(save, db):
         add(score, "Injury", head, body, today, [t] if t else [], [k])
         stories[-1].update(days=days, big_club=big_club)
 
-    # healed but still on an injured list (his club hasn't activated him yet): in the report, not a headline
+    # healed but still on an injured list (his club hasn't activated him yet): in the report, not a headline; the
+    # days left on the list as the game's Disabled List screen counts them, from the next game day
     still_hurt = {h["player"] for h in save["hurt"]}
-    for k, (i, back) in save.get("listed", {}).items():
+    now = next_day or today
+    for k, (i, back, length) in save.get("listed", {}).items():
         if k in still_hurt:
             continue
         t = team_of.get(k)
         where = f" ({db.tag(t)})" if t else ""
-        if today and back and back <= today:
-            when = day(back)
-            body = f"{who(k)}{where} is healthy, on the injured list since {when.strftime('%B')} {when.day}."
-        else:
-            body = f"{who(k)}{where} is on the injured list."
+        left = max(0, back + length - now) if back and now else 0
+        body = f"{who(k)}{where} is healthy, " + (
+            f"with {left} day{'s' if left != 1 else ''} left on the {length}-day injured list." if left else
+            f"and can come off the {length}-day injured list.")
         add(0.02 * db.importance(k), "Injury", f"{last(k)} ready to return", body, today, [t] if t else [], [k])
         stories[-1].update(days=0, big_club=t in rec)
 
