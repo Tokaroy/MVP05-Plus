@@ -448,14 +448,14 @@ def read_save(data):
         feed.append(dict(key=k, value=a, kind=(w >> 2) & 0x3F, word=w, day=d1))
     names, hurt, contracts, (positions, born) = _players(x)
     rosters = _rosters(x)
-    placed = _placed(x)
+    placed, listed = _placed(x)
     history = _history(x, marks)
     careers = _careers(x)
     user = None
     if len(marks) in (7, 9):  # the user section: marker 4 in a dynasty, 6 in an owner mode (budget05 reads it too)
         user = struct.unpack_from("<I", x, marks[len(marks) - 3] + 8)[0]
     return dict(name=name, kind=kind, records=records, games=games, trades=trades, moves=moves, hurt=hurt,
-                names=names, rosters=rosters, placed=placed, feed=feed, user=user, history=history,
+                names=names, rosters=rosters, placed=placed, listed=listed, feed=feed, user=user, history=history,
                 careers=careers, contracts=contracts, positions=positions, born=born)
 
 
@@ -1144,15 +1144,17 @@ def _placed(x):
     the farm teams (the All-Star teams, 30 and 31, left out): its 25, its second list (u32 n, u32, n keys) and the
     injured list in the block's 45-byte tail (u8, 3 u32, 4 x (key, return day)), FORMAT_NOTES 3.1. The injured list is
     where a hurt player's club is: he's off the 25, and his last trade or move may be seasons old (or no longer in
-    the save's last 30 and 60), which put a player the Astros had signed with the club whose farm he'd once been in."""
+    the save's last 30 and 60), which put a player the Astros had signed with the club whose farm he'd once been in.
+    And {player key: (roster block, the day he can come back)}: the injured lists, which keep a healed player until
+    his club activates him (his record's days left are 0 by then: Berroa, healed, still on Kansas City's list)."""
     import dynasty05 as DY
     with DY._in_lib():
         import xb2gc as X
     try:
         st = X._blocks(x, X.KEYX, X.SIG_X, 0x38CB)
     except AssertionError:
-        return {}
-    out = {}
+        return {}, {}
+    out, listed = {}, {}
     ok = lambda p: p and p != 0xFFFFFFFF
     for k in range(len(st) - 1):
         if k in (30, 31):
@@ -1162,11 +1164,15 @@ def _placed(x):
         n = struct.unpack_from("<I", x, b + 292)[0]
         if n <= 64 and b + 300 + 4 * n <= end - 45:
             keys += struct.unpack_from(f"<{n}I", x, b + 300)
-        keys += [struct.unpack_from("<I", x, end - 45 + 13 + 8 * i)[0] for i in range(4)]
+        for i in range(4):
+            p, back = struct.unpack_from("<II", x, end - 45 + 13 + 8 * i)
+            if ok(p):
+                keys.append(p)
+                listed.setdefault(p, (k, back & 0xFFFF))
         for p in keys:
             if ok(p):
                 out.setdefault(p, k)
-    return out
+    return out, listed
 
 
 # ---- the news ---------------------------------------------------------------------------------------------------
@@ -1416,6 +1422,22 @@ def build(save, db):
             head = f"{db.club(t)} lose {last(k)} to {kind}" + (" for the season" if rest_of_year else "")
         add(score, "Injury", head, body, today, [t] if t else [], [k])
         stories[-1].update(days=days, big_club=big_club)
+
+    # healed but still on an injured list (his club hasn't activated him yet): in the report, not a headline
+    still_hurt = {h["player"] for h in save["hurt"]}
+    for k, (i, back) in save.get("listed", {}).items():
+        if k in still_hurt:
+            continue
+        t = team_of.get(k)
+        where = f" ({db.tag(t)})" if t else ""
+        if today and back and back <= today:
+            when = day(back)
+            body = f"{who(k)}{where} is healthy and can come off the injured list (eligible since " \
+                   f"{when.strftime('%B')} {when.day})."
+        else:
+            body = f"{who(k)}{where} is on the injured list."
+        add(0.02 * db.importance(k), "Injury", f"{last(k)} ready to return", body, today, [t] if t else [], [k])
+        stories[-1].update(days=0, big_club=t in rec)
 
     for g in played:
         win, lose = (g["away"], g["home"]) if g["ar"] > g["hr"] else (g["home"], g["away"])
