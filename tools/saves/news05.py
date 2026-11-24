@@ -2013,6 +2013,35 @@ function sortT(th){var tb=th.closest('table').tBodies[0],i=[].indexOf.call(th.pa
  rows.forEach(function(r){tb.appendChild(r);});renumber();}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function tm(i,txt){return i<0?esc(txt):"<a href='#team-"+i+"'><i class='lg lg"+i+"'></i>"+esc(txt)+"</a>";}
+function ty(i,y){var tt=TT[i]||['?',-1];return "<a href='#ty-"+i+"-"+y+"'>"+(tt[1]>=0?"<i class='lg lg"+tt[1]+"'></i>":"")+esc(tt[0])+"</a>";}
+function showTeamYear(arg){var el=document.getElementById('playerpage'),a=arg.split('-'),ti=+a[0],y=+a[1],tt=TT[ti]||['?',-1],h=[];
+ // the 30 big-league clubs come first in TT (a farm club: its city, and its big-league club)
+ var club=tt[1]>=0&&document.querySelector('#team-'+tt[1]+' h1'),name=ti<30&&club?club.textContent:tt[0];
+ h.push("<a class=back href='#top'>&lsaquo; Back to the front page</a>");
+ h.push("<div class=mod><div class=mh>"+esc(name)+", "+y+"</div><div class='mb thead'>"+(tt[1]>=0?"<i class='lgb lg"+tt[1]+"b'></i>":"")+
+  "<div><h1>"+esc(name)+"</h1><p class=big>The "+y+" season"+(ti>=30&&club?" &middot; "+tm(tt[1],club.textContent)+" farm club":"")+"</p>"+
+  "<p class=date>Players who've since retired or left the league are no longer in the save, so this list isn't the full roster.</p></div></div></div>");
+ var bat=[],pit=[];
+ Object.keys(PD).forEach(function(k){var p=PD[k];p.rows.forEach(function(r){if(r[0]!=y||r[1]!=ti)return;
+  if(r.length==13){if(p.b)bat.push([k,p,r]);}else if(!p.b||r[2])pit.push([k,p,r]);});});
+ function r3(v){return v.toFixed(3).replace(/^0/,'');}
+ function pl(k,p){return "<a class=pl href='#p-"+k+"'>"+esc(p.n)+"</a>";}
+ if(bat.length){bat.sort(function(a,b){return b[2][2]-a[2][2];});
+  var t=["<div class=mod><div class=mh>Hitting</div><div class=mb><table class=career><tr><th>Player</th><th>Pos</th><th>AB</th><th>H</th><th>HR</th><th>RBI</th><th>R</th><th>SB</th><th>BB</th><th>SO</th><th>AVG</th><th>OPS</th></tr>"];
+  bat.forEach(function(x){var r=x[2],known=r[8]+r[9]+r[10]+r[11]>0||!r[3],ops='&ndash;';
+   if(known&&r[2])ops=r3((r[3]+r[8])/(r[2]+r[8]+r[11])+r[10]/r[2]);
+   t.push('<tr><td>'+pl(x[0],x[1])+'</td><td>'+esc(x[1].pos||'')+'</td>');
+   for(var j=2;j<10;j++)t.push('<td>'+(j>=8&&!known?'&ndash;':r[j])+'</td>');
+   t.push('<td>'+(r[2]?r3(r[3]/r[2]):'&ndash;')+'</td><td>'+ops+'</td></tr>');});
+  t.push('</table></div></div>');h.push(t.join(''));}
+ if(pit.length){pit.sort(function(a,b){return b[2][6]-a[2][6];});
+  var t=["<div class=mod><div class=mh>Pitching</div><div class=mb><table class=career><tr><th>Player</th><th>Pos</th><th>G</th><th>W</th><th>L</th><th>SV</th><th>IP</th><th>ER</th><th>SO</th><th>BB</th><th>ERA</th></tr>"];
+  pit.forEach(function(x){var r=x[2];t.push('<tr><td>'+pl(x[0],x[1])+'</td><td>'+esc(x[1].pos||'')+'</td>');
+   for(var j=2;j<10;j++)t.push('<td>'+(j==6?Math.floor(r[j]/3)+'.'+r[j]%3:r[j])+'</td>');
+   t.push('<td>'+(r[6]?(27*r[7]/r[6]).toFixed(2):'&ndash;')+'</td></tr>');});
+  t.push('</table></div></div>');h.push(t.join(''));}
+ if(!bat.length&&!pit.length)h.push("<div class=mod><div class=mb><p>None of that season's players are in the save any more.</p></div></div>");
+ el.innerHTML=h.join('');return el;}
 function noface(im){var t=im.getAttribute('data-t');if(t>=0){var i=document.createElement('i');i.className='lgb lg'+t+'b';im.replaceWith(i);}else im.remove();}
 function showPlayer(k){var el=document.getElementById('playerpage'),p=PD[k],h=[];
  h.push("<a class=back href='#top'>&lsaquo; Back to the front page</a>");
@@ -2034,7 +2063,7 @@ function showPlayer(k){var el=document.getElementById('playerpage'),p=PD[k],h=[]
  var last=p.b?10:10;
  p.rows.forEach(function(r){if((r.length==13)!=!!p.b)return;var plus=r[r.length-1];n++;var cls=r[0]==now?" class=mine":"",tt=TT[r[1]]||['?',-1];
   var known=!p.b||(r[8]+r[9]+r[10]+r[11]>0)||!r[3];if(!known)full=false;
-  t.push('<tr'+cls+'><td>'+r[0]+'</td><td>'+tm(tt[1],tt[0])+'</td>');
+  t.push('<tr'+cls+'><td>'+r[0]+'</td><td>'+(r[0]<now?ty(r[1],r[0]):tm(tt[1],tt[0]))+'</td>');
   for(var j=2;j<r.length-1;j++){tot[j]=(tot[j]||0)+r[j];if(j<last)t.push('<td>'+(p.b&&j>=8&&!known?'&ndash;':cell(r,j))+'</td>');}
   t.push(rates(r,known)+'<td>'+(plus===null?(!p.b&&!r[7]&&r[6]?'&infin;':'&ndash;'):plus)+'</td></tr>');});
  if(p.car){var c=p.car,r;  // the whole career (the rows above are his last 16 seasons at most)
@@ -2423,6 +2452,7 @@ def render(news):
     out.append(schedule_pages(news, lg, gid))
     out.append("<div id=playerpage class=teampage></div>")
     season = (news["today"] or day(min((g["day"] for g in news["games"]), default=21000))).year
+    need.update(news["history"])  # (every player with season lines: a past season's club page lists them)
     out.append(f"<script>var PD={player_data(news, need)},TT={team_table(db)},NOW={season},"
                f"FACES={json.dumps(news.get('faces_url'))};</script>")
     out.append("<div class=foot><div class=links><a href='#news'>Headlines</a><a href='#scores'>Scores</a>"
@@ -2441,7 +2471,7 @@ def render(news):
     out.append(f"<script>{SCRIPT}function show(t){{var r=document.getElementById('t'+t);if(!r)return;"
                f"var p=r.closest('.pane');if(p)pick(+p.id[1],+p.id[2]);}}pick({first[0]},{first[1]});"
                "function route(){var h=location.hash.slice(1),t=h.indexOf('team-')==0||h.indexOf('sched-')==0?document.getElementById(h):null;"
-               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(['stats','transactions','milestones','alltime','awards','farm','power','playoffs'].indexOf(h)>=0)t=document.getElementById(h);"
+               "if(h.indexOf('p-')==0)t=showPlayer(h.slice(2));if(h.indexOf('ty-')==0)t=showTeamYear(h.slice(3));if(['stats','transactions','milestones','alltime','awards','farm','power','playoffs'].indexOf(h)>=0)t=document.getElementById(h);"
                "document.querySelectorAll('.teampage').forEach(function(p){p.style.display=p==t?'block':'none'});"
                "document.querySelector('.cols').style.display=t?'none':'flex';if(t){window.scrollTo(0,0);return;}"
                "var el=h&&document.getElementById(h);if(el){var d=el.closest('.dpane');if(d)pickday(+d.id.slice(1));"
