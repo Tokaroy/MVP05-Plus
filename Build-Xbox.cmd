@@ -18,6 +18,9 @@ if not exist "assets\default.xbe" (
  echo Supply your extracted Xbox game in assets first: default.xbe goes directly in assets.
  exit /b 1
 )
+rem Visual Studio's build environment (what "x64 Native Tools Command Prompt for VS" sets up), when this isn't
+rem run from that prompt: found with vswhere, the newest Visual Studio or Build Tools with the C++ tools
+if not defined VCToolsInstallDir call :vsenv
 rem Visual Studio's own clang, CMake and Ninja (its "C++ Clang tools" and "CMake tools" components), when the
 rem prompt doesn't have them on PATH (as the release script finds them)
 where clang++ >nul 2>&1
@@ -36,7 +39,8 @@ if errorlevel 1 (
  exit /b 1
 )
 if not defined VCToolsInstallDir (
- echo Run this from "x64 Native Tools Command Prompt for VS".
+ echo Visual Studio's C++ tools weren't found: install them ^(Visual Studio Installer, "Desktop development with C++"^),
+ echo or run this from "x64 Native Tools Command Prompt for VS".
  exit /b 1
 )
 if not exist "%VCToolsInstallDir%lib\x64\store\msvcrt.lib" (
@@ -63,4 +67,15 @@ if errorlevel 1 exit /b 1
 echo == 3. The app package
 powershell -NoProfile -ExecutionPolicy Bypass -File "tools\xbox\Package-Xbox.ps1"
 if errorlevel 1 exit /b 1
+exit /b 0
+
+:vsenv
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" exit /b 0
+set "VSDIR="
+for /f "usebackq delims=" %%d in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSDIR=%%d"
+if not defined VSDIR exit /b 0
+if not exist "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" exit /b 0
+echo Using Visual Studio in %VSDIR%
+call "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" >nul
 exit /b 0
