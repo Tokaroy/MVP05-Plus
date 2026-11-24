@@ -66,6 +66,9 @@ inline std::atomic<uint64_t> g_perf_sync_late{0}, g_perf_sync_block{0};  // read
 inline std::atomic<bool> g_capture{false};
 // frames shown a second, as the backend last counted them
 inline std::atomic<double> g_fps{0};
+// frames that took 25 ms or more (a hitch at 60 fps), and the longest, in microseconds: taken (and reset) by the reader
+inline std::atomic<uint32_t> g_slow_frames{0}, g_worst_frame_us{0};
+inline std::atomic<uint64_t> g_frames{0};  // frames shown, since the start
 // F12 composed PNG screenshot; F3 diagnostic capture remains separate.
 inline std::atomic<bool> g_screenshot{false};
 

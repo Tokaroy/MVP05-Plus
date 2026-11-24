@@ -3113,6 +3113,15 @@ void D3D12Backend::ResetFrame() {
 void D3D12Backend::CountFps() {
     fps_n_++;
     auto now = std::chrono::steady_clock::now();
+    static auto last = now;
+    uint32_t us = uint32_t(std::min<int64_t>(std::chrono::duration_cast<std::chrono::microseconds>(now - last).count(),
+                                             UINT32_MAX));
+    last = now;
+    g_frames.fetch_add(1, std::memory_order_relaxed);
+    if (us >= 25000) g_slow_frames.fetch_add(1, std::memory_order_relaxed);
+    for (uint32_t w = g_worst_frame_us.load(std::memory_order_relaxed);
+         us > w && !g_worst_frame_us.compare_exchange_weak(w, us, std::memory_order_relaxed);) {
+    }
     double el = std::chrono::duration<double>(now - fps_t_).count();
     if (el >= 0.5) {
         fps_ = fps_n_ / el;

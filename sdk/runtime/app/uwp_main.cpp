@@ -25,6 +25,10 @@
 #include <windows.system.h>
 #include <windows.ui.core.h>
 
+#include <eh.h>
+#include <signal.h>
+#include <stdlib.h>
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -330,22 +334,85 @@ bool AppMemory(uint64_t& used, uint64_t& limit) {
 // in the log: the frame rate and the memory, the two things that end a run without an error
 void Heartbeat() {
     std::thread([] {
-        auto start = std::chrono::steady_clock::now();
+        auto start = std::chrono::steady_clock::now(), was = start;
+        uint64_t frames_was = gpu::g_frames.load();
+        gpu::g_slow_frames = 0, gpu::g_worst_frame_us = 0;
         for (;;) {
             std::this_thread::sleep_for(std::chrono::seconds(10));
             if (g_closed) return;
-            int secs = int(std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() + 0.5);
-            char line[160];
+            auto now = std::chrono::steady_clock::now();
+            int secs = int(std::chrono::duration<double>(now - start).count() + 0.5);
+            uint64_t frames = gpu::g_frames.load();
+            // the 10 seconds' average, the frames of 25 ms or more (hitches) and the longest
+            double avg = (frames - frames_was) / std::max(0.001, std::chrono::duration<double>(now - was).count());
+            frames_was = frames, was = now;
+            unsigned slow = gpu::g_slow_frames.exchange(0), worst = gpu::g_worst_frame_us.exchange(0);
+            char line[200];
             uint64_t used = 0, limit = 0;
-            if (AppMemory(used, limit))
-                std::snprintf(line, sizeof(line), "%5ds: %.1f fps, memory %llu of %llu MB", secs, gpu::g_fps.load(),
-                              (unsigned long long)used, (unsigned long long)limit);
-            else
-                std::snprintf(line, sizeof(line), "%5ds: %.1f fps", secs, gpu::g_fps.load());
+            AppMemory(used, limit);
+            std::snprintf(line, sizeof(line), "%5ds: %.1f fps, %u hitches (longest %.0f ms), memory %llu of %llu MB",
+                          secs, avg, slow, worst / 1000.0, (unsigned long long)used, (unsigned long long)limit);
             StartNote(line);
             LOGR("xbox: %s", line);
         }
     }).detach();
+}
+
+// what ends a run without the exception filter seeing it: a C++ exception nothing caught (std::terminate, then
+// abort), abort itself, a pure virtual call, a bad argument to the C runtime. Each is noted, then the run ends as before
+thread_local char t_thrown[96];  // the type of this thread's last C++ exception (the runtime throws its own, caught)
+
+void ThrowTypeName(const EXCEPTION_RECORD* r) {
+    // the MSVC exception record: [2] the ThrowInfo, [3] the image its offsets are from (x64)
+    if (r->NumberParameters < 4) return;
+    auto image = reinterpret_cast<const uint8_t*>(r->ExceptionInformation[3]);
+    auto info = reinterpret_cast<const int32_t*>(r->ExceptionInformation[2]);
+    if (!image || !info || !info[3]) return;
+    auto types = reinterpret_cast<const int32_t*>(image + info[3]);  // CatchableTypeArray: count, then offsets
+    if (types[0] < 1 || !types[1]) return;
+    auto type = reinterpret_cast<const int32_t*>(image + types[1]);  // CatchableType: properties, then pType
+    if (!type[1]) return;
+    const char* name = reinterpret_cast<const char*>(image + type[1] + 16);  // TypeDescriptor: two pointers, the name
+    std::snprintf(t_thrown, sizeof(t_thrown), "%s", name);
+}
+
+LONG WINAPI FirstChance(EXCEPTION_POINTERS* e) {
+    const EXCEPTION_RECORD* r = e->ExceptionRecord;
+    if (r->ExceptionCode == 0xE06D7363) {  // a C++ throw
+        ThrowTypeName(r);
+    } else if ((r->ExceptionCode & 0xF0000000) == 0xC0000000) {  // an error (not a debug print or a thread name)
+        static std::atomic<int> told{0};
+        if (told.fetch_add(1) < 8) {
+            char line[160];
+            uint64_t a = r->NumberParameters >= 2 ? uint64_t(r->ExceptionInformation[1]) : 0;
+            std::snprintf(line, sizeof(line), "Exception %08lX at %p (address %llX, guest %08llX)", r->ExceptionCode,
+                          r->ExceptionAddress, (unsigned long long)a,
+                          (unsigned long long)(a - uint64_t(reinterpret_cast<uintptr_t>(kernel::g_base))));
+            StartNote(line);
+            LOGE("%s", line);
+            if (kernel::Thread* t = kernel::Current(); t && t->ctx) kernel::LogGuestStack(*t->ctx, 64);
+            logx::Flush();
+        }
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+void Ended(const char* how) {
+    std::string line = std::string("Ended: ") + how;
+    if (t_thrown[0]) line += std::string(" (this thread's last C++ exception: ") + t_thrown + ")";
+    StartNote(line);
+    LOGE("%s", line.c_str());
+    if (kernel::Thread* t = kernel::Current(); t && t->ctx) kernel::LogGuestStack(*t->ctx, 64);
+    logx::Flush();
+}
+
+void CatchEndings() {
+    AddVectoredExceptionHandler(1, FirstChance);
+    signal(SIGABRT, [](int) { Ended("abort (a C++ exception nothing caught, or std::abort)"); });
+    _set_purecall_handler([] { Ended("a pure virtual function was called"); });
+    _set_invalid_parameter_handler([](const wchar_t*, const wchar_t*, const wchar_t*, unsigned, uintptr_t) {
+        Ended("the C runtime was given a bad argument");
+    });
 }
 
 LONG WINAPI Crashed(EXCEPTION_POINTERS* e) {
@@ -375,6 +442,7 @@ HRESULT STDMETHODCALLTYPE View::Run() {
     MeasureWindow();
     SetUnhandledExceptionFilter(Crashed);
     g_root = FindRoot();
+    CatchEndings();
     StartNote("The game's folder: " + Narrow(g_root.wstring()));
     std::error_code ec;
     fs::create_directories(g_root / "logs", ec);
