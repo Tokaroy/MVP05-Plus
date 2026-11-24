@@ -64,6 +64,8 @@ inline std::atomic<uint64_t> g_perf_sync_late{0}, g_perf_sync_block{0};  // read
 
 // F3: save the next frame, every draw and target, under diag::CaptureDir
 inline std::atomic<bool> g_capture{false};
+// frames shown a second, as the backend last counted them
+inline std::atomic<double> g_fps{0};
 // F12 composed PNG screenshot; F3 diagnostic capture remains separate.
 inline std::atomic<bool> g_screenshot{false};
 

@@ -22,6 +22,7 @@
 #include <windows.applicationmodel.core.h>
 #include <windows.graphics.display.h>
 #include <windows.storage.h>
+#include <windows.system.h>
 #include <windows.ui.core.h>
 
 #include <algorithm>
@@ -188,7 +189,8 @@ fs::path FindRoot() {
     fs::path local = LocalState();
     if (!local.empty()) {
         g_start_log = (local / "xbox-start.txt").wstring();
-        DeleteFileW(g_start_log.c_str());
+        // the last run's is kept beside it (a run that crashed is often followed by one that didn't get far)
+        MoveFileExW(g_start_log.c_str(), (local / "xbox-start-previous.txt").c_str(), MOVEFILE_REPLACE_EXISTING);
     }
     StartNote("MVP05-Plus on the Xbox: looking for the game's folder");
     StartNote("LocalState: " + Narrow(local.wstring()));
@@ -314,6 +316,38 @@ void EventLoop() {
     }
 }
 
+// the app's memory and its limit, in MB (the Xbox closes an app that goes over it, with nothing in its log)
+bool AppMemory(uint64_t& used, uint64_t& limit) {
+    ComPtr<ABI::Windows::System::IMemoryManagerStatics> mm;
+    if (FAILED(Factory(RuntimeClass_Windows_System_MemoryManager, mm)) || !mm) return false;
+    UINT64 u = 0, l = 0;
+    if (FAILED(mm->get_AppMemoryUsage(&u)) || FAILED(mm->get_AppMemoryUsageLimit(&l))) return false;
+    used = u >> 20, limit = l >> 20;
+    return true;
+}
+
+// every 10 seconds of play, a line in xbox-start.txt (the console's own storage, so it's there after a crash) and
+// in the log: the frame rate and the memory, the two things that end a run without an error
+void Heartbeat() {
+    std::thread([] {
+        auto start = std::chrono::steady_clock::now();
+        for (;;) {
+            std::this_thread::sleep_for(std::chrono::seconds(10));
+            if (g_closed) return;
+            int secs = int(std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() + 0.5);
+            char line[160];
+            uint64_t used = 0, limit = 0;
+            if (AppMemory(used, limit))
+                std::snprintf(line, sizeof(line), "%5ds: %.1f fps, memory %llu of %llu MB", secs, gpu::g_fps.load(),
+                              (unsigned long long)used, (unsigned long long)limit);
+            else
+                std::snprintf(line, sizeof(line), "%5ds: %.1f fps", secs, gpu::g_fps.load());
+            StartNote(line);
+            LOGR("xbox: %s", line);
+        }
+    }).detach();
+}
+
 LONG WINAPI Crashed(EXCEPTION_POINTERS* e) {
     if (kernel::Thread* t = kernel::Current(); e && t && t->ctx) {
         auto* r = e->ExceptionRecord;
@@ -321,6 +355,12 @@ LONG WINAPI Crashed(EXCEPTION_POINTERS* e) {
         kernel::LogGuestStack(*t->ctx, 256);
     } else if (e) {
         LOGE("exception %08lX at %p", e->ExceptionRecord->ExceptionCode, e->ExceptionRecord->ExceptionAddress);
+    }
+    if (e) {
+        char line[96];
+        std::snprintf(line, sizeof(line), "Crashed: exception %08lX at %p", e->ExceptionRecord->ExceptionCode,
+                      e->ExceptionRecord->ExceptionAddress);
+        StartNote(line);
     }
     logx::Flush();
     return EXCEPTION_CONTINUE_SEARCH;
@@ -344,6 +384,13 @@ HRESULT STDMETHODCALLTYPE View::Run() {
     app::Load();
     if (kGame.init) kGame.init();
     LogSystem();
+    if (uint64_t used = 0, limit = 0; AppMemory(used, limit)) {
+        // a Game gets several GB; an App about 1 GB, too little (Dev Home: View details, App type: Game)
+        std::string m = "Memory: " + std::to_string(used) + " MB in use, the limit is " + std::to_string(limit) + " MB" +
+                        (limit < 2048 ? " (the app is running as an App: set its App type to Game in Dev Home)" : "");
+        StartNote(m);
+        LOGR("%s", m.c_str());
+    }
 
     GameFiles game;
     if (!FindGame(game)) {
@@ -370,6 +417,7 @@ HRESULT STDMETHODCALLTYPE View::Run() {
         return S_OK;
     }
     StartNote("The game started");
+    Heartbeat();
     EventLoop();
     logx::Flush();
     kernel::Shutdown(0);

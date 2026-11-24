@@ -3116,6 +3116,7 @@ void D3D12Backend::CountFps() {
     double el = std::chrono::duration<double>(now - fps_t_).count();
     if (el >= 0.5) {
         fps_ = fps_n_ / el;
+        g_fps.store(fps_, std::memory_order_relaxed);
         fps_n_ = 0;
         fps_t_ = now;
     }
@@ -3194,7 +3195,13 @@ void D3D12Backend::Present(const Surface& front) {
     DeliverReports();
     bool vsync = app::Get().vsync;
     auto perf_swap = PerfClock::now();
-    swap_->Present(vsync ? 1 : 0, !vsync && tearing_ ? DXGI_PRESENT_ALLOW_TEARING : 0);
+    HRESULT presented = swap_->Present(vsync ? 1 : 0, !vsync && tearing_ ? DXGI_PRESENT_ALLOW_TEARING : 0);
+    if (FAILED(presented)) {  // (the GPU stopped: removed, hung or reset; said once)
+        static std::atomic<bool> told{false};
+        if (!told.exchange(true))
+            LOGE("d3d12: present failed (%08lX), the GPU stopped (reason %08lX)", (unsigned long)presented,
+                 (unsigned long)dev_->GetDeviceRemovedReason());
+    }
     if (trace_present) LOGR("MVP05 present: DXGI complete");
     g_perf.swap += PerfMs(perf_swap);
 

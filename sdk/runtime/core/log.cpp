@@ -9,6 +9,9 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#if defined(_WIN32) && defined(XBE_UWP)
+#include <io.h>  // _commit
+#endif
 
 namespace fs = std::filesystem;
 
@@ -68,7 +71,12 @@ void Write(Level lv, const char* fmt, ...) {
     n = std::min(n, int(sizeof(line)) - 1);
     if (g_file) {
         std::fwrite(line, 1, size_t(n), g_file);
-        if (lv >= Level::Warn) std::fflush(g_file);
+        if (lv >= Level::Warn) {
+            std::fflush(g_file);
+#if defined(_WIN32) && defined(XBE_UWP)
+            _commit(_fileno(g_file));  // the Xbox's USB drive: on the drive itself, or a crash leaves the log empty
+#endif
+        }
     }
     std::fwrite(line, 1, size_t(n), stderr);
 }
