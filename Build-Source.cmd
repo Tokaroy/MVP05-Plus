@@ -20,6 +20,14 @@ if not exist "assets\default.xbe" (
  echo See START-HERE.txt.
  exit /b 1
 )
+rem Visual Studio's own clang, CMake and Ninja (its "C++ Clang tools" and "CMake tools" components), when the
+rem prompt doesn't have them on PATH (as the release script finds them)
+where clang++ >nul 2>&1
+if errorlevel 1 if defined VSINSTALLDIR if exist "%VSINSTALLDIR%VC\Tools\Llvm\x64\bin\clang++.exe" set "PATH=%VSINSTALLDIR%VC\Tools\Llvm\x64\bin;%PATH%"
+where cmake >nul 2>&1
+if errorlevel 1 if defined VSINSTALLDIR set "PATH=%VSINSTALLDIR%Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%PATH%"
+where ninja >nul 2>&1
+if errorlevel 1 if defined VSINSTALLDIR set "PATH=%VSINSTALLDIR%Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;%PATH%"
 where clang++ >nul 2>&1
 if errorlevel 1 (
  echo The compiler isn't on PATH. Open "x64 Native Tools Command Prompt for VS" from the Start menu,
