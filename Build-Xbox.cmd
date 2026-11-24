@@ -54,7 +54,8 @@ if errorlevel 1 exit /b 1
 echo == 2. The Xbox app
 rem the C++ runtime for apps (vcruntime140_app) in place of the PC's
 set "LIB=%VCToolsInstallDir%lib\x64\store;%LIB%"
-cmake --preset xbox-release
+rem (--fresh: a configure that failed, as the compiler check once did, is not kept)
+cmake --preset xbox-release --fresh
 if errorlevel 1 exit /b 1
 cmake --build --preset xbox-release --target MVP05 --parallel 4
 if errorlevel 1 exit /b 1

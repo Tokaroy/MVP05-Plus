@@ -59,8 +59,9 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "XBE_UWP": "ON",
-                "CMAKE_C_STANDARD_LIBRARIES": "",
-                "CMAKE_CXX_STANDARD_LIBRARIES": ""
+                "CMAKE_C_STANDARD_LIBRARIES": "-lwindowsapp",
+                "CMAKE_CXX_STANDARD_LIBRARIES": "-lwindowsapp",
+                "CMAKE_TRY_COMPILE_PLATFORM_VARIABLES": "CMAKE_C_STANDARD_LIBRARIES;CMAKE_CXX_STANDARD_LIBRARIES"
             }
         }
     ],
