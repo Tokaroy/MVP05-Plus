@@ -31,7 +31,7 @@ if errorlevel 1 if defined VSINSTALLDIR set "PATH=%VSINSTALLDIR%Common7\IDE\Comm
 where clang++ >nul 2>&1
 if errorlevel 1 (
  echo clang isn't installed: in the Visual Studio Installer, Modify, Individual components, tick
- echo "C++ Clang Compiler for Windows" and "C++ CMake tools for Windows" (or: winget install LLVM.LLVM).
+ echo "C++ Clang Compiler for Windows" and "C++ CMake tools for Windows" ^(or: winget install LLVM.LLVM^).
  echo Then open "x64 Native Tools Command Prompt for VS" from the Start menu, then in it: cd /d "%~dp0" and run Build-Xbox.cmd.
  exit /b 1
 )
