@@ -24,14 +24,17 @@ rem Visual Studio's own clang, CMake and Ninja (its "C++ Clang tools" and "CMake
 rem prompt doesn't have them on PATH (as the release script finds them)
 where clang++ >nul 2>&1
 if errorlevel 1 if defined VSINSTALLDIR if exist "%VSINSTALLDIR%VC\Tools\Llvm\x64\bin\clang++.exe" set "PATH=%VSINSTALLDIR%VC\Tools\Llvm\x64\bin;%PATH%"
+where clang++ >nul 2>&1
+if errorlevel 1 if exist "%ProgramFiles%\LLVM\bin\clang++.exe" set "PATH=%ProgramFiles%\LLVM\bin;%PATH%"
 where cmake >nul 2>&1
 if errorlevel 1 if defined VSINSTALLDIR set "PATH=%VSINSTALLDIR%Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%PATH%"
 where ninja >nul 2>&1
 if errorlevel 1 if defined VSINSTALLDIR set "PATH=%VSINSTALLDIR%Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;%PATH%"
 where clang++ >nul 2>&1
 if errorlevel 1 (
- echo The compiler isn't on PATH. Open "x64 Native Tools Command Prompt for VS" from the Start menu,
- echo with LLVM, CMake and Ninja installed, then in it: cd /d "%~dp0" and run Build-Source.cmd.
+ echo clang isn't installed: in the Visual Studio Installer, Modify, Individual components, tick
+ echo "C++ Clang Compiler for Windows" and "C++ CMake tools for Windows" (or: winget install LLVM.LLVM).
+ echo Then open "x64 Native Tools Command Prompt for VS" from the Start menu, then in it: cd /d "%~dp0" and run Build-Source.cmd.
  exit /b 1
 )
 cmake --preset release
