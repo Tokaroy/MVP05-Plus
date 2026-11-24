@@ -95,10 +95,13 @@ void InitKernelData() {
     PutAnsi(DataAddress(41), "RECOMP HARD DISK");
     PutAnsi(DataAddress(42), "0000000000000000");
     W32(DataAddress(40), 3);
-    // XGetVideoFlags only exposes HDTV capabilities with XC_AV_PACK_HDTV.
-    const uint32_t av_pack = app::Get().xbox_720p && app::Widescreen() ? 1u : 0u;
+    // XGetVideoFlags only exposes HDTV capabilities with XC_AV_PACK_HDTV: always that pack, as a console on
+    // component cables with 480p ticked in the dashboard (VideoFlags: 480p always, 720p when xbox_720p is on and
+    // the screen is wide). With a standard pack the game was told 480p wasn't there and chose 480i.
+    const uint32_t av_pack = 1u;
     W32(DataAddress(356), av_pack);
-    LOGR("video mode: boot AV pack=%u (1=HDTV)", av_pack);
+    LOGR("video mode: boot AV pack=%u (1=HDTV), %s", av_pack,
+         app::Get().xbox_720p && app::Widescreen() ? "720p and 480p offered" : "480p offered");
     // IDE_CHANNEL_OBJECT DeviceQueue.DeviceListHead, XAPI walks it to cancel file I/O
     uint32_t queue = DataAddress(357) + 0x28;
     W32(queue, queue);

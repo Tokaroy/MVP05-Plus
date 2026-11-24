@@ -2149,8 +2149,10 @@ def render(news):
            f"<div class=util><span>{e(news['name'])} &middot; {e(news['kind'])}</span>"
            + "<span id=issues></span>"
            + (f"<b>{fmt(news['today'])}</b>" if news["today"] else "") + "</div>",
-           "<div class=bar><div class=mark>" + (f"<img src='{db.badge()}' alt=''>" if db.badge() else "")
-           + "<div><b>MVP Baseball</b><span>League News</span></div></div>"
+           # the badge and title: back to the front page, as on a newspaper's site
+           "<div class=bar><a class=mark href='#top' title='Front page' style='color:inherit;text-decoration:none'>"
+           + (f"<img src='{db.badge()}' alt=''>" if db.badge() else "")
+           + "<div><b>MVP Baseball</b><span>League News</span></div></a>"
            f"<div class=top><a href='#news'>Headlines</a><a href='#{'recaps' if news['days'] else 'scores'}'>Scores</a>"
            "<a href='#standings'>Standings</a><a href='#matchups'>Matchups</a>"
            + ("<a href='#stats'>Stats</a>" if news["stats"] else "")
