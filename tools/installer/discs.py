@@ -467,7 +467,7 @@ def open_ps2(path):
 
 ART_FILES = ["data/frontend/shared.big", "data/frontend/igonly.big"] + \
             [f"data/frontend/load{i}.big" for i in range(8)]
-GC_ART_FILES = ART_FILES + ["data/igshapes/igcrsr.gsh"]
+GC_ART_FILES = ART_FILES + ["data/igshapes/igcrsr.gsh", "data/fonts/fonts.big"]
 PS2_ART_FILES = ART_FILES + ["data/igshapes/igcrsr.ssh"]
 
 

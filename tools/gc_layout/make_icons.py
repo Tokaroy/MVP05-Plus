@@ -370,5 +370,27 @@ def main():
     open(dst, 'wb').write(cr_new)
     print('wrote', dst)
 
+    # the script font (au20b: the screen titles, "Audio Options", "Load Dynasty"...): the GameCube's. Its glyphs are
+    # drawn from a picture twice as detailed as the Xbox's 4:3 one (512 pixels across against 256), so the titles are
+    # smoother; the same letters, sizes on screen and kerning
+    from iconlib.gcfont import gc_font_to_xbox
+    xp, gp = os.path.join(xb, 'fonts', 'fonts.big'), os.path.join(gc, 'fonts', 'fonts.big')
+    if os.path.exists(xp) and os.path.exists(gp):
+        theirs = {n.lower(): unpack(b) for n, b in read_big(gp)}
+        files = []
+        for n, b in read_big(xp):
+            if n.lower() == 'au20b_en.xfn' and 'au20b_en.gfn' in theirs:
+                new = gc_font_to_xbox(theirs['au20b_en.gfn'], unpack(b))
+                c = pack.refpack(new)
+                assert unrefpack(c) == new
+                b = c
+            files.append((n, b))
+        os.makedirs(os.path.join(out, 'data', 'fonts'), exist_ok=True)
+        dst = os.path.join(out, 'data', 'fonts', 'fonts.big')
+        pack.write_big(dst, files)
+        print('wrote', dst)
+    else:
+        print('no fonts.big in both data folders, the script font stays')
+
 if __name__ == '__main__':
     main()
