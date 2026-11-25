@@ -34,7 +34,7 @@ bool g_player_full_detail = true;  // on unless the settings say false
 uint32_t g_rain = 0;
 bool g_daylight_parks = false;
 bool g_gamecube_camera = false;
-bool g_gamecube_lighting = false;
+uint32_t g_console_lighting = 0;
 bool g_gamecube_bars = false;
 bool g_gamecube_sound = false;
 uint32_t g_dev_speed = 100, g_aging = 100, g_retirement = 100, g_contract_prices = 100, g_resign_chance = 100,

@@ -48,9 +48,9 @@ gamecube_bars = false
 # The GameCube version's sound: the Xbox plays its sounds 6 dB down and the GameCube doesn't; this plays them as
 # loud as the GameCube (its loudest moments rounded off, not clipped), with its slightly narrower stereo.
 gamecube_sound = false
-# The GameCube version's lighting: its light sets in place of the Xbox's (from gamecube\datafile.big, which the
-# Launcher keeps when it reads a GameCube disc for the button art).
-gamecube_lighting = false
+# The stadium lighting: 0 the Xbox's, 1 the GameCube version's, 2 the PS2 version's (their light sets, from
+# gamecube\datafile.big or ps2\datafile.big, which the Launcher keeps when it reads that disc for the button art).
+console_lighting = 0
 # Rain: 0 as the game (showers in some games at SBC Park, and at Safeco Field at night), 1 the same at every
 # outdoor park, 2 rain in every game.
 rain = 0

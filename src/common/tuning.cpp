@@ -170,18 +170,22 @@ int SetRecord(std::string& text, const std::string& rec, const Fields& from) {
     return 0;
 }
 
-// The GameCube lighting (gamecube_lighting): the GameCube version's light sets (its datafile.big's "gclighting" records, kept by
-// the Launcher in gamecube/datafile.big from the GameCube disc) in place of the Xbox's ("xboxlighting"), field by
-// field. They differ in 7 of the 22: the Xbox adds a second light (Light2, and the dugouts') at 02dusk and 04day
-// parks and turns a few others, and its default sets' haze is blue (day) and purple (night) where the GameCube's is
-// grey. The fields only the Xbox has are left as they are.
-int GameCubeLighting(bigfile::Archive& big) {
-    fs::path gcp = app::ExeDir() / "gamecube" / "datafile.big";
+// The console lighting (console_lighting): the GameCube's or the PS2's light sets (their datafile.big's "gclighting" or
+// "ps2lighting" records, kept by the Launcher in gamecube/ or ps2/datafile.big from that disc) in place of the Xbox's
+// ("xboxlighting"), field by field by name (the files number their fields differently). The GameCube's differ in 7
+// of the 22 sets: no second key light (Light2, and the dugouts') at 02dusk and 04day parks, a few angles, and a grey
+// haze where the Xbox's default sets are blue and purple. The PS2's differ in most: dimmer key and dugout lights,
+// fewer dugout lights, other angles, bounce light and lighter shadows. The fields only the Xbox has stay as they are.
+int ConsoleLighting(bigfile::Archive& big, uint32_t which) {
+    const char* folder = which == 1 ? "gamecube" : "ps2";
+    const char* console = which == 1 ? "GameCube" : "PS2";
+    const char* record = which == 1 ? "gclighting" : "ps2lighting";
+    fs::path gcp = app::ExeDir() / folder / "datafile.big";
     bigfile::Archive gc;
     std::error_code ec;
     if (!fs::exists(gcp, ec)) {
-        LOGR("graphics: the GameCube lighting needs gamecube/datafile.big (the Launcher keeps it when it makes "
-             "gc_icons from a GameCube disc); the Xbox lighting stays");
+        LOGR("graphics: the %s lighting needs %s/datafile.big (the Launcher keeps it when it reads the %s disc for "
+             "the button art); the Xbox lighting stays", console, folder, console);
         return 0;
     }
     if (!bigfile::Read(gcp, gc)) return 0;
@@ -194,15 +198,15 @@ int GameCubeLighting(bigfile::Archive& big) {
         std::string mine, other;
         if (!bigfile::Text(en, mine) || !bigfile::Text(*it->second, other)) continue;
         Fields light;
-        if (!FindRecord(other, "gclighting", light)) continue;
+        if (!FindRecord(other, record, light)) continue;
         int n = SetRecord(mine, "xboxlighting", light);
         if (!n) continue;
         bigfile::SetText(en, mine);
         changed += n;
         sets++;
     }
-    LOGR("graphics: the GameCube lighting in %d light set%s (%d value%s)", sets,
-         sets == 1 ? "" : "s", changed, changed == 1 ? "" : "s");
+    LOGR("graphics: the %s lighting in %d light set%s (%d value%s)", console, sets, sets == 1 ? "" : "s", changed,
+         changed == 1 ? "" : "s");
     return changed;
 }
 }  // namespace
@@ -213,7 +217,7 @@ void Apply() {
     // left is still cleared below)
     std::error_code rm;
     fs::remove(app::ExeDir() / "tweaks" / "data" / "datafile" / "datafile.big", rm);  // last time's, if any
-    if (edits.empty() && !tools::g_gamecube_lighting) return;
+    if (edits.empty() && tools::g_console_lighting != 1 && tools::g_console_lighting != 2) return;
     fs::path src = bigfile::FindAsset({"data", "datafile", "datafile.big"});
     bigfile::Archive big;
     if (src.empty() || !bigfile::Read(src, big)) {
@@ -233,7 +237,8 @@ void Apply() {
             bigfile::SetText(en, text);
         }
     }
-    if (tools::g_gamecube_lighting) changed += GameCubeLighting(big);
+    if (tools::g_console_lighting == 1 || tools::g_console_lighting == 2)
+        changed += ConsoleLighting(big, tools::g_console_lighting);
     if (!changed) {
         if (!edits.empty()) LOGR("tuning: none of the %zu tuning changes found in datafile.txt", edits.size());
         return;

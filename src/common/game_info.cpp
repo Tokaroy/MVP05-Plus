@@ -37,7 +37,7 @@ const app::GameInfo app::kGame = {
                 {"player_full_detail", &tools::g_player_full_detail, nullptr},  // every player's most detailed model
                 {"daylight_parks", &tools::g_daylight_parks, nullptr},  // day lighting and sky at the dusk-lit parks
                 {"gamecube_camera", &tools::g_gamecube_camera, nullptr},  // the GameCube version's closer view
-                {"gamecube_lighting", &tools::g_gamecube_lighting, nullptr},  // the GameCube version's lighting
+                {"console_lighting", nullptr, &tools::g_console_lighting},  // 0 Xbox, 1 GameCube, 2 PS2 lighting
                 {"gamecube_bars", &tools::g_gamecube_bars, nullptr},  // the GameCube's black bars above and below
                 {"gamecube_sound", &tools::g_gamecube_sound, nullptr},  // the GameCube version's loudness
                 {"rain", nullptr, &tools::g_rain},  // 1: the game's rain at every outdoor park, 2: in every game  // EA's depth of field, off on the Xbox

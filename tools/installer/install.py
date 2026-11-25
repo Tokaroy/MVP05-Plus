@@ -425,8 +425,8 @@ def build_art(kind, src, root, log):
     """gc_icons or ps2_icons from a disc; only the art's files are read, into a temporary folder that's deleted."""
     gc = kind == "gamecube"
     opener, names = (discs.open_gamecube, discs.GC_ART_FILES) if gc else (discs.open_ps2, discs.PS2_ART_FILES)
-    if gc:  # and its datafile.big: the GameCube view takes the GameCube's lighting from it (gamecube/datafile.big)
-        names = names + [GC_DATAFILE]
+    # and its datafile.big: the stadium lighting setting takes that console's lighting from it
+    names = names + [GC_DATAFILE]
     out_name = "gc_icons" if gc else "ps2_icons"
     xbox_data = os.path.join(root, "assets", "data")
     if not os.path.isfile(os.path.join(xbox_data, "frontend", "shared.big")):
@@ -453,11 +453,12 @@ def build_art(kind, src, root, log):
             sys.argv = argv
         put_icons(built, os.path.join(root, out_name))
         log.say(f"{out_name} made ({count_files(os.path.join(root, out_name))} files).")
-        if gc:
-            keep = os.path.join(root, "gamecube")
-            os.makedirs(keep, exist_ok=True)
-            shutil.copyfile(os.path.join(tmp, *GC_DATAFILE.split("/")), os.path.join(keep, "datafile.big"))
-            log.say("The GameCube's lighting kept for the GameCube view (gamecube\\datafile.big).")
+        folder = "gamecube" if gc else "ps2"
+        keep = os.path.join(root, folder)
+        os.makedirs(keep, exist_ok=True)
+        name = GC_DATAFILE if gc else GC_DATAFILE.upper()
+        shutil.copyfile(os.path.join(tmp, *name.split("/")), os.path.join(keep, "datafile.big"))
+        log.say(f"The {'GameCube' if gc else 'PS2'}'s stadium lighting kept ({folder}\\datafile.big).")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -2165,8 +2166,11 @@ TWEAKS = {
                                 "(made for 480, 4:3)", None),
         ("gamecube_sound", None, "GameCube sound: as loud as the GameCube version, with its slightly narrower stereo",
          None),
-        ("gamecube_lighting", None, "GameCube lighting: the GameCube version's stadium lighting (needs the GameCube "
-                                    "disc added in Install)", None),
+        ("console_lighting", "Stadium lighting",
+         "Each console version has its own stadium lighting. The GameCube's drops the Xbox's second key light at some "
+         "parks; the PS2's is dimmer, with fewer dugout lights and lighter shadows. The GameCube's and the PS2's need "
+         "that disc added in Install.",
+         {"MVP 05 Default: Xbox": 0, "GameCube": 1, "PS2": 2}),
         ("rain", "Rain",
          "The game has rain, but only at SBC Park (day and night) and at Safeco Field at night, as a shower in about "
          "2 games in 9. (test)",

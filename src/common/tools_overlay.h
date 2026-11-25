@@ -14,7 +14,7 @@ extern uint32_t g_memory_mb;  // the Xbox's RAM: 64 (as the console) or 128, wit
 extern uint32_t g_rain;  // 0 the game's own (rain at SBC Park, Safeco at night), 1 at every outdoor park, 2 in every game
 extern bool g_gamecube_sound;  // the GameCube version's loudness (6 dB more)
 extern bool g_gamecube_bars;  // the GameCube's 448-line picture, black above and below
-extern bool g_gamecube_lighting;  // the GameCube version's light sets (gamecube/datafile.big)
+extern uint32_t g_console_lighting;  // the stadium lighting: 0 the Xbox's, 1 the GameCube's, 2 the PS2's
 extern bool g_gamecube_camera;  // the game's 3D view as tight as the GameCube version's (about 10% closer)
 extern bool g_daylight_parks;  // day games in daylight at the parks EA lit as dusk (Fenway, ...): lighting and sky
 extern bool g_player_full_detail;  // a request for detail level 2 or 3 becomes one for level 1 (hooks.cpp)
