@@ -334,6 +334,15 @@ void Render(float* out, uint32_t frames) {
             v.pos += step;
         }
     }
+    float gain = audio::g_output_gain.load(std::memory_order_relaxed);
+    if (gain != 1.0f) {
+        // (the GameCube sound: louder; past 0.8 of full scale a soft knee takes the peaks to at most 1)
+        for (uint32_t i = 0; i < frames * 2; i++) {
+            float x = out[i] * gain, m = std::fabs(x);
+            if (m > 0.8f) x = std::copysign(0.8f + 0.2f * std::tanh((m - 0.8f) / 0.2f), x);
+            out[i] = x;
+        }
+    }
     for (uint32_t i = 0; i < frames * 2; i++) out[i] = std::clamp(out[i], -1.0f, 1.0f);
 }
 

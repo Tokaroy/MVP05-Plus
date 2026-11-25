@@ -1,6 +1,7 @@
 #include <filesystem>
 
 #include "app/app.h"
+#include "audio/audio.h"
 #include "gpu/backend.h"
 #include "kernel/memory.h"
 #include "../game/gc_controls.h"
@@ -38,6 +39,7 @@ const app::GameInfo app::kGame = {
                 {"gamecube_camera", &tools::g_gamecube_camera, nullptr},  // the GameCube version's closer view
                 {"gamecube_lighting", &tools::g_gamecube_lighting, nullptr},  // the GameCube version's lighting
                 {"gamecube_bars", &tools::g_gamecube_bars, nullptr},  // the GameCube's black bars above and below
+                {"gamecube_sound", &tools::g_gamecube_sound, nullptr},  // the GameCube version's loudness
                 {"rain", nullptr, &tools::g_rain},  // 1: the game's rain at every outdoor park, 2: in every game  // EA's depth of field, off on the Xbox
                 {"dev_speed", nullptr, &tools::g_dev_speed},  // dynasty data tweaks (dynasty_data.cpp)
                 {"aging", nullptr, &tools::g_aging},
@@ -53,6 +55,10 @@ const app::GameInfo app::kGame = {
         // mvp.elf), shown in the TV's 480 lines with black bands above and below; the game's projection isn't
         // changed for it, so the whole picture is 448/480 as tall
         gpu::g_picture_height = tools::g_gamecube_bars ? 448.0f / 480.0f : 1.0f;
+        // the GameCube sound: the Xbox's DirectSound plays each ordinary sound 6 dB down (its default headroom), the
+        // GameCube's mixer doesn't; recorded side by side at all-5 volumes the GameCube is 5-6 dB louder, with the
+        // same frequency balance (both stop at 16 kHz) and stereo
+        audio::g_output_gain = tools::g_gamecube_sound ? 2.0f : 1.0f;
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
         mods::Load();                      // the mods that are on (mods/mods.txt), for the tweaks to start from
