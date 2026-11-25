@@ -712,23 +712,23 @@ X86_FUNC(sub_002E793D) {
     __imp__sub_002E793D(ctx, base);
 }
 
-// The GameCube view (gamecube_camera). The engine's projection (0x2F7B90, thiscall: the field of view in degrees,
-// a vertical scale, near, far) gets the same cameras on both consoles (datafile.big's are the same), but the
-// GameCube version draws its 3D about 10% closer, with its overlays the same size (measured on the same pitch). The
-// scene's camera (the call at 0x2C20E2) is given the narrower view; the overlays aren't drawn through it, and the
-// picture-in-picture views (0x2C13C4, 0x2C14AF) and the stored re-apply (0x2F839C, which repeats what it was given)
-// keep theirs.
+// The GameCube view (gamecube_camera). The game camera's projection is set by 0x2858C0 (thiscall on the camera):
+// the field of view (45, or the camera's own from 0x183050, times 0x188B20's widescreen factor), the vertical scale
+// (0x285850), near and far, passed to the engine's projection (0x2F7B90). The GameCube version's same function
+// (0x8031E878 in its mvp.elf) multiplies that field of view by 0.9 (0x805EA7B8; 1.0 in one camera mode, the flag at
+// +0x6F4 of the camera's +0x1C, not yet matched here): the field 10% closer, the overlays the same size. The call
+// from the game camera (returning to 0x285918) gets the same 0.9; the engine's re-apply of a view's stored
+// projection (0x2C20E2, 0x2F839C) and the picture-in-picture views keep what they're given.
 X86_EXTERN_FUNC(__imp__sub_002F7B90);
 X86_FUNC(sub_002F7B90) {
-    if (tools::g_gamecube_camera && kernel::R32(ctx.esp) == 0x2C20E7) {
+    if (tools::g_gamecube_camera && kernel::R32(ctx.esp) == 0x285918) {
         float fov;
         uint32_t bits = kernel::R32(ctx.esp + 4);
         std::memcpy(&fov, &bits, 4);
         if (fov > 1.0f && fov < 170.0f) {
-            constexpr double kCloser = 1.10, kDeg = 3.14159265358979323846 / 180.0;
-            float tighter = float(2.0 * std::atan(std::tan(fov * kDeg / 2.0) / kCloser) / kDeg);
-            LOG_FIRST(2, "graphics: the GameCube view: the scene's field of view %.2f -> %.2f degrees", fov, tighter);
-            std::memcpy(&bits, &tighter, 4);
+            float gc = fov * 0.9f;
+            LOG_FIRST(2, "graphics: the GameCube view: the camera's field of view %.2f -> %.2f degrees", fov, gc);
+            std::memcpy(&bits, &gc, 4);
             kernel::W32(ctx.esp + 4, bits);
         }
     }
