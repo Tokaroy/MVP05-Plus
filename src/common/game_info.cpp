@@ -38,7 +38,7 @@ const app::GameInfo app::kGame = {
                 {"daylight_parks", &tools::g_daylight_parks, nullptr},  // day lighting and sky at the dusk-lit parks
                 {"gamecube_camera", &tools::g_gamecube_camera, nullptr},  // the GameCube version's closer view
                 {"console_lighting", nullptr, &tools::g_console_lighting},  // 0 Xbox, 1 GameCube, 2 PS2 lighting
-                {"gamecube_picture", nullptr, &tools::g_gamecube_picture},  // the GameCube's 448-line picture
+                {"gamecube_bars", &tools::g_gamecube_bars, nullptr},  // the GameCube's black bars above and below
                 {"gamecube_sound", &tools::g_gamecube_sound, nullptr},  // the GameCube version's loudness
                 {"rain", nullptr, &tools::g_rain},  // 1: the game's rain at every outdoor park, 2: in every game  // EA's depth of field, off on the Xbox
                 {"dev_speed", nullptr, &tools::g_dev_speed},  // dynasty data tweaks (dynasty_data.cpp)
@@ -51,12 +51,10 @@ const app::GameInfo app::kGame = {
     .save = nullptr,                      // writes more into it
     .init = [] {                           // after the settings load, before the window and boot
         mem::SetPhysicalSize(tools::g_memory_mb);  // the Xbox's RAM, before boot maps it
-        // the GameCube picture: its NTSC picture is 640x448 (GXAdjustForOverscan by 16 lines, at 0x803D8A90 in its
+        // the GameCube bars: its NTSC picture is 640x448 (GXAdjustForOverscan by 16 lines, at 0x803D8A90 in its
         // mvp.elf), shown in the TV's 480 lines with black bands above and below; the game's projection isn't
-        // changed for it, so the whole picture is 448/480 as tall (1). Dolphin shows those 448 lines filling the
-        // height instead, 1.30 wide to 1 tall (measured), a little narrower than 4:3 (2)
-        gpu::g_picture_height = tools::g_gamecube_picture == 1 ? 448.0f / 480.0f : 1.0f;
-        gpu::g_picture_width = tools::g_gamecube_picture == 2 ? 1.302f / (4.0f / 3.0f) : 1.0f;
+        // changed for it, so the whole picture is 448/480 as tall
+        gpu::g_picture_height = tools::g_gamecube_bars ? 448.0f / 480.0f : 1.0f;
         // the GameCube sound: the Xbox's DirectSound plays each ordinary sound 6 dB down (its default headroom), the
         // GameCube's mixer doesn't; recorded side by side at all-5 volumes the GameCube is 5-6 dB louder, with the
         // same frequency balance (both stop at 16 kHz), and a little narrower: the sides 1.4 dB further below the

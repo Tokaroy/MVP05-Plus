@@ -2162,11 +2162,8 @@ TWEAKS = {
         ("daylight_parks", None, "Daylight day games: day lighting and sky at Fenway, Turner Field and the other "
                                  "parks EA lit as dusk", None),
         ("gamecube_camera", None, "GameCube view: the field about 10% closer, as the GameCube version shows it", None),
-        ("gamecube_picture", "GameCube picture",
-         "The GameCube draws a 640x448 picture. On a TV it has thin black bars above and below; Dolphin stretches it "
-         "to fill the height, a little narrower than 4:3. Made for 480 (4:3).",
-         {"MVP 05 Default: as the Xbox": 0, "As on a TV: black bars above and below": 1,
-          "As Dolphin shows it: full height, a little narrower": 2}),
+        ("gamecube_bars", None, "GameCube bars: thin black bars above and below, as on a GameCube "
+                                "(made for 480, 4:3)", None),
         ("gamecube_sound", None, "GameCube sound: as loud as the GameCube version, with its slightly narrower stereo",
          None),
         ("console_lighting", "Stadium lighting",

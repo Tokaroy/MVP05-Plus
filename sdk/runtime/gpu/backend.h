@@ -67,8 +67,6 @@ inline std::atomic<bool> g_capture{false};
 // the share of the picture's height the game's frame fills, centred with black above and below (the GameCube
 // bars: 448 of 480 lines, as the GameCube version draws on a TV)
 inline std::atomic<float> g_picture_height{1.0f};
-// and of its width (the GameCube picture as Dolphin shows it: the 448 lines filling the height, a little narrower)
-inline std::atomic<float> g_picture_width{1.0f};
 // frames shown a second, as the backend last counted them
 inline std::atomic<double> g_fps{0};
 // frames that took 25 ms or more (a hitch at 60 fps), and the longest, in microseconds: taken (and reset) by the reader
