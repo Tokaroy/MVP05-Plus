@@ -2478,12 +2478,11 @@ def settings_tab(tabs, root, tk, ttk):
     x720_box.grid(row=9, column=0, columnspan=3, sticky="w")
     ttk.Checkbutton(frm, text="Low latency (1 frame queued for the screen, not 3: less input delay, may stutter)",
                     variable=low_latency).grid(row=10, column=0, columnspan=3, sticky="w")
-    ttk.Checkbutton(frm, text="TV 480p: fullscreen in your TV's own 480p, the 4:3 picture with black bars at the sides, "
-                              "as a console in 480p (in place of the mode and resolution above)",
+    ttk.Checkbutton(frm, text="TV 480p (fullscreen 480p, black bars at the sides, as a console)",
                     variable=tv480).grid(row=11, column=0, columnspan=3, sticky="w")
     # (Unlock everything isn't on this tab: it's in the settings file, unlock_all, and left as it is by Save)
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
-    note.grid(row=12, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    note.grid(row=13, column=0, columnspan=3, sticky="w", pady=(6, 0))
     # the line under the buttons takes room only while it says something (the tab is no taller than it needs)
     note_configure = note.configure
 
@@ -2600,7 +2599,7 @@ def settings_tab(tabs, root, tk, ttk):
     import shortcuts as SC
     # shortcuts and updates side by side under the display settings
     lower = ttk.Frame(frm)
-    lower.grid(row=13, column=0, columnspan=3, sticky="nwe", pady=(8, 0))
+    lower.grid(row=14, column=0, columnspan=3, sticky="nwe", pady=(8, 0))
     lower.columnconfigure(0, weight=1)
     lower.columnconfigure(2, weight=1)
     scf = ttk.Frame(lower)
@@ -2651,7 +2650,7 @@ def settings_tab(tabs, root, tk, ttk):
     updates_section(upf, root, tk, ttk, 0)
 
     bar = ttk.Frame(frm)
-    bar.grid(row=11, column=0, columnspan=3, sticky="we", pady=(8, 0))
+    bar.grid(row=12, column=0, columnspan=3, sticky="we", pady=(8, 0))
     ttk.Button(bar, text="Save", command=save).pack(side="right")
     ttk.Button(bar, text="Defaults", command=defaults).pack(side="right", padx=6)
     ttk.Button(bar, text="Open the settings file", command=lambda: os.startfile(os.path.join(root, ST.FILE))
