@@ -688,6 +688,29 @@ X86_FUNC(sub_001C9410) {
     LOGR("options: a save's own jukebox (%04X) replaced with your Options save's (%04X)", had, mine);
 }
 
+// The sound engine's update for a streamed voice (0x2E793D, cdecl on the voice; put at 0x642F74 by 0x2E7C87, run by
+// the sound thread, 0x2E8311) reads the voice's bank (0x2E638B: its slot in 0x674F08) without checking it's there.
+// Leaving a game unloads the game's banks, and if the sound thread updates one of their voices after that it reads
+// address 0x128 and the game crashes (with the dynasty game not yet saved). The game's threads really run at once
+// here; on the Xbox's one core the window was tiny. A voice whose bank is gone is stopped instead, the way the
+// function stops a voice it can't find (0x2E7990: 0x2E5591 on the voice, then 0).
+X86_EXTERN_FUNC(__imp__sub_002E793D);
+X86_FUNC(sub_002E793D) {
+    uint32_t voice = kernel::R32(ctx.esp + 4), id = kernel::R32(voice + 8);
+    uint32_t rec = (id & 0x7F) * 96 + kernel::R32(0x674FA8);  // (0x2E75CA, the voice's record)
+    if (kernel::R32(rec + 8) == id && *static_cast<uint8_t*>(kernel::HostPtr(rec + 0x14)) == 1) {
+        int32_t slot = int32_t(kernel::R32(rec + 0x18));
+        int32_t banks = *static_cast<uint8_t*>(kernel::HostPtr(0x674FFE));
+        if (slot < 0 || slot >= banks || !kernel::R32(0x674F08 + 4 * uint32_t(slot))) {
+            LOG_FIRST(4, "sound: a voice's bank (%d) was unloaded while it played (leaving a game): stopped", slot);
+            kernel::CallGuest(ctx, 0x2E5591, {voice});
+            kernel::Return(ctx, 0, 0);
+            return;
+        }
+    }
+    __imp__sub_002E793D(ctx, base);
+}
+
 X86_EXTERN_FUNC(__imp__sub_0019E890);
 X86_FUNC(sub_0019E890) {
     uint32_t obj = ctx.ecx, which = kernel::R32(ctx.esp + 4), value = kernel::R32(ctx.esp + 8);
