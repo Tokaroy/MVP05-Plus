@@ -37,6 +37,7 @@ const app::GameInfo app::kGame = {
                 {"daylight_parks", &tools::g_daylight_parks, nullptr},  // day lighting and sky at the dusk-lit parks
                 {"gamecube_camera", &tools::g_gamecube_camera, nullptr},  // the GameCube version's closer view
                 {"gamecube_lighting", &tools::g_gamecube_lighting, nullptr},  // the GameCube version's lighting
+                {"gamecube_bars", &tools::g_gamecube_bars, nullptr},  // the GameCube's black bars above and below
                 {"rain", nullptr, &tools::g_rain},  // 1: the game's rain at every outdoor park, 2: in every game  // EA's depth of field, off on the Xbox
                 {"dev_speed", nullptr, &tools::g_dev_speed},  // dynasty data tweaks (dynasty_data.cpp)
                 {"aging", nullptr, &tools::g_aging},
@@ -48,10 +49,10 @@ const app::GameInfo app::kGame = {
     .save = nullptr,                      // writes more into it
     .init = [] {                           // after the settings load, before the window and boot
         mem::SetPhysicalSize(tools::g_memory_mb);  // the Xbox's RAM, before boot maps it
-        // the GameCube view: its NTSC picture is 640x448 (GXAdjustForOverscan by 16 lines, at 0x803D8A90 in its
+        // the GameCube bars: its NTSC picture is 640x448 (GXAdjustForOverscan by 16 lines, at 0x803D8A90 in its
         // mvp.elf), shown in the TV's 480 lines with black bands above and below; the game's projection isn't
         // changed for it, so the whole picture is 448/480 as tall
-        gpu::g_picture_height = tools::g_gamecube_camera ? 448.0f / 480.0f : 1.0f;
+        gpu::g_picture_height = tools::g_gamecube_bars ? 448.0f / 480.0f : 1.0f;
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
         mods::Load();                      // the mods that are on (mods/mods.txt), for the tweaks to start from

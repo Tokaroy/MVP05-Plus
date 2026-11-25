@@ -3046,7 +3046,7 @@ void D3D12Backend::BlitFrame(Target& t) {
     float vw = std::min(w, h * aspect);
     float vh = vw / aspect;
     float fill = std::clamp(g_picture_height.load(std::memory_order_relaxed), 0.5f, 1.0f);
-    vh *= fill;  // (the GameCube view's bands; the width as it was)
+    vh *= fill;  // (the GameCube bars; the width as it was)
     float uv[4] = {0, 0, 1, 1};
     D3D12_VIEWPORT vp{(w - vw) / 2, (h - vh) / 2, vw, vh, 0, 1};
     D3D12_RECT scissor{0, 0, LONG(bb_w_), LONG(bb_h_)};
