@@ -78,6 +78,133 @@ int EditText(std::string& text, const std::vector<Edit>& edits) {
     text.swap(out);
     return done;
 }
+// A datafile text's records of one kind, each as field name -> value (the names from the field-names line before it).
+using Fields = std::map<std::string, std::string>;
+std::map<std::string, std::string> FieldNames(const std::string& line, size_t sc) {
+    std::map<std::string, std::string> names;  // index -> name
+    size_t a = sc + 1;
+    while (a < line.size()) {
+        size_t b = line.find(';', a);
+        if (b == std::string::npos) break;
+        std::string item = line.substr(a, b - a);
+        size_t sp = item.find(' ');
+        if (sp != std::string::npos) names[item.substr(0, sp)] = item.substr(sp + 1);
+        a = b + 1;
+    }
+    return names;
+}
+bool FindRecord(const std::string& text, const std::string& rec, Fields& out) {
+    std::map<std::string, std::string> names;
+    size_t pos = 0;
+    while (pos < text.size()) {
+        size_t end = text.find('\n', pos);
+        if (end == std::string::npos) end = text.size();
+        std::string line = text.substr(pos, end - pos);
+        pos = end + 1;
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        size_t lt = line.find('<'), sc = line.find(';');
+        if (sc == std::string::npos) continue;
+        if (lt == std::string::npos || lt > sc) {
+            names = FieldNames(line, sc);
+            continue;
+        }
+        size_t gt = line.find('>', lt);
+        if (gt == std::string::npos || line.substr(lt + 1, gt - lt - 1) != rec) continue;
+        size_t a = gt + 2;
+        while (a < line.size()) {
+            size_t b = line.find(';', a);
+            if (b == std::string::npos) b = line.size();
+            std::string item = line.substr(a, b - a);
+            size_t sp = item.find(' ');
+            std::string idx = sp == std::string::npos ? item : item.substr(0, sp);
+            auto it = names.find(idx);
+            if (it != names.end()) out[it->second] = sp == std::string::npos ? "" : item.substr(sp + 1);
+            a = b + 1;
+        }
+        return true;
+    }
+    return false;
+}
+// rec's values in text replaced, field by field (by name), with from's; the count changed
+int SetRecord(std::string& text, const std::string& rec, const Fields& from) {
+    std::map<std::string, std::string> names;
+    size_t pos = 0;
+    while (pos < text.size()) {
+        size_t start = pos, end = text.find('\n', pos);
+        if (end == std::string::npos) end = text.size();
+        std::string line = text.substr(start, end - start);
+        pos = end + 1;
+        bool cr = !line.empty() && line.back() == '\r';
+        if (cr) line.pop_back();
+        size_t lt = line.find('<'), sc = line.find(';');
+        if (sc == std::string::npos) continue;
+        if (lt == std::string::npos || lt > sc) {
+            names = FieldNames(line, sc);
+            continue;
+        }
+        size_t gt = line.find('>', lt);
+        if (gt == std::string::npos || line.substr(lt + 1, gt - lt - 1) != rec) continue;
+        std::string out = line.substr(0, gt + 2);
+        int changed = 0;
+        size_t a = gt + 2;
+        while (a < line.size()) {
+            size_t b = line.find(';', a);
+            if (b == std::string::npos) b = line.size();
+            std::string item = line.substr(a, b - a);
+            size_t sp = item.find(' ');
+            std::string idx = sp == std::string::npos ? item : item.substr(0, sp);
+            std::string value = sp == std::string::npos ? "" : item.substr(sp + 1);
+            auto n = names.find(idx);
+            if (n != names.end()) {
+                auto v = from.find(n->second);
+                if (v != from.end() && v->second != value) value = v->second, changed++;
+            }
+            out += idx + " " + value + ";";
+            a = b + 1;
+        }
+        if (!changed) return 0;
+        if (cr) out += '\r';
+        text = text.substr(0, start) + out + text.substr(end);
+        return changed;
+    }
+    return 0;
+}
+
+// The GameCube view's lighting: the GameCube version's light sets (its datafile.big's "gclighting" records, kept by
+// the Launcher in gamecube/datafile.big from the GameCube disc) in place of the Xbox's ("xboxlighting"), field by
+// field. They differ in 7 of the 22: the Xbox adds a second light (Light2, and the dugouts') at 02dusk and 04day
+// parks and turns a few others, and its default sets' haze is blue (day) and purple (night) where the GameCube's is
+// grey. The fields only the Xbox has are left as they are.
+int GameCubeLighting(bigfile::Archive& big) {
+    fs::path gcp = app::ExeDir() / "gamecube" / "datafile.big";
+    bigfile::Archive gc;
+    std::error_code ec;
+    if (!fs::exists(gcp, ec)) {
+        LOGR("graphics: the GameCube view's lighting needs gamecube/datafile.big (the Launcher keeps it when it makes "
+             "gc_icons from a GameCube disc); the Xbox lighting stays");
+        return 0;
+    }
+    if (!bigfile::Read(gcp, gc)) return 0;
+    std::map<std::string, const bigfile::Entry*> theirs;
+    for (auto& e : gc.entries) theirs[Lower(e.name)] = &e;
+    int changed = 0, sets = 0;
+    for (auto& en : big.entries) {
+        auto it = theirs.find(Lower(en.name));
+        if (it == theirs.end()) continue;
+        std::string mine, other;
+        if (!bigfile::Text(en, mine) || !bigfile::Text(*it->second, other)) continue;
+        Fields light;
+        if (!FindRecord(other, "gclighting", light)) continue;
+        int n = SetRecord(mine, "xboxlighting", light);
+        if (!n) continue;
+        bigfile::SetText(en, mine);
+        changed += n;
+        sets++;
+    }
+    LOGR("graphics: the GameCube view: the GameCube's lighting in %d light set%s (%d value%s)", sets,
+         sets == 1 ? "" : "s", changed, changed == 1 ? "" : "s");
+    return changed;
+}
 }  // namespace
 
 void Apply() {
@@ -86,7 +213,7 @@ void Apply() {
     // left is still cleared below)
     std::error_code rm;
     fs::remove(app::ExeDir() / "tweaks" / "data" / "datafile" / "datafile.big", rm);  // last time's, if any
-    if (edits.empty()) return;
+    if (edits.empty() && !tools::g_gamecube_camera) return;
     fs::path src = bigfile::FindAsset({"data", "datafile", "datafile.big"});
     bigfile::Archive big;
     if (src.empty() || !bigfile::Read(src, big)) {
@@ -101,11 +228,14 @@ void Apply() {
             LOGR("tuning: couldn't unpack datafile.txt; the tuning tweaks are off");
             return;
         }
-        changed = EditText(text, edits);
-        bigfile::SetText(en, text);
+        if (!edits.empty()) {
+            changed = EditText(text, edits);
+            bigfile::SetText(en, text);
+        }
     }
+    if (tools::g_gamecube_camera) changed += GameCubeLighting(big);
     if (!changed) {
-        LOGR("tuning: none of the %zu tuning changes found in datafile.txt", edits.size());
+        if (!edits.empty()) LOGR("tuning: none of the %zu tuning changes found in datafile.txt", edits.size());
         return;
     }
     bigfile::Write(bigfile::TweaksDir({"data", "datafile"}) / "datafile.big", big);

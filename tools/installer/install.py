@@ -418,10 +418,15 @@ def check_install(root):
     return r
 
 
+GC_DATAFILE = "data/datafile/datafile.big"
+
+
 def build_art(kind, src, root, log):
     """gc_icons or ps2_icons from a disc; only the art's files are read, into a temporary folder that's deleted."""
     gc = kind == "gamecube"
     opener, names = (discs.open_gamecube, discs.GC_ART_FILES) if gc else (discs.open_ps2, discs.PS2_ART_FILES)
+    if gc:  # and its datafile.big: the GameCube view takes the GameCube's lighting from it (gamecube/datafile.big)
+        names = names + [GC_DATAFILE]
     out_name = "gc_icons" if gc else "ps2_icons"
     xbox_data = os.path.join(root, "assets", "data")
     if not os.path.isfile(os.path.join(xbox_data, "frontend", "shared.big")):
@@ -448,6 +453,11 @@ def build_art(kind, src, root, log):
             sys.argv = argv
         put_icons(built, os.path.join(root, out_name))
         log.say(f"{out_name} made ({count_files(os.path.join(root, out_name))} files).")
+        if gc:
+            keep = os.path.join(root, "gamecube")
+            os.makedirs(keep, exist_ok=True)
+            shutil.copyfile(os.path.join(tmp, *GC_DATAFILE.split("/")), os.path.join(keep, "datafile.big"))
+            log.say("The GameCube's lighting kept for the GameCube view (gamecube\\datafile.big).")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -2150,8 +2160,9 @@ TWEAKS = {
                                      "second-best player model, not its two simplest", None),
         ("daylight_parks", None, "Daylight day games: day lighting and sky at Fenway, Turner Field and the other "
                                  "parks EA lit as dusk", None),
-        ("gamecube_camera", None, "GameCube view: the field about 10% closer and thin black bands above and below, "
-                                  "as the GameCube version draws it", None),
+        ("gamecube_camera", None, "GameCube view: the field about 10% closer, thin black bands above and below and "
+                                  "the GameCube's lighting, as the GameCube version draws it (the lighting needs "
+                                  "the GameCube disc added in Install)", None),
         ("rain", "Rain",
          "The game has rain, but only at SBC Park (day and night) and at Safeco Field at night, as a shower in about "
          "2 games in 9. (test)",
