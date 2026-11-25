@@ -39,6 +39,7 @@ const app::GameInfo app::kGame = {
                 {"gamecube_camera", &tools::g_gamecube_camera, nullptr},  // the GameCube version's closer view
                 {"console_lighting", nullptr, &tools::g_console_lighting},  // 0 Xbox, 1 GameCube, 2 PS2 lighting
                 {"gamecube_bars", &tools::g_gamecube_bars, nullptr},  // the GameCube's black bars above and below
+                {"sharp_pixels", &tools::g_sharp_pixels, nullptr},  // drawn at 480, its pixels shown crisp
                 {"gamecube_sound", &tools::g_gamecube_sound, nullptr},  // the GameCube version's loudness
                 {"rain", nullptr, &tools::g_rain},  // 1: the game's rain at every outdoor park, 2: in every game  // EA's depth of field, off on the Xbox
                 {"dev_speed", nullptr, &tools::g_dev_speed},  // dynasty data tweaks (dynasty_data.cpp)
@@ -55,6 +56,9 @@ const app::GameInfo app::kGame = {
         // mvp.elf), shown in the TV's 480 lines with black bands above and below; the game's projection isn't
         // changed for it, so the whole picture is 448/480 as tall
         gpu::g_picture_height = tools::g_gamecube_bars ? 448.0f / 480.0f : 1.0f;
+        // sharp pixels: a GameCube in 480p on a TV shows its 640x480 with hard pixel edges (the text and menus
+        // crisp, the field's edges stepped); drawn at the console's own 480 and enlarged in solid blocks to match
+        gpu::g_sharp_pixels = tools::g_sharp_pixels;
         // the GameCube sound: the Xbox's DirectSound plays each ordinary sound 6 dB down (its default headroom), the
         // GameCube's mixer doesn't; recorded side by side at all-5 volumes the GameCube is 5-6 dB louder, with the
         // same frequency balance (both stop at 16 kHz), and a little narrower: the sides 1.4 dB further below the

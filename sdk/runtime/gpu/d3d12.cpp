@@ -111,7 +111,7 @@ bool CaptureOn() {
 }
 
 const char* kBlitHlsl = R"(
-cbuffer B : register(b1) { float4 uvrect; float4 opts; };
+cbuffer B : register(b1) { float4 uvrect; float4 opts; float4 opts2; };
 Texture2D img : register(t0);
 Texture2D lut : register(t1);
 SamplerState ls : register(s0);
@@ -128,9 +128,20 @@ float4 psmain(O i) : SV_Target {
     float4 c = 0;
     int n = max((int)opts.z, 1);
     float2 px = fwidth(i.uv);
+    if (opts2.x > 0) {
+        // sharp pixels: each source pixel a solid block, blended with its neighbour across one screen pixel at
+        // the edge (sharp bilinear), so a scale that isn't whole (2.25 to 1080) keeps the pixels even
+        float2 size;
+        img.GetDimensions(size.x, size.y);
+        float2 t = i.uv * size - 0.5;
+        float2 s = max(1 / max(fwidth(t), 1e-5), 1);
+        float2 q = clamp((frac(t) - 0.5) * s + 0.5, 0, 1);
+        c = img.SampleLevel(ls, (floor(t) + 0.5 + q) / size, 0);
+        n = 0;
+    }
     for (int y = 0; y < n; y++)
         for (int x = 0; x < n; x++) c += img.SampleLevel(ls, i.uv + px * ((float2(x, y) + 0.5) / n - 0.5), 0);
-    c /= n * n;
+    if (n > 0) c /= n * n;
     c.rgb *= opts.w;
     if (opts.x > 0) c.rgb = float3(lut.Sample(ps, float2(c.r, 0.5)).r, lut.Sample(ps, float2(c.g, 0.5)).g, lut.Sample(ps, float2(c.b, 0.5)).b);
     return float4(c.rgb, opts.y > 0 ? c.a : 1);
@@ -364,6 +375,7 @@ struct BlitOptions {
     float mul = 1;            // colour scale
     DXGI_FORMAT rtv = kBgra;  // the target's format
     bool over = false;        // premultiplied over the target, which keeps its alpha
+    bool sharp = false;       // sharp pixels (sharp bilinear) in place of the box filter
 };
 
 // Shrink's settings past the source and the size
@@ -541,6 +553,7 @@ private:
     ID3DBlob* Compile(const std::string& src, const char* entry, const char* profile, uint64_t& hash);
     // Blit's pipeline
     ID3D12PipelineState* EnsureBlitPipeline(DXGI_FORMAT rtv, bool over = false);
+    float WantScale() const;
     D3D12_GRAPHICS_PIPELINE_STATE_DESC FullScreenPipelineDesc(ID3DBlob* vs, ID3DBlob* ps, DXGI_FORMAT rtv) const;
     // Init, in order, each callee right after its caller
     bool CreateDevice();
@@ -919,8 +932,13 @@ void D3D12Backend::CreateGammaLut() {
                                   IID_PPV_ARGS(&lut_));
 }
 
+// the render scale: the settings', or with sharp pixels the console's own size (each of its pixels then shown whole)
+float D3D12Backend::WantScale() const {
+    return g_sharp_pixels.load(std::memory_order_relaxed) ? 1.0f : app::RenderScale(guest_h_);
+}
+
 void D3D12Backend::LoadSettings() {
-    scale_ = app::RenderScale(guest_h_);
+    scale_ = WantScale();
     ext_ = g_extension.get();
     if (ext_) {
         ext_->Settings();
@@ -1360,8 +1378,9 @@ void D3D12Backend::Blit(ID3D12Resource* src, DXGI_FORMAT fmt, const float uvrect
     dev_->CreateShaderResourceView(lut_.Get(), &sv, Cpu(srv_heap_.Get(), slot + 1, srv_inc_));
     uint32_t si = EnsureBlitSamplers();
     Alloc cb = Upload(256, 256);
-    float c[8] = {uvrect[0], uvrect[1], uvrect[2], uvrect[3],
-                  o.gamma ? 1.0f : 0.0f, o.alpha ? 1.0f : 0.0f, float(o.taps), o.mul};
+    float c[12] = {uvrect[0], uvrect[1], uvrect[2], uvrect[3],
+                   o.gamma ? 1.0f : 0.0f, o.alpha ? 1.0f : 0.0f, float(o.taps), o.mul,
+                   o.sharp ? 1.0f : 0.0f, 0, 0, 0};
     std::memcpy(cb.cpu, c, sizeof(c));
     DrawFullScreen(EnsureBlitPipeline(o.rtv, o.over), cb.gpu, slot, si);
 }
@@ -3053,7 +3072,7 @@ void D3D12Backend::BlitFrame(Target& t) {
     cl_->RSSetViewports(1, &vp);
     cl_->RSSetScissorRects(1, &scissor);
     Transition(t.res.Get(), t.state, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    Blit(t.res.Get(), t.fmt, uv, {.gamma = gamma_});
+    Blit(t.res.Get(), t.fmt, uv, {.gamma = gamma_, .sharp = g_sharp_pixels.load(std::memory_order_relaxed)});
 }
 
 void D3D12Backend::RenderUi() {
@@ -3227,7 +3246,7 @@ void D3D12Backend::Present(const Surface& front) {
 }
 
 void D3D12Backend::ApplySettings() {
-    float want = app::RenderScale(guest_h_);
+    float want = WantScale();
     bool remake = ext_ && ext_->Settings();
     if (std::fabs(want - scale_) > 1e-4f || remake) {
         Flush();

@@ -2164,6 +2164,8 @@ TWEAKS = {
         ("gamecube_camera", None, "GameCube view: the field about 10% closer, as the GameCube version shows it", None),
         ("gamecube_bars", None, "GameCube bars: thin black bars above and below, as on a GameCube "
                                 "(made for 480, 4:3)", None),
+        ("sharp_pixels", None, "Sharp pixels: drawn at 480 with each pixel shown crisp, as a GameCube in 480p on a "
+                               "TV (crisp text, stepped edges)", None),
         ("gamecube_sound", None, "GameCube sound: as loud as the GameCube version, with its slightly narrower stereo",
          None),
         ("console_lighting", "Stadium lighting",
