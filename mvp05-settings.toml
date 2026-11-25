@@ -14,6 +14,9 @@ unlock_all = false
 anisotropic_filtering = 16
 # Advertise Xbox 720p and HDTV AV pack on widescreen output. Restart after changing.
 xbox_720p = true
+# TV 480p: fullscreen in the TV's own 480p (720x480, which a TV shows 16:9), the 4:3 picture in the middle with black
+# bars at the sides, as a console in 480p on a widescreen TV. In place of display_mode, width and height above.
+tv_480p = false
 
 # MVP05-Plus: GameCube controllers and PlayStation pads play as on their own releases, with their button art
 # (gc_icons / ps2_icons beside the exe, made by the installer from your own discs).

@@ -50,6 +50,13 @@ void Load() {
     s.vsync = t["vsync"].value_or(s.vsync);
     s.low_latency = t["low_latency"].value_or(s.low_latency);
     s.xbox_720p = t["xbox_720p"].value_or(s.xbox_720p);
+    s.tv_480p = t["tv_480p"].value_or(s.tv_480p);
+    if (s.tv_480p) {  // (in memory only: the file keeps its own mode for when this is off again)
+        s.display_mode = DisplayMode::Fullscreen;
+        s.width = 720;
+        s.height = 480;
+        s.xbox_720p = false;
+    }
     s.aniso = t["anisotropic_filtering"].value_or(s.aniso);
     s.join_ip = t["join_ip"].value_or(s.join_ip);
     if (const toml::table* keys = t["keyboard"].as_table()) {
@@ -76,6 +83,7 @@ toml::table Table() {
                   {"vsync", s.vsync},
                   {"low_latency", s.low_latency},
                   {"xbox_720p", s.xbox_720p},
+                  {"tv_480p", s.tv_480p},
                   {"anisotropic_filtering", int64_t(s.aniso)},
                   {"join_ip", s.join_ip}};
     for (const Option& o : kGame.options) {
@@ -136,7 +144,7 @@ bool Widescreen() {
     uint64_t k = uint64_t(s.width) << 32 | s.height;
     if (key.exchange(k) != k) {
         Mode m = Output();
-        wide = m.width * 2 >= m.height * 3;  // 3:2 or wider
+        wide = !s.tv_480p && m.width * 2 >= m.height * 3;  // 3:2 or wider (720x480 is the 4:3 game, squeezed)
     }
     return wide;
 }

@@ -3062,8 +3062,10 @@ void D3D12Backend::BlitFrame(Target& t) {
     float aspect = wide ? 16.0f / 9.0f : 4.0f / 3.0f;
     float w = float(bb_w_);
     float h = float(bb_h_);
-    float vw = std::min(w, h * aspect);
-    float vh = vw / aspect;
+    // the screen's pixel shape: square, but in the TV's 480p (720x480 shown 16:9) each pixel is 1.19 wide to 1 tall
+    float par = app::Get().tv_480p && w > 0 && h > 0 ? (16.0f / 9.0f) / (w / h) : 1.0f;
+    float vw = std::min(w, h * aspect / par);
+    float vh = vw * par / aspect;
     float fill = std::clamp(g_picture_height.load(std::memory_order_relaxed), 0.5f, 1.0f);
     vh *= fill;  // (the GameCube bars; the width as it was)
     float uv[4] = {0, 0, 1, 1};

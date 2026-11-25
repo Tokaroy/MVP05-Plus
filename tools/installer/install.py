@@ -2444,6 +2444,7 @@ def settings_tab(tabs, root, tk, ttk):
     vsync = tk.BooleanVar()
     low_latency = tk.BooleanVar()
     x720 = tk.BooleanVar()
+    tv480 = tk.BooleanVar()
     desk = desktop_resolution()
     # The game plays widescreen when the resolution is 3:2 or wider (app::Widescreen), else 4:3, with black bars at
     # the sides of a wider screen. So the aspect ratio is picked here and the resolutions follow it.
@@ -2477,6 +2478,9 @@ def settings_tab(tabs, root, tk, ttk):
     x720_box.grid(row=9, column=0, columnspan=3, sticky="w")
     ttk.Checkbutton(frm, text="Low latency (1 frame queued for the screen, not 3: less input delay, may stutter)",
                     variable=low_latency).grid(row=10, column=0, columnspan=3, sticky="w")
+    ttk.Checkbutton(frm, text="TV 480p: fullscreen in your TV's own 480p, the 4:3 picture with black bars at the sides, "
+                              "as a console in 480p (in place of the mode and resolution above)",
+                    variable=tv480).grid(row=11, column=0, columnspan=3, sticky="w")
     # (Unlock everything isn't on this tab: it's in the settings file, unlock_all, and left as it is by Save)
     note = ttk.Label(frm, text="", wraplength=560, justify="left")
     note.grid(row=12, column=0, columnspan=3, sticky="w", pady=(6, 0))
@@ -2555,6 +2559,7 @@ def settings_tab(tabs, root, tk, ttk):
         aniso.set(name_of(aniso_names, s["anisotropic_filtering"]))
         vsync.set(bool(s["vsync"]))
         low_latency.set(bool(s.get("low_latency", False)))
+        tv480.set(bool(s.get("tv_480p", False)))
         wide_720[0] = bool(s["xbox_720p"]) if aspect.get() == WIDE else True
         x720.set(wide_720[0] if aspect.get() == WIDE else False)
 
@@ -2582,7 +2587,7 @@ def settings_tab(tabs, root, tk, ttk):
         ST.write(root, {"display_mode": mode.get().lower(), "width": w, "height": h, "render_percent": sc,
                         "fps_cap": fp, "vsync": vsync.get(), "low_latency": low_latency.get(),
                         "anisotropic_filtering": an,
-                        "xbox_720p": x720.get()})
+                        "xbox_720p": x720.get(), "tv_480p": tv480.get()})
         note.configure(text="Saved. Restart the game if it's running.", foreground="#1a7f37")
 
     def defaults():

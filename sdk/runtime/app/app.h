@@ -23,6 +23,9 @@ struct Settings {
     bool vsync = true;
     bool low_latency = false;        // at most one finished frame waits for the screen (instead of up to three)
     bool xbox_720p = false;         // advertise guest 720p; independent of host output size
+    // the TV's own 480p, as a console in 480p on a widescreen TV: fullscreen at 720x480 (480p's 16:9 shape, its
+    // pixels wider than tall), the 4:3 picture in the middle with black bars at the sides; overrides the mode
+    bool tv_480p = false;
     uint32_t aniso = 0;              // 0 as the game asks
     std::string join_ip;                   // co-op: a host past the LAN the system link search also asks
     std::vector<std::pair<std::string, std::string>> keyboard;  // [keyboard]: a control, its keys ("Enter, Space")
