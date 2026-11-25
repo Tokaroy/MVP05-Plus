@@ -1,3 +1,72 @@
+# MVP05-Plus Beta 3.2.2
+
+## Fixed in 3.2.2
+- **Crash when leaving a game:** a rare crash on the way out of a game, which lost the game's result. Fixed.
+
+## Fixed in 3.2.1
+- **League News:** injured players are listed with their current club. A player who had left your organization could still show in your injury report.
+- **League News:** players still on the 15- or 60-day injured list after healing are in the injury report, with the days left on the list (as the game's Disabled List shows them).
+
+## New in 3.2
+- **Keyboard as a controller:** when the game starts with no controller plugged in, the keyboard plays as controller 1 (arrows, W A S D, Enter, Backspace and more). Plugging in a controller takes over. Keys can be changed in `[keyboard]` in `mvp05-settings.toml`.
+
+## New in 3.1
+- **Your saved options load at startup:** your newest Options save is applied when the game starts and again after Press Start, so you no longer need Options → Load.
+- **Jukebox options persist after loading a dynasty save:** a dynasty or owner mode save no longer turns back on the songs you turned off in your Options save.
+- **League News, all-time leaders:** an All-time leaders page with the record books as they stood through 2004, where your league's players climb the lists. Milestone watch shows who's climbing, player pages show each player's all-time ranks, and there's a headline when someone passes a great.
+- **Fixed:** player names on the full Milestone watch page, and positions and ages for players the dynasty made (farm report, injuries, rosters, player pages).
+
+League News, mods, Game Tweaks, custom season schedules, short seasons that end on their own, and active and inactive saves.
+
+## Highlights
+- **Mods** (new *Mods* tab): add a mod from a folder, files or a zip. Each file replaces the game's matching file. Turn mods on or off, rename, export as a zip or remove them. If two mods change the same file, the one added first wins. Your game files are never changed.
+- **Create a schedule** (*Schedule → Create a schedule…*): any even number of games from 12 to 162, half at home, in 2 to 4-game series. Choose interleague matchups, natural rivals and the All-Star host, with a different season for each dynasty year.
+- **Share a schedule** (*Schedule → Export…*): as a small zip, which *Import a schedule…* takes as it is.
+- **Short seasons end on their own:** a season under 162 games goes to the playoffs by itself, whichever schedule is installed.
+- **Dynasty goals fit the season:** win, home run and win percentage goals scale to your season's length.
+- **Drag and drop:** mods onto *Mods*, saves onto *Saves* or *Import a save*.
+- **Payroll Budget** (*Tools*): change your team's payroll budget, and the owner's bank balance in owner mode.
+- **Unlock everything** (*Settings*): all stadiums, teams, players, jerseys and Legends without spending MVP points.
+- **EA's debug menu** (F10 → *Extras*): the developers' own menu. It can break a game in progress (being tested).
+- **Game Tweaks** (all off by default):
+  - *Dynasty adjustments* (*Tools*): pitcher rest (five-man rotation), injury length, player development, aging, retirement, contract demands, re-signing and star rookies.
+  - *Graphics…* (*Settings*): more detailed players away from the play, day games in daylight at dusk-lit parks, and rain at any outdoor park.
+  - *Mods* tab: double the game's memory (64 MB to 128 MB) for larger mods.
+- **In-game Tools (F10):** *Extras* adds Unlock everything and MVP points. *Dynasty* sets the Owner Mode bank balance and payroll budget, and can hold your manager rating.
+
+## League News (first version)
+Your league as a 2000s-style baseball website, opened from *Play* or by right-clicking a save. Nothing in the save is changed.
+- **Front page:** scores, standings, wild card, matchups, top stories, transactions and injuries.
+- **Scores & recaps:** line scores and write-ups for the last seven game days.
+- **Team pages:** record, splits, roster stats, schedule, season series, division standings and wild card.
+- **Player pages:** picture, contract, status and career stats.
+- **Stats:** sortable hitting and pitching for every player, including OPS+ and ERA+.
+- **Leaders, milestones, awards races, farm report, power rankings and transactions:** each with its own page.
+- **Playoffs:** the bracket and every series game by game.
+- **Back issues:** the newest 120 editions of each save are kept.
+
+## Saves
+- **Active and inactive saves:** keep more than four saves of a type. Check a save to make it active in the game, or uncheck it to make it inactive. With four already active, the Launcher asks which one to make inactive.
+- **Imports and exports** for rosters, dynasties and owner modes, between Xbox, PS2, GameCube and PC. Each is built on a save of yours from that console. Owner mode is being tested.
+- **Memory cards:** exports go straight onto a PCSX2 (`.ps2`) or Dolphin card, or into Dolphin's GCI folder. A backup of the card is made first. Dolphin's settings are read to find the card it uses.
+- **Import as a new save** instead of replacing one.
+- **Copy, rename and delete** saves (right-click). Deleted saves are backed up first.
+- **Zips and folders:** import from a shared zip or folder, or export a save as a zip.
+- File pickers remember the last folder you used.
+- Problems are written to `MVP05-Plus-Launcher.log`.
+- The Launcher's own backups are listed in *Saves → Backups* and restore only that save.
+
+## Fixes
+- Played dynasties now convert to and from the GameCube correctly ("rosters didn't come out as expected" and "no ring chain" errors).
+- GameCube dynasty imports keep a traded player's older seasons.
+- The Standings Projector works on saves past the All-Star break.
+
+## Changed
+- **Standings Projector** (was the Short Season Advancer): short seasons no longer need it. It's still in F10 → *Extras* if you want statistics and standings closer to a full 162-game season.
+
+## Updating
+From Beta 2, 2.1, 2.5, 3.0, 3.1 or 3.2: *Settings → Updates*. From Beta 1: unzip into a new folder and bring your old one over when the Launcher asks.
+
 # MVP05-Plus Beta 3.2.1
 
 ## Fixed in 3.2.1
