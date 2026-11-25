@@ -2166,8 +2166,6 @@ TWEAKS = {
                                 "(made for 480, 4:3)", None),
         ("sharp_pixels", None, "Sharp pixels: drawn at 480 with each pixel shown crisp, as a GameCube in 480p on a "
                                "TV (crisp text, stepped edges)", None),
-        ("gamecube_sound", None, "GameCube sound: as loud as the GameCube version, with its slightly narrower stereo",
-         None),
         ("console_lighting", "Stadium lighting",
          "Each console version has its own stadium lighting. The GameCube's drops the Xbox's second key light at some "
          "parks; the PS2's is dimmer, with fewer dugout lights and lighter shadows. The GameCube's and the PS2's need "
@@ -2181,6 +2179,11 @@ TWEAKS = {
           "Rain in every game, at every outdoor park": 2}),
     ],
     # each list from the least to the most, MVP 05 Default where it falls
+    "Audio": [
+        ("gamecube_loudness", None, "GameCube loudness: as loud as the GameCube version (the Xbox plays its sounds "
+                                    "6 dB quieter)", None),
+        ("gamecube_stereo", None, "GameCube stereo: the GameCube version's slightly narrower stereo", None),
+    ],
     "Dynasty": [
         ("pitcher_recovery", "Pitchers' rest",
          "How fast pitchers get their stamina back between games. By default, a starter is ready again two days after "
@@ -2381,27 +2384,27 @@ def adjustments_tool(group, heading, about):
     return build
 
 
-def graphics_window(parent, root, tk, ttk):
-    """Graphics (TWEAKS["Graphics"]), a window from the Settings tab. Used at the game's next start."""
+def tweaks_window(parent, root, tk, ttk, group="Graphics"):
+    """Graphics or Audio (TWEAKS[group]), a window from the Settings tab. Used at the game's next start."""
     import settings as ST
     w = parent.winfo_toplevel()
-    for c in w.winfo_children():  # one at a time
-        if isinstance(c, tk.Toplevel) and getattr(c, "_graphics", False):
+    for c in w.winfo_children():  # one of each at a time
+        if isinstance(c, tk.Toplevel) and getattr(c, "_tweaks", None) == group:
             c.lift()
             return
     win = tk.Toplevel(w)
-    win._graphics = True
-    win.title("Graphics")
+    win._tweaks = group
+    win.title(group)
     win.transient(w)
     win.resizable(False, False)
     f = ttk.Frame(win, padding=14)
     f.grid()
-    ttk.Label(f, text="Graphics", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3,
+    ttk.Label(f, text=group, font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3,
                                                                                 sticky="w")
     ttk.Label(f, foreground="#666", wraplength=540, justify="left", text=(
         "Built into MVP05-Plus; your game files stay as they are. Changes take effect the next time the game "
         "starts.")).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
-    values, load, r = tweak_controls(f, TWEAKS["Graphics"], ST.read(root), tk, ttk, row=2)
+    values, load, r = tweak_controls(f, TWEAKS[group], ST.read(root), tk, ttk, row=2)
     note = ttk.Label(f, text="", wraplength=540, justify="left")
     note.grid(row=r + 1, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
@@ -2655,8 +2658,9 @@ def settings_tab(tabs, root, tk, ttk):
     ttk.Button(bar, text="Defaults", command=defaults).pack(side="right", padx=6)
     ttk.Button(bar, text="Open the settings file", command=lambda: os.startfile(os.path.join(root, ST.FILE))
                if os.name == "nt" else None).pack(side="left")
-    ttk.Button(bar, text="Graphics...", command=lambda: graphics_window(frm, root, tk, ttk)).pack(
+    ttk.Button(bar, text="Graphics...", command=lambda: tweaks_window(frm, root, tk, ttk, "Graphics")).pack(
         side="left", padx=6)
+    ttk.Button(bar, text="Audio...", command=lambda: tweaks_window(frm, root, tk, ttk, "Audio")).pack(side="left")
     load()
 
 

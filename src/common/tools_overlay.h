@@ -12,7 +12,8 @@ extern uint32_t g_pitcher_recovery;  // percent of the game's own between-games 
 extern uint32_t g_injury_length;  // percent of the game's own injury lengths in a dynasty (100: as the game)
 extern uint32_t g_memory_mb;  // the Xbox's RAM: 64 (as the console) or 128, with the game's heap grown to match
 extern uint32_t g_rain;  // 0 the game's own (rain at SBC Park, Safeco at night), 1 at every outdoor park, 2 in every game
-extern bool g_gamecube_sound;  // the GameCube version's loudness (6 dB more)
+extern bool g_gamecube_loudness;  // the GameCube version's loudness (6 dB more)
+extern bool g_gamecube_stereo;  // the GameCube version's slightly narrower stereo
 extern bool g_sharp_pixels;  // the game drawn at 480 and each pixel shown as a crisp block, as a console's 480p on a TV
 extern bool g_gamecube_bars;  // the GameCube's 448-line picture, black above and below
 extern uint32_t g_console_lighting;  // the stadium lighting: 0 the Xbox's, 1 the GameCube's, 2 the PS2's

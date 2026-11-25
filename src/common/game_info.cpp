@@ -40,7 +40,8 @@ const app::GameInfo app::kGame = {
                 {"console_lighting", nullptr, &tools::g_console_lighting},  // 0 Xbox, 1 GameCube, 2 PS2 lighting
                 {"gamecube_bars", &tools::g_gamecube_bars, nullptr},  // the GameCube's black bars above and below
                 {"sharp_pixels", &tools::g_sharp_pixels, nullptr},  // drawn at 480, its pixels shown crisp
-                {"gamecube_sound", &tools::g_gamecube_sound, nullptr},  // the GameCube version's loudness
+                {"gamecube_loudness", &tools::g_gamecube_loudness, nullptr},  // the GameCube version's loudness
+                {"gamecube_stereo", &tools::g_gamecube_stereo, nullptr},  // and its narrower stereo
                 {"rain", nullptr, &tools::g_rain},  // 1: the game's rain at every outdoor park, 2: in every game  // EA's depth of field, off on the Xbox
                 {"dev_speed", nullptr, &tools::g_dev_speed},  // dynasty data tweaks (dynasty_data.cpp)
                 {"aging", nullptr, &tools::g_aging},
@@ -63,8 +64,8 @@ const app::GameInfo app::kGame = {
         // GameCube's mixer doesn't; recorded side by side at all-5 volumes the GameCube is 5-6 dB louder, with the
         // same frequency balance (both stop at 16 kHz), and a little narrower: the sides 1.4 dB further below the
         // middle in the same music, about 3 dB in play
-        audio::g_output_gain = tools::g_gamecube_sound ? 2.0f : 1.0f;
-        audio::g_output_width = tools::g_gamecube_sound ? 0.8f : 1.0f;
+        audio::g_output_gain = tools::g_gamecube_loudness ? 2.0f : 1.0f;
+        audio::g_output_width = tools::g_gamecube_stereo ? 0.8f : 1.0f;
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
         mods::Load();                      // the mods that are on (mods/mods.txt), for the tweaks to start from

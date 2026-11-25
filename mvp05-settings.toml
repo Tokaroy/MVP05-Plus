@@ -51,9 +51,11 @@ gamecube_bars = false
 # Sharp pixels: the game drawn at the console's own 640x480 and each pixel enlarged as a crisp block, the look of a
 # GameCube or Xbox in 480p on a TV (crisp text and menus, stepped edges), in place of drawing at your screen's size.
 sharp_pixels = false
-# The GameCube version's sound: the Xbox plays its sounds 6 dB down and the GameCube doesn't; this plays them as
-# loud as the GameCube (its loudest moments rounded off, not clipped), with its slightly narrower stereo.
-gamecube_sound = false
+# The GameCube version's loudness: the Xbox plays its sounds 6 dB down and the GameCube doesn't; this plays them as
+# loud as the GameCube (its loudest moments rounded off, not clipped).
+gamecube_loudness = false
+# The GameCube version's stereo: a little narrower than the Xbox's (the sides about 1.4 to 3 dB lower).
+gamecube_stereo = false
 # The stadium lighting: 0 the Xbox's, 1 the GameCube version's, 2 the PS2 version's (their light sets, from
 # gamecube\datafile.big or ps2\datafile.big, which the Launcher keeps when it reads that disc for the button art).
 console_lighting = 0
