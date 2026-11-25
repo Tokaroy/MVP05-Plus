@@ -1,5 +1,5 @@
 @echo off
-rem The real release's draft (tag beta-3.2.2): see Make-Test-Release.ps1. Publish it on GitHub when ready.
+rem The real release's draft (tag beta-3.3): see Make-Test-Release.ps1. Publish it on GitHub when ready.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Make-Test-Release.ps1" -Final %*
 echo.
 pause

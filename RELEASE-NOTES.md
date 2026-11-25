@@ -1,7 +1,13 @@
-# MVP05-Plus Beta 3.2.2
+# MVP05-Plus Beta 3.3
 
-## Fixed in 3.2.2
-- **Crash when leaving a game:** a rare crash on the way out of a game, which lost the game's result. Fixed.
+## New in 3.3
+- **League News from the game:** *Open League News* in the Tools menu's Dynasty tab (F10) opens your newest dynasty or owner mode's League News in your browser.
+- **League News, past seasons:** a past season's club on a player page opens that club's season page, with the hitting and pitching of the players still in your save.
+- **League News:** the logo goes back to the front page.
+- **480p is real 480p:** with 720p off, the game now runs in progressive 480p, as on an Xbox with HD cables (it was running in 480i).
+
+## Fixed in 3.3
+- **Crash when leaving a game:** a rare crash on the way out of a game, which lost the game's result.
 
 ## Fixed in 3.2.1
 - **League News:** injured players are listed with their current club. A player who had left your organization could still show in your injury report.
