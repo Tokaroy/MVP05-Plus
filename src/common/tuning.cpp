@@ -170,7 +170,7 @@ int SetRecord(std::string& text, const std::string& rec, const Fields& from) {
     return 0;
 }
 
-// The GameCube view's lighting: the GameCube version's light sets (its datafile.big's "gclighting" records, kept by
+// The GameCube lighting (gamecube_lighting): the GameCube version's light sets (its datafile.big's "gclighting" records, kept by
 // the Launcher in gamecube/datafile.big from the GameCube disc) in place of the Xbox's ("xboxlighting"), field by
 // field. They differ in 7 of the 22: the Xbox adds a second light (Light2, and the dugouts') at 02dusk and 04day
 // parks and turns a few others, and its default sets' haze is blue (day) and purple (night) where the GameCube's is
@@ -180,7 +180,7 @@ int GameCubeLighting(bigfile::Archive& big) {
     bigfile::Archive gc;
     std::error_code ec;
     if (!fs::exists(gcp, ec)) {
-        LOGR("graphics: the GameCube view's lighting needs gamecube/datafile.big (the Launcher keeps it when it makes "
+        LOGR("graphics: the GameCube lighting needs gamecube/datafile.big (the Launcher keeps it when it makes "
              "gc_icons from a GameCube disc); the Xbox lighting stays");
         return 0;
     }
@@ -201,7 +201,7 @@ int GameCubeLighting(bigfile::Archive& big) {
         changed += n;
         sets++;
     }
-    LOGR("graphics: the GameCube view: the GameCube's lighting in %d light set%s (%d value%s)", sets,
+    LOGR("graphics: the GameCube lighting in %d light set%s (%d value%s)", sets,
          sets == 1 ? "" : "s", changed, changed == 1 ? "" : "s");
     return changed;
 }
@@ -213,7 +213,7 @@ void Apply() {
     // left is still cleared below)
     std::error_code rm;
     fs::remove(app::ExeDir() / "tweaks" / "data" / "datafile" / "datafile.big", rm);  // last time's, if any
-    if (edits.empty() && !tools::g_gamecube_camera) return;
+    if (edits.empty() && !tools::g_gamecube_lighting) return;
     fs::path src = bigfile::FindAsset({"data", "datafile", "datafile.big"});
     bigfile::Archive big;
     if (src.empty() || !bigfile::Read(src, big)) {
@@ -233,7 +233,7 @@ void Apply() {
             bigfile::SetText(en, text);
         }
     }
-    if (tools::g_gamecube_camera) changed += GameCubeLighting(big);
+    if (tools::g_gamecube_lighting) changed += GameCubeLighting(big);
     if (!changed) {
         if (!edits.empty()) LOGR("tuning: none of the %zu tuning changes found in datafile.txt", edits.size());
         return;

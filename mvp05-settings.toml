@@ -39,10 +39,12 @@ memory_mb = 64
 # Day games in daylight (lighting and sky) at the parks EA lit as dusk: Fenway, Turner Field, Crosley, Forbes,
 # the Polo Grounds, ...
 daylight_parks = false
-# The GameCube version's picture: the game camera's field of view times 0.9 (the field about 10% closer), the
-# picture 448 lines tall in the TV's 480 with thin black bands above and below, and the GameCube's lighting (from
-# gamecube\datafile.big, which the Launcher keeps when it reads a GameCube disc for the button art).
+# The GameCube version's picture: the game camera's field of view times 0.9 (the field about 10% closer), and the
+# picture 448 lines tall in the TV's 480, with thin black bands above and below, as the GameCube draws it.
 gamecube_camera = false
+# The GameCube version's lighting: its light sets in place of the Xbox's (from gamecube\datafile.big, which the
+# Launcher keeps when it reads a GameCube disc for the button art).
+gamecube_lighting = false
 # Rain: 0 as the game (showers in some games at SBC Park, and at Safeco Field at night), 1 the same at every
 # outdoor park, 2 rain in every game.
 rain = 0

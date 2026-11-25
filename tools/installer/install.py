@@ -2160,9 +2160,10 @@ TWEAKS = {
                                      "second-best player model, not its two simplest", None),
         ("daylight_parks", None, "Daylight day games: day lighting and sky at Fenway, Turner Field and the other "
                                  "parks EA lit as dusk", None),
-        ("gamecube_camera", None, "GameCube view: the field about 10% closer, thin black bands above and below and "
-                                  "the GameCube's lighting, as the GameCube version draws it (the lighting needs "
-                                  "the GameCube disc added in Install)", None),
+        ("gamecube_camera", None, "GameCube view: the field about 10% closer and thin black bands above and below, "
+                                  "as the GameCube version draws it", None),
+        ("gamecube_lighting", None, "GameCube lighting: the GameCube version's stadium lighting (needs the GameCube "
+                                    "disc added in Install)", None),
         ("rain", "Rain",
          "The game has rain, but only at SBC Park (day and night) and at Safeco Field at night, as a shower in about "
          "2 games in 9. (test)",
