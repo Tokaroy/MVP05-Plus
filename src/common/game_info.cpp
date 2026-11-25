@@ -34,6 +34,7 @@ const app::GameInfo app::kGame = {
                 {"memory_mb", nullptr, &tools::g_memory_mb},  // the Xbox's RAM: 64 or 128 MB
                 {"player_full_detail", &tools::g_player_full_detail, nullptr},  // every player's most detailed model
                 {"daylight_parks", &tools::g_daylight_parks, nullptr},  // day lighting and sky at the dusk-lit parks
+                {"gamecube_camera", &tools::g_gamecube_camera, nullptr},  // the GameCube version's closer view
                 {"rain", nullptr, &tools::g_rain},  // 1: the game's rain at every outdoor park, 2: in every game  // EA's depth of field, off on the Xbox
                 {"dev_speed", nullptr, &tools::g_dev_speed},  // dynasty data tweaks (dynasty_data.cpp)
                 {"aging", nullptr, &tools::g_aging},

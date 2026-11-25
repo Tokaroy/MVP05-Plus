@@ -14,6 +14,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <cmath>
 #include <cstring>
 
 #include "core/log.h"
@@ -709,6 +710,29 @@ X86_FUNC(sub_002E793D) {
         }
     }
     __imp__sub_002E793D(ctx, base);
+}
+
+// The GameCube view (gamecube_camera). The engine's projection (0x2F7B90, thiscall: the field of view in degrees,
+// a vertical scale, near, far) gets the same cameras on both consoles (datafile.big's are the same), but the
+// GameCube version draws its 3D about 10% closer, with its overlays the same size (measured on the same pitch). The
+// scene's camera (the call at 0x2C20E2) is given the narrower view; the overlays aren't drawn through it, and the
+// picture-in-picture views (0x2C13C4, 0x2C14AF) and the stored re-apply (0x2F839C, which repeats what it was given)
+// keep theirs.
+X86_EXTERN_FUNC(__imp__sub_002F7B90);
+X86_FUNC(sub_002F7B90) {
+    if (tools::g_gamecube_camera && kernel::R32(ctx.esp) == 0x2C20E7) {
+        float fov;
+        uint32_t bits = kernel::R32(ctx.esp + 4);
+        std::memcpy(&fov, &bits, 4);
+        if (fov > 1.0f && fov < 170.0f) {
+            constexpr double kCloser = 1.10, kDeg = 3.14159265358979323846 / 180.0;
+            float tighter = float(2.0 * std::atan(std::tan(fov * kDeg / 2.0) / kCloser) / kDeg);
+            LOG_FIRST(2, "graphics: the GameCube view: the scene's field of view %.2f -> %.2f degrees", fov, tighter);
+            std::memcpy(&bits, &tighter, 4);
+            kernel::W32(ctx.esp + 4, bits);
+        }
+    }
+    __imp__sub_002F7B90(ctx, base);
 }
 
 X86_EXTERN_FUNC(__imp__sub_0019E890);
