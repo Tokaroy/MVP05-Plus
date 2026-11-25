@@ -45,8 +45,8 @@ gamecube_camera = false
 # The GameCube's black bars: the picture 448 lines tall in the TV's 480, with thin black bars above and below, as
 # the GameCube draws it. Made for 480 (4:3); in 720p it still takes the picture's top and bottom 7%.
 gamecube_bars = false
-# The GameCube version's loudness: the Xbox plays its sounds 6 dB down and the GameCube doesn't; this plays them as
-# loud as the GameCube (its loudest moments rounded off, not clipped).
+# The GameCube version's sound: the Xbox plays its sounds 6 dB down and the GameCube doesn't; this plays them as
+# loud as the GameCube (its loudest moments rounded off, not clipped), with its slightly narrower stereo.
 gamecube_sound = false
 # The GameCube version's lighting: its light sets in place of the Xbox's (from gamecube\datafile.big, which the
 # Launcher keeps when it reads a GameCube disc for the button art).

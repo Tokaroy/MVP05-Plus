@@ -2163,7 +2163,7 @@ TWEAKS = {
         ("gamecube_camera", None, "GameCube view: the field about 10% closer, as the GameCube version shows it", None),
         ("gamecube_bars", None, "GameCube bars: thin black bars above and below, as on a GameCube "
                                 "(made for 480, 4:3)", None),
-        ("gamecube_sound", None, "GameCube sound: as loud as the GameCube version (the Xbox plays it 6 dB quieter)",
+        ("gamecube_sound", None, "GameCube sound: as loud as the GameCube version, with its slightly narrower stereo",
          None),
         ("gamecube_lighting", None, "GameCube lighting: the GameCube version's stadium lighting (needs the GameCube "
                                     "disc added in Install)", None),

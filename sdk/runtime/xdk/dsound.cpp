@@ -334,6 +334,14 @@ void Render(float* out, uint32_t frames) {
             v.pos += step;
         }
     }
+    float width = audio::g_output_width.load(std::memory_order_relaxed);
+    if (width != 1.0f) {
+        for (uint32_t i = 0; i < frames; i++) {
+            float mid = (out[i * 2] + out[i * 2 + 1]) * 0.5f, side = (out[i * 2] - out[i * 2 + 1]) * 0.5f * width;
+            out[i * 2] = mid + side;
+            out[i * 2 + 1] = mid - side;
+        }
+    }
     float gain = audio::g_output_gain.load(std::memory_order_relaxed);
     if (gain != 1.0f) {
         // (the GameCube sound: louder; past 0.8 of full scale a soft knee takes the peaks to at most 1)

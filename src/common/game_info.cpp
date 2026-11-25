@@ -57,8 +57,10 @@ const app::GameInfo app::kGame = {
         gpu::g_picture_height = tools::g_gamecube_bars ? 448.0f / 480.0f : 1.0f;
         // the GameCube sound: the Xbox's DirectSound plays each ordinary sound 6 dB down (its default headroom), the
         // GameCube's mixer doesn't; recorded side by side at all-5 volumes the GameCube is 5-6 dB louder, with the
-        // same frequency balance (both stop at 16 kHz) and stereo
+        // same frequency balance (both stop at 16 kHz), and a little narrower: the sides 1.4 dB further below the
+        // middle in the same music, about 3 dB in play
         audio::g_output_gain = tools::g_gamecube_sound ? 2.0f : 1.0f;
+        audio::g_output_width = tools::g_gamecube_sound ? 0.8f : 1.0f;
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
         mods::Load();                      // the mods that are on (mods/mods.txt), for the tweaks to start from
