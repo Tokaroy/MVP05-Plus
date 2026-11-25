@@ -35,6 +35,10 @@ extern std::atomic<int> g_points_request;  // MVP points: 1 asked, 2 done, 3 no 
 extern std::atomic<uint32_t> g_points_amount;
 extern uint32_t g_season_games;  // the schedule's length: counted from schedule.big at start, else season_games
 
+// the display and sound options' effects (bars, sharp pixels, loudness, stereo) from the flags above: at start, and
+// again whenever the Display & Sound tab changes one
+void ApplyDisplaySound();
+
 bool Open();
 // window messages: F10, and Esc closing the menu instead of asking to quit
 bool Message(void* hwnd, uint32_t msg, uintptr_t wp, intptr_t lp, intptr_t* result);

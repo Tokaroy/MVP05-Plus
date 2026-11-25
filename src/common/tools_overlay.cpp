@@ -5,6 +5,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <vector>
 #include <chrono>
 #include <cstdio>
 #include <mutex>
@@ -18,6 +21,8 @@
 #include <windows.h>
 #endif
 #include "app/app.h"
+#include "audio/audio.h"
+#include "gpu/backend.h"
 #include "core/log.h"
 #include "kernel/kernel.h"
 #include "imgui.h"
@@ -47,6 +52,22 @@ std::atomic<int> g_debug_menu_request{0};
 std::atomic<float> g_budget_now{-1.0f}, g_budget_want{0.0f};
 std::atomic<int> g_budget_request{0};
 std::atomic<uint32_t> g_points_amount{10000};
+
+void ApplyDisplaySound() {
+    // the GameCube bars: its NTSC picture is 640x448 (GXAdjustForOverscan by 16 lines, at 0x803D8A90 in its
+    // mvp.elf), shown in the TV's 480 lines with black bands above and below; the game's projection isn't
+    // changed for it, so the whole picture is 448/480 as tall
+    gpu::g_picture_height = g_gamecube_bars ? 448.0f / 480.0f : 1.0f;
+    // sharp pixels: a GameCube in 480p on a TV shows its 640x480 with hard pixel edges (the text and menus
+    // crisp, the field's edges stepped); drawn at the console's own 480 and enlarged in solid blocks to match
+    gpu::g_sharp_pixels = g_sharp_pixels;
+    // the GameCube sound: the Xbox's DirectSound plays each ordinary sound 6 dB down (its default headroom), the
+    // GameCube's mixer doesn't; recorded side by side at all-5 volumes the GameCube is 5-6 dB louder, with the
+    // same frequency balance (both stop at 16 kHz), and a little narrower: the sides 1.4 dB further below the
+    // middle in the same music, about 3 dB in play
+    audio::g_output_gain = g_gamecube_loudness ? 2.0f : 1.0f;
+    audio::g_output_width = g_gamecube_stereo ? 0.8f : 1.0f;
+}
 
 namespace {
 
@@ -414,6 +435,88 @@ void Extras() {
     }
 }
 
+// One setting's line in the settings file given a new value, as the Launcher writes it: the rest of the line (its
+// comment) and every other line kept; a key not there yet goes before the first [section]. Not app::Save, which
+// writes the whole file from memory (its comments gone, and TV 480p's stand-in mode in place of the file's own).
+void SaveSetting(const char* key, const std::string& value) {
+    std::filesystem::path p = app::ExeDir() / app::kGame.settings;
+    std::vector<std::string> lines;
+    {
+        std::ifstream f(p);
+        for (std::string l; std::getline(f, l);) {
+            if (!l.empty() && l.back() == '\r') l.pop_back();
+            lines.push_back(l);
+        }
+    }
+    std::string k = key;
+    bool done = false;
+    for (auto& l : lines) {
+        size_t a = l.find_first_not_of(" \t");
+        if (a == std::string::npos || l.compare(a, k.size(), k) != 0) continue;
+        size_t e = l.find_first_not_of(" \t", a + k.size());
+        if (e == std::string::npos || l[e] != '=') continue;
+        size_t c = l.find('#', e);  // (the values here are numbers and true/false: no # inside one)
+        std::string rest = c == std::string::npos ? "" : "  " + l.substr(c);
+        l = l.substr(0, a) + k + " = " + value + rest;
+        done = true;
+        break;
+    }
+    if (!done) {
+        auto at = std::find_if(lines.begin(), lines.end(), [](const std::string& l) {
+            size_t a = l.find_first_not_of(" \t");
+            return a != std::string::npos && l[a] == '[';
+        });
+        lines.insert(at, k + " = " + value);
+    }
+    std::filesystem::path tmp = p;
+    tmp += ".tmp";
+    {
+        std::ofstream f(tmp, std::ios::trunc);
+        for (auto& l : lines) f << l << "\n";
+        if (!f) {
+            LOGR("tools: couldn't write %s", tmp.string().c_str());
+            return;
+        }
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp, p, ec);
+    if (ec) LOGR("tools: couldn't save %s (%s)", key, ec.message().c_str());
+    else LOGR("tools: %s = %s saved", key, value.c_str());
+}
+
+bool SettingBox(const char* label, const char* key, bool* flag) {
+    if (!ImGui::Checkbox(label, flag)) return false;
+    ApplyDisplaySound();
+    SaveSetting(key, *flag ? "true" : "false");
+    return true;
+}
+
+// Display & Sound: the GameCube options, changed as the game runs and saved to the settings file
+void DisplaySound() {
+    Help("Changes take effect now and are saved, as the Launcher's Graphics and Audio windows would (one already "
+         "open shows the old setting until it's opened again).");
+    SettingBox("GameCube view: the field about 10% closer", "gamecube_camera", &g_gamecube_camera);
+    SettingBox("GameCube bars: thin black bars above and below (made for 480, 4:3)", "gamecube_bars",
+               &g_gamecube_bars);
+    SettingBox("Sharp pixels: drawn at 480, each pixel shown crisp", "sharp_pixels", &g_sharp_pixels);
+    ImGui::Separator();
+    SettingBox("GameCube loudness: as loud as the GameCube version", "gamecube_loudness", &g_gamecube_loudness);
+    SettingBox("GameCube stereo: its slightly narrower stereo", "gamecube_stereo", &g_gamecube_stereo);
+    ImGui::Separator();
+    static const char* kLights[] = {"Xbox (MVP 05 Default)", "GameCube", "PS2"};
+    static uint32_t started = g_console_lighting;  // what this session's stadiums are lit with
+    int pick = int(std::min<uint32_t>(g_console_lighting, 2));
+    ImGui::SetNextItemWidth(260 * g_scale);
+    if (ImGui::Combo("Stadium lighting", &pick, kLights, 3)) {
+        g_console_lighting = uint32_t(pick);
+        SaveSetting("console_lighting", std::to_string(pick));
+    }
+    Help(g_console_lighting != started
+             ? "Saved: the stadium lighting changes the next time the game starts."
+             : "The stadium lighting is set as the game starts: a change here takes effect the next time. The "
+               "GameCube's and the PS2's need that disc added in Install.");
+}
+
 #ifndef XBE_UWP
 // League News from the game: the Launcher beside MVP05.exe makes it for the newest dynasty or owner mode save and
 // opens it in the browser (MVP05-Plus-Launcher.exe --league-news, no Launcher window). It reads the save on disk, so
@@ -588,6 +691,10 @@ void Ui(double) {
             }
             if (ImGui::BeginTabItem("Dynasty")) {
                 Dynasty();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Display & Sound")) {
+                DisplaySound();
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Extras")) {
