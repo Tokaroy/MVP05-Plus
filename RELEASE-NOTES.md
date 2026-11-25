@@ -5,6 +5,14 @@
 - **League News, past seasons:** a past season's club on a player page opens that club's season page, with the hitting and pitching of the players still in your save.
 - **League News:** the logo goes back to the front page.
 - **480p is real 480p:** with 720p off, the game now runs in progressive 480p, as on an Xbox with HD cables (it was running in 480i).
+- **GameCube options** (*Settings → Graphics…* and the new *Audio…*, all off by default):
+  - *GameCube view:* the field about 10% closer, as the GameCube version shows it.
+  - *GameCube bars:* thin black bars above and below, as on a GameCube (made for 480, 4:3).
+  - *Stadium lighting:* the Xbox's, the GameCube's or the PS2's (needs that disc added in Install).
+  - *Sharp pixels:* drawn at 480 with each pixel shown crisp, as a GameCube in 480p on a TV.
+  - *GameCube loudness* and *GameCube stereo* (*Audio…*): as loud as the GameCube version, and its slightly narrower stereo.
+- **GameCube script font:** with GameCube button art, the screen titles are in the GameCube's font (re-add the GameCube disc in Install).
+- **TV 480p** (*Settings*): fullscreen 480p with black bars at the sides, as a console on a widescreen TV.
 
 ## Fixed in 3.3
 - **Crash when leaving a game:** a rare crash on the way out of a game, which lost the game's result.
@@ -36,7 +44,8 @@ League News, mods, Game Tweaks, custom season schedules, short seasons that end 
 - **EA's debug menu** (F10 → *Extras*): the developers' own menu. It can break a game in progress (being tested).
 - **Game Tweaks** (all off by default):
   - *Dynasty adjustments* (*Tools*): pitcher rest (five-man rotation), injury length, player development, aging, retirement, contract demands, re-signing and star rookies.
-  - *Graphics…* (*Settings*): more detailed players away from the play, day games in daylight at dusk-lit parks, and rain at any outdoor park.
+  - *Graphics…* (*Settings*): more detailed players away from the play, day games in daylight at dusk-lit parks, rain at any outdoor park, and the GameCube options.
+  - *Audio…* (*Settings*): GameCube loudness and stereo.
   - *Mods* tab: double the game's memory (64 MB to 128 MB) for larger mods.
 - **In-game Tools (F10):** *Extras* adds Unlock everything and MVP points. *Dynasty* sets the Owner Mode bank balance and payroll budget, and can hold your manager rating.
 
