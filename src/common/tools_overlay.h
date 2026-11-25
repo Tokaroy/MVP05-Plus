@@ -13,7 +13,7 @@ extern uint32_t g_injury_length;  // percent of the game's own injury lengths in
 extern uint32_t g_memory_mb;  // the Xbox's RAM: 64 (as the console) or 128, with the game's heap grown to match
 extern uint32_t g_rain;  // 0 the game's own (rain at SBC Park, Safeco at night), 1 at every outdoor park, 2 in every game
 extern bool g_gamecube_sound;  // the GameCube version's loudness (6 dB more)
-extern bool g_gamecube_bars;  // the GameCube's 448-line picture, black above and below
+extern uint32_t g_gamecube_picture;  // the GameCube's 448-line picture: 0 off, 1 as on a TV, 2 as Dolphin shows it
 extern uint32_t g_console_lighting;  // the stadium lighting: 0 the Xbox's, 1 the GameCube's, 2 the PS2's
 extern bool g_gamecube_camera;  // the game's 3D view as tight as the GameCube version's (about 10% closer)
 extern bool g_daylight_parks;  // day games in daylight at the parks EA lit as dusk (Fenway, ...): lighting and sky
