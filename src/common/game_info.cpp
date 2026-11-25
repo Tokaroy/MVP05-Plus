@@ -1,6 +1,7 @@
 #include <filesystem>
 
 #include "app/app.h"
+#include "gpu/backend.h"
 #include "kernel/memory.h"
 #include "../game/gc_controls.h"
 #include "save_backup.h"
@@ -46,6 +47,10 @@ const app::GameInfo app::kGame = {
     .save = nullptr,                      // writes more into it
     .init = [] {                           // after the settings load, before the window and boot
         mem::SetPhysicalSize(tools::g_memory_mb);  // the Xbox's RAM, before boot maps it
+        // the GameCube view: its NTSC picture is 640x448 (GXAdjustForOverscan by 16 lines, at 0x803D8A90 in its
+        // mvp.elf), shown in the TV's 480 lines with black bands above and below; the game's projection isn't
+        // changed for it, so the whole picture is 448/480 as tall
+        gpu::g_picture_height = tools::g_gamecube_camera ? 448.0f / 480.0f : 1.0f;
         saves::Backup();                   // the saves as they were, before this session touches them
         season::FromSchedule();            // the season's length: the games in the installed schedule
         mods::Load();                      // the mods that are on (mods/mods.txt), for the tweaks to start from

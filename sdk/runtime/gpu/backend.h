@@ -64,6 +64,9 @@ inline std::atomic<uint64_t> g_perf_sync_late{0}, g_perf_sync_block{0};  // read
 
 // F3: save the next frame, every draw and target, under diag::CaptureDir
 inline std::atomic<bool> g_capture{false};
+// the share of the picture's height the game's frame fills, centred with black above and below (the GameCube
+// view: 448 of 480 lines, as the GameCube version draws on a TV)
+inline std::atomic<float> g_picture_height{1.0f};
 // frames shown a second, as the backend last counted them
 inline std::atomic<double> g_fps{0};
 // frames that took 25 ms or more (a hitch at 60 fps), and the longest, in microseconds: taken (and reset) by the reader
