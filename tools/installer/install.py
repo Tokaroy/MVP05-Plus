@@ -671,6 +671,23 @@ def gui(root):
             art.configure(image=art.picture)
         except Exception:  # no picture is fine: the rest of the tab is as it was
             pass
+    # a holiday's message, with its emoji, under what's installed (holidays.py): only on the day
+    holiday = ttk.Label(ready, compound="left", font=("Segoe UI", 11, "bold"), foreground="#1a5fb4")
+
+    def show_holiday():
+        import holidays
+        h = holidays.today()
+        if not h:
+            holiday.grid_remove()
+            return
+        name, text = h
+        folder = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "holiday")
+        try:
+            holiday.picture = tk.PhotoImage(file=os.path.join(folder, name + ".png"))
+        except tk.TclError:
+            holiday.picture = None
+        holiday.configure(text=("  " if holiday.picture else "") + text, image=holiday.picture or "")
+        holiday.grid(row=5, column=0, columnspan=2, sticky="w", pady=(12, 0))
     rb = ttk.Frame(ready)
     rb.grid(row=6, column=0, columnspan=3, sticky="we", pady=(16, 0))
     launch = ttk.Button(rb, text="Launch MVP 05")
@@ -858,6 +875,7 @@ def gui(root):
             tab.columnconfigure(0, weight=1)
             show_art()
             show_potd()
+            show_holiday()
             show_news_from()
             back.pack(side="left")
             labels["xbox"].configure(text="Xbox disc (installed: leave empty, or choose one to install again)")
