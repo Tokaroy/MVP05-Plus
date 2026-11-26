@@ -36,7 +36,7 @@ for sub in ("gc_layout", "ps2_layout", "saves", os.path.join("saves", "mvp05", "
 
 import discs  # noqa: E402
 
-VERSION = "Beta 3.3"
+VERSION = "Beta 3.3.1"
 VERSION = os.environ.get("MVP05_TEST_VERSION") or VERSION  # Test-Updater.cmd: pretend to be older
 GAME = "MVP05-Plus"
 
@@ -671,14 +671,12 @@ def gui(root):
             art.configure(image=art.picture)
         except Exception:  # no picture is fine: the rest of the tab is as it was
             pass
-    # a holiday's message, with its emoji, under what's installed (holidays.py): only on the day
-    holiday = ttk.Label(ready, compound="left", font=("Segoe UI", 11, "bold"), foreground="#1a5fb4")
 
     def show_holiday():
         import holidays
         h = holidays.today()
         if not h:
-            holiday.grid_remove()
+            holiday.place_forget()
             return
         name, text = h
         folder = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "holiday")
@@ -687,9 +685,19 @@ def gui(root):
         except tk.TclError:
             holiday.picture = None
         holiday.configure(text=("  " if holiday.picture else "") + text, image=holiday.picture or "")
-        holiday.grid(row=5, column=0, columnspan=2, sticky="w", pady=(12, 0))
+        holiday.place(relx=1.0, rely=0.5, anchor="e")
+        holiday.lift()
+
+        def fit():  # too narrow a window for the words beside the buttons: the emoji alone
+            if holiday.picture and rb.winfo_width() - holiday.winfo_reqwidth() < \
+                    change.winfo_x() + change.winfo_width() + 12:
+                holiday.configure(text="")
+        w.after(200, fit)
     rb = ttk.Frame(ready)
     rb.grid(row=6, column=0, columnspan=3, sticky="we", pady=(16, 0))
+    # a holiday's message, with its emoji (holidays.py), only on the day: at the right end of the Launch button's
+    # row, laid over it (place), so it never changes the tab's size or moves anything
+    holiday = ttk.Label(rb, compound="left", font=("Segoe UI", 11, "bold"), foreground="#1a5fb4")
     launch = ttk.Button(rb, text="Launch MVP 05")
     launch.pack(side="left", ipadx=18, ipady=6)
     change = ttk.Button(rb, text="Add or change button art, or reinstall…")

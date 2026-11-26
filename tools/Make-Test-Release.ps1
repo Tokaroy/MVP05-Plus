@@ -7,9 +7,9 @@ MVP05-Plus: a test release, made the way a real one is, in your Downloads folder
   4. puts the repository on your GitHub as a PRIVATE repository (MVP05-Plus-test; -Final: MVP05-Plus) and runs
      the "release tools" build there
      (MVP05-Plus-Launcher.exe, gcbridge), then downloads them
-  5. packs MVP05-Plus-Beta-3.3.zip as a release is packed, with Mad Dog's three runtime DLLs from his Beta 3 zip
+  5. packs MVP05-Plus-Beta-3.3.1.zip as a release is packed, with Mad Dog's three runtime DLLs from his Beta 3 zip
   6. makes a DRAFT release on GitHub with it (only you can see a draft)
-  7. unzips that zip into Downloads\MVP05-Plus-Beta-3.3, as a player would, and opens it; if a test install with the
+  7. unzips that zip into Downloads\MVP05-Plus-Beta-3.3.1, as a player would, and opens it; if a test install with the
      game installed is already there, it replaces only its program files instead (game files, saves and settings
      stay)
 
@@ -22,9 +22,9 @@ param(
     [string]$Downloads = (Join-Path $env:USERPROFILE "Downloads"),
     [string]$GameDir = "",          # your current MVP05 folder (with assets\default.xbe); asked for if not given
     [string]$RepoName = "",         # default: MVP05-Plus for -Final, a private MVP05-Plus-test for a test
-    [string]$Version = "Beta 3.3",  # (the source's own version is used when this isn't given)
+    [string]$Version = "Beta 3.3.1",  # (the source's own version is used when this isn't given)
     [switch]$SkipBuild,             # use the MVP05.exe already built in the work folder
-    [switch]$Final,                 # the real release's draft: tag beta-3.3, no "(test)" (still a draft until you publish)
+    [switch]$Final,                 # the real release's draft: tag beta-3.3.1, no "(test)" (still a draft until you publish)
     [switch]$Refresh                # with -Final, on a release that's already published: rebuild and replace its zip,
                                     # keeping the release itself (its page, notes and version)
 )
@@ -226,7 +226,7 @@ try {
 
         if ($Final) {
             # a release that's already published stays as it is (its downloads and link): this run only updates the
-            # repository. A new release needs a new version name (-Version "Beta 3.3").
+            # repository. A new release needs a new version name (-Version "Beta 3.3.1").
             $draft = (& gh release view $tag --json isDraft --jq ".isDraft" 2>$null)
             if ($LASTEXITCODE -eq 0 -and "$draft".Trim() -eq "false" -and $Refresh) {
                 $script:refresh = $true
@@ -236,7 +236,7 @@ try {
                 Write-Host ""
                 Write-Host "Done: the repository on GitHub is up to date." -ForegroundColor Green
                 Write-Host "  $title is already published, so it was left as it is (no new build or release)."
-                Write-Host "  For a new release, run with a new version: Make-Final-Release.cmd -Version ""Beta 3.3"""
+                Write-Host "  For a new release, run with a new version: Make-Final-Release.cmd -Version ""Beta 3.3.1"""
                 return
             }
         }

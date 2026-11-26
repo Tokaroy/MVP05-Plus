@@ -3,8 +3,8 @@ Tk can't show colour emoji as text).
 
   today(day)   (picture name, message) on a holiday, else None
 
-New Year's Eve and Day, Easter Sunday, the 4th of July, Thanksgiving (the 4th Thursday of November), Christmas Eve
-and Day.
+New Year's Eve and Day, Opening Day, Easter Sunday, the 4th of July, Thanksgiving (the 4th Thursday of November),
+Christmas Eve and Day.
 """
 import datetime
 
@@ -28,13 +28,28 @@ def thanksgiving(year):
     return first + datetime.timedelta(days=(3 - first.weekday()) % 7 + 21)
 
 
+# Opening Day as MLB set it (its first full day of games, past any overseas opener), by year
+OPENING_DAYS = {2025: datetime.date(2025, 3, 27), 2026: datetime.date(2026, 3, 26),
+                2027: datetime.date(2027, 3, 24)}  # 2027: as scheduled in July 2026, if the labour deal allows
+
+
+def opening_day(year):
+    """MLB's Opening Day: as set, or for a year not in OPENING_DAYS its usual day, the Thursday from March 25 to 31."""
+    if year in OPENING_DAYS:
+        return OPENING_DAYS[year]
+    first = datetime.date(year, 3, 25)
+    return first + datetime.timedelta(days=(3 - first.weekday()) % 7)
+
+
 def today(day=None):
     day = day or datetime.date.today()
     md = (day.month, day.day)
     if md == (12, 31):
         return "newyear", "Happy New Year's Eve!"
     if md == (1, 1):
-        return "newyear", f"Happy New Year! Welcome to {day.year}."
+        return "newyear", "Happy New Year!"
+    if day == opening_day(day.year):
+        return "openingday", "Happy Opening Day!"
     if day == easter(day.year):
         return "easter", "Happy Easter!"
     if md == (7, 4):
