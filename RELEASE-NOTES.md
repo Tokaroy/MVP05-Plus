@@ -13,7 +13,7 @@
   - *GameCube loudness* and *GameCube stereo* (*Audio…*): as loud as the GameCube version, and its slightly narrower stereo.
 - **GameCube script font:** with GameCube button art, the screen titles are in the GameCube's font (re-add the GameCube disc in Install).
 - **TV 480p** (*Settings*): fullscreen 480p with black bars at the sides, as a console on a widescreen TV.
-- **Display & Sound in the game** (F10): the GameCube options change while you play, and are saved. Stadium lighting changes the next time the game starts.
+- **Display & Sound in the game** (F10 → *Display & Sound*): the GameCube options change while you play, and are saved. Stadium lighting changes the next time the game starts.
 
 ## Fixed in 3.3
 - **Crash when leaving a game:** a rare crash on the way out of a game, which lost the game's result.
