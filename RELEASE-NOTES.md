@@ -1,7 +1,6 @@
 # MVP05-Plus Beta 3.3.1
 
 ## New in 3.3.1
-- **Holidays in the Launcher:** a message with its emoji on the Play tab on New Year's Eve and Day, Opening Day, Easter, the 4th of July, Thanksgiving, and Christmas Eve and Day.
 - **Team Changer on a saved dynasty:** in the Launcher (*Tools → Team Changer*), take over another organization in a dynasty or owner mode save with the game closed, as the Playoffs Editor can. The save is backed up first.
 
 ## New in 3.3
