@@ -647,8 +647,8 @@ def gui(root):
         dog.configure(image=dog.picture)
         dog.place(relx=1.0, rely=1.0, x=-12, y=-20 - news_box.winfo_height(), anchor="se")  # (above League News)
         dog.lift()
-        for x in (pad_adapter, pad_others):
-            x.configure(wraplength=380)
+        for x in (pad_adapter, pad_others):  # short of the picture (a wide one is 200 px)
+            x.configure(wraplength=360)
 
     def hide_dog(*_):
         dog.place_forget()

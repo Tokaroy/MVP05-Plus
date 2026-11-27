@@ -2,6 +2,7 @@
 
 ## New in 3.3.1
 - **Holidays in the Launcher:** a message with its emoji on the Play tab on New Year's Eve and Day, Opening Day, Easter, the 4th of July, Thanksgiving, and Christmas Eve and Day.
+- **More dogs:** the dogs from MVP06-Plus join the dogs behind the title art on the Play tab.
 
 ## New in 3.3
 - **League News from the game:** *Open League News* in the Tools menu's Dynasty tab (F10) opens your newest dynasty or owner mode's League News in your browser.
