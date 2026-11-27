@@ -684,15 +684,24 @@ def gui(root):
             holiday.picture = tk.PhotoImage(file=os.path.join(folder, name + ".png"))
         except tk.TclError:
             holiday.picture = None
-        holiday.configure(text=("  " if holiday.picture else "") + text, image=holiday.picture or "")
+        holiday.words = ("  " if holiday.picture else "") + text
+        holiday.configure(text=holiday.words, image=holiday.picture or "")
         holiday.place(relx=1.0, rely=0.5, anchor="e")
         holiday.lift()
+        fit_holiday()
 
-        def fit():  # too narrow a window for the words beside the buttons: the emoji alone
-            if holiday.picture and rb.winfo_width() - holiday.winfo_reqwidth() < \
-                    change.winfo_x() + change.winfo_width() + 12:
-                holiday.configure(text="")
-        w.after(200, fit)
+    def fit_holiday(*_):
+        # too narrow a row for the words beside the buttons: the emoji alone. Measured whenever the row is laid out
+        # (its size known only once the window is shown), the words back when there's room again
+        words = getattr(holiday, "words", "")
+        if not words or rb.winfo_width() <= 1:
+            return
+        room = rb.winfo_width() - (change.winfo_x() + change.winfo_width() + 12)
+        holiday.configure(text="")
+        need = holiday.winfo_reqwidth()  # (the picture alone)
+        holiday.configure(text=words)
+        if holiday.picture and holiday.winfo_reqwidth() > room >= need:
+            holiday.configure(text="")
     rb = ttk.Frame(ready)
     rb.grid(row=6, column=0, columnspan=3, sticky="we", pady=(16, 0))
     # a holiday's message, with its emoji (holidays.py), only on the day: at the right end of the Launch button's
@@ -701,6 +710,7 @@ def gui(root):
     launch = ttk.Button(rb, text="Launch MVP 05")
     launch.pack(side="left", ipadx=18, ipady=6)
     change = ttk.Button(rb, text="Add or change button art, or reinstall…")
+    rb.bind("<Configure>", fit_holiday, add="+")
     change.pack(side="left", padx=10)
     launch_note = ttk.Label(ready, text="", foreground="#a33", wraplength=520, justify="left")
     # gridded only when there's something to say, so its empty line doesn't push the rest down
