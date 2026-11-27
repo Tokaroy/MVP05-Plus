@@ -3577,47 +3577,77 @@ def tools_tab(tabs, root, tk, ttk):
 
 
 def team_changer_tool(frm, root, tk, ttk):
-    """Team Changer (tywiggins'): the organization the dynasty's player controls, changed in the running game."""
+    """Team Changer (tywiggins'): the organization the dynasty's player controls, changed in the running game or in
+    a dynasty or owner mode save."""
+    import saves05 as S
     import team_changer as TC
 
     ttk.Label(frm, text="Team Changer", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
     ttk.Label(frm, foreground="#666", wraplength=540, justify="left", text=(
-        "Take over another organization in your dynasty or owner mode. With the game running and the save loaded: find "
-        "it here, pick the organization, and take control. Then save in the game to keep it. The same tool is in "
-        "the game's Tools menu (F10).")).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 10))
+        "Take over another organization in your dynasty or owner mode: find it here, pick the organization, and take "
+        "control. In the running game, save in the game afterwards to keep it. The same tool is in the game's "
+        "Tools menu (F10).")).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
+    how = tk.StringVar(value="game")
+    ttk.Radiobutton(frm, variable=how, value="game", text="In the running game").grid(row=2, column=0, columnspan=3,
+                                                                                       sticky="w")
+    ttk.Radiobutton(frm, variable=how, value="save", text="In a saved dynasty, with the game closed:").grid(
+        row=3, column=0, columnspan=2, sticky="w")
+    save_box = ttk.Combobox(frm, state="readonly", width=34)
+    save_box.grid(row=3, column=2, sticky="w", padx=(6, 0))
     find_b = ttk.Button(frm, text="Find the save")
-    find_b.grid(row=2, column=0, sticky="w")
+    find_b.grid(row=4, column=0, sticky="w", pady=(8, 0))
     now = ttk.Label(frm, text="")
-    now.grid(row=2, column=1, columnspan=2, sticky="w", padx=10)
+    now.grid(row=4, column=1, columnspan=2, sticky="w", padx=10, pady=(8, 0))
     box = ttk.Combobox(frm, state="disabled", width=24, values=list(TC.ORGS))
-    box.grid(row=3, column=0, sticky="w", pady=(10, 0))
+    box.grid(row=5, column=0, sticky="w", pady=(10, 0))
     take = ttk.Button(frm, text="Take control", state="disabled")
-    take.grid(row=3, column=1, sticky="w", padx=10, pady=(10, 0))
+    take.grid(row=5, column=1, sticky="w", padx=10, pady=(10, 0))
     note = ttk.Label(frm, wraplength=540, justify="left")
-    note.grid(row=4, column=0, columnspan=3, sticky="w", pady=(10, 0))
+    note.grid(row=6, column=0, columnspan=3, sticky="w", pady=(10, 0))
     ttk.Label(frm, foreground="#888", text="Based on tywiggins' MVP 2005 Team Changer.").grid(
-        row=5, column=0, columnspan=3, sticky="w", pady=(16, 0))
-    found = {}
+        row=7, column=0, columnspan=3, sticky="w", pady=(16, 0))
+    found, saves = {}, []
 
     def say(text, colour="#555"):
         note.configure(text=text, foreground=colour)
 
-    def look():
+    def load_saves(*_):
+        saves[:] = [x for x in S.list_saves(root) if x["type"] in ("Dynasty", "Owner Mode")]
+        save_box.configure(values=[f"{x['name']} ({when_text(x['when'])})" for x in saves])
+        if saves and save_box.current() < 0:
+            save_box.current(0)
+        if not saves:
+            save_box.set("(no dynasty saves yet)")
+
+    def reset(*_):
         found.clear()
+        now.configure(text="")
         take.configure(state="disabled")
         box.configure(state="disabled")
-        try:
-            h, addr, org = TC.find()
-        except TC.TeamError as e:
-            now.configure(text="")
-            return say(f"{e}.", "#a33")
-        import ctypes
-        ctypes.windll.kernel32.CloseHandle(h)
-        found.update(addr=addr, org=org)
-        now.configure(text=f"You control: the {TC.ORGS[org]}")
-        box.configure(state="readonly")
-        box.current(org)
         say("")
+
+    def look():
+        reset()
+        if how.get() == "save":
+            if save_box.current() < 0 or not saves:
+                return say("Pick a dynasty or owner mode save first.", "#a33")
+            folder = saves[save_box.current()]["folder"]
+            try:
+                got = TC.read_save(folder)
+            except (TC.TeamError, S.SaveError, OSError) as e:
+                return say(f"{e}.", "#a33")
+            found.update(where="save", folder=folder, org=got["org"])
+        else:
+            try:
+                h, addr, org = TC.find()
+            except TC.TeamError as e:
+                return say(f"{e}.", "#a33")
+            import ctypes
+            ctypes.windll.kernel32.CloseHandle(h)
+            found.update(where="game", addr=addr, org=org)
+        now.configure(text=f"You control: the {TC.ORGS[found['org']]}")
+        box.configure(state="readonly")
+        box.current(found["org"])
         pick()
 
     def pick(*_):
@@ -3625,19 +3655,32 @@ def team_changer_tool(frm, root, tk, ttk):
 
     def go():
         org = box.current()
-        try:
-            h, addr, cur = TC.find()
-            TC.change(h, addr, org)
-        except TC.TeamError as e:
-            return say(f"Not changed: {e}.", "#a33")
-        found.update(addr=addr, org=org)
+        if found.get("where") == "save":
+            try:
+                TC.change_save(root, found["folder"], org, say=lambda t: None)
+            except (TC.TeamError, S.SaveError, OSError) as e:
+                return say(f"Not changed: {e}.", "#a33")
+            done = f"Done: the save controls the {TC.ORGS[org]} (the save was backed up first)."
+        else:
+            try:
+                h, addr, cur = TC.find()
+                TC.change(h, addr, org)
+            except TC.TeamError as e:
+                return say(f"Not changed: {e}.", "#a33")
+            found.update(addr=addr)
+            done = f"Done: you control the {TC.ORGS[org]}. Save the dynasty in the game to keep it."
+        found.update(org=org)
         now.configure(text=f"You control: the {TC.ORGS[org]}")
         pick()
-        say(f"Done: you control the {TC.ORGS[org]}. Save the dynasty in the game to keep it.", "#1a7f37")
+        say(done, "#1a7f37")
 
     find_b.configure(command=look)
     take.configure(command=go)
     box.bind("<<ComboboxSelected>>", pick)
+    how.trace_add("write", reset)
+    save_box.bind("<<ComboboxSelected>>", reset)
+    load_saves()
+    return load_saves  # (the saves listed again each time the page is opened)
     return None
 
 

@@ -5,6 +5,11 @@ the game's memory (its name, its 0, then the database's 0xBB filler) and the con
 0xC5B1C bytes on: on the PC. The Xbox game lays the database out the same, with its memory blocks 16 bytes
 further on past the database files, so here it's 0xC5B2C (checked in memory captures; the Tools menu in the game
 does the same, src/common/dbtools.cpp). Windows only.
+
+In a save, with the game closed (read_save, change_save): the same organization id, 8 bytes into the user section
+(marker 4 in a dynasty, 6 in an owner mode; budget05 and League News read it there). A dynasty saved before and
+after the in-game Team Changer (Royals to Dodgers) differs there and nowhere else that's the team's: the rest is the
+game's own memory addresses, saved as they were in each session, and a few bytes of what was played that session.
 """
 import os
 import struct
@@ -71,3 +76,51 @@ def change(h, addr, org):
             raise TeamError("couldn't write to the game's memory")
     finally:
         ctypes.windll.kernel32.CloseHandle(h)
+
+
+def _save(folder):
+    import owner05 as OW
+    import saves05 as S
+    C, _ = S._lib()
+    with open(os.path.join(folder, "data.dat"), "rb") as f:
+        xf = f.read()
+    m = C.parse_xbox(xf)
+    if m.get("typ") not in ("Dynasty", OW.TYP):
+        import dynasty05 as DY
+        raise TeamError(f"that's {DY.a_kind(m.get('typ'))} save: the Team Changer works on dynasty and owner mode saves")
+    marks = OW.markers(m["payload"])
+    if len(marks) not in (7, 9):
+        raise TeamError("not a dynasty or owner mode this reads (its sections aren't there)")
+    at = marks[len(marks) - 3] + 8
+    org = struct.unpack_from("<I", m["payload"], at)[0]
+    if org not in IDS:
+        raise TeamError("the save's team isn't one of the 30 organizations: not a save this reads")
+    return C, xf, m, at, IDS.index(org)
+
+
+def read_save(folder):
+    """{name, org}: the save's name and the index in ORGS of the organization it controls."""
+    _, _, m, _, org = _save(folder)
+    return dict(name=m["name"], org=org)
+
+
+def change_save(root, folder, org, say=print):
+    """Control given to ORGS[org] in a dynasty or owner mode save: the game closed, the save backed up first."""
+    import saves05 as S
+    S._check_not_running()
+    C, xf, m, at, cur = _save(folder)
+    if not C.verify_xbox(xf):
+        raise TeamError("that save's signature doesn't check out; it's left as it is")
+    if org == cur:
+        return
+    p = bytearray(m["payload"])
+    struct.pack_into("<I", p, at, IDS[org])
+    out = C.build_xbox(xf, dict(name=m["name"], typ=m["typ"], flags=m["flags"], payload=bytes(p)))
+    if not C.verify_xbox(out):
+        raise TeamError("the changed save didn't pass its signature check; nothing written")
+    b = S.backup_folder(root, folder, "team changer")
+    say(f"Backed up the save to {os.path.relpath(b, root)}")
+    dat = os.path.join(folder, "data.dat")
+    with open(dat + ".part", "wb") as f:
+        f.write(out)
+    os.replace(dat + ".part", dat)
